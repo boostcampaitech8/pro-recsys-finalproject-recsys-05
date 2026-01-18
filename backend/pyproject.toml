@@ -1,0 +1,36 @@
+[project]
+name = "backend-recsys"
+version = "0.1.0"
+description = "백엔드와 추천엔진이 공유하는 poetry 공간입니다"
+authors = [
+    {name = "rlaqudwn1", email = "162764129+rlaqudwn1@users.noreply.github.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+
+# [project].dependencies 대신 tool.poetry 쪽으로 옮기는 것이 특수 소스 관리하기 좋습니다.
+dependencies = [
+    "fastapi>=0.128.0",
+    "uvicorn>=0.40.0",
+    "pandas>=2.2.0",
+]
+
+[tool.poetry]
+# 여기에 소스를 명시합니다.
+package-mode = false  # 라이브러리가 아닌 애플리케이션일 때 추가
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+# ★ 핵심: 다른 도구들도 여기서 관리하거나, 섞이지 않게 주의해야 합니다.
+# 팁: torch만 여기에 따로 적지 말고 모든 의존성을 위나 여기 한 곳으로 몰아주세요.
+torch = {version = "2.2.0", source = "torch-cpu"}
+torchvision = {version = "0.17.0", source = "torch-cpu"}
+
+[[tool.poetry.source]]
+name = "torch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
