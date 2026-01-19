@@ -15,18 +15,21 @@ else
     echo "Docker가 이미 설치되어 있습니다."
 fi
 
-# 1. 최신 이미지 당겨오기 
-sudo docker pull rlaqudwn/rec-server:latest
+# 0.7 Docker Compose 설치 확인 (없으면 설치)
+if ! command -v docker-compose &> /dev/null
+then
+    echo "Docker Compose가 없습니다. 설치를 시도합니다..."
+    sudo apt-get install -y docker-compose-plugin
+fi
 
-# 2. 기존 컨테이너 삭제
-sudo docker rm -f backend-prod
+# 1. (생략) 배포 파일은 SCP 등으로 업로드되었다고 가정
+# git pull origin main (삭제됨)
 
-# 3. 다시 띄우기
-sudo docker run -d \
-  -p 8000:8000 \
-  --name backend-prod \
-  --restart always \
-  rlaqudwn/rec-server:latest # 항상 latest를 바라보지만, 내용은 갱신됨
+# 2. 최신 이미지 당겨오기 (docker-compose.prod.yml 기반)
+sudo docker-compose -f docker-compose.prod.yml pull
+
+# 3. 서비스 재시작 (변경된 이미지만 새로 띄움)
+sudo docker-compose -f docker-compose.prod.yml up -d
 
 # 4. 안 쓰는 구버전 이미지 청소
 sudo docker image prune -f
