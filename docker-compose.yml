@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # 1. 우리의 주인공 (FastAPI)
+  backend:
+    build: . # 현재 폴더의 Dockerfile로 빌드
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://myuser:mypassword@db:5432/mydatabase
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+
+  # 2. 영원한 도서관 (PostgreSQL)
+  db:
+    image: postgres:15-alpine # 가벼운 알파인 버전
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # 데이터 영구 보존의 핵심!
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=mydatabase
+    ports:
+      - "5432:5432" # 로컬 테스트용 (실배포시는 막는게 좋음)
+
+  # 3. 속도의 제왕 (Redis)
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+# 데이터를 담을 마법 주머니 (볼륨) 정의
+volumes:
+  postgres_data:
