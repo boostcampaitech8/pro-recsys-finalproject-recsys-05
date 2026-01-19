@@ -136,4 +136,5 @@ jobs:
             echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
             
             # 배포 스크립트 실행
+            chmod +x ./deploy.sh
             ./deploy.sh
