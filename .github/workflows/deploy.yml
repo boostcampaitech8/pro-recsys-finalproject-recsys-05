@@ -90,3 +90,50 @@ jobs:
         # 위에서 만든 메타 태그들을 한방에 적용
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
+
+  # ---------------------------------------------------
+  # [자동 배포: SSH 접속 후 스크립트 실행]
+  # ---------------------------------------------------
+  deploy:
+    needs: pipeline  # 빌드가 성공하면 실행
+    if: github.event_name != 'pull_request'  # PR일 때는 배포 안 함 (Push일 때만)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 1. Tailscale 네트워크 합류 (VPN 접속)
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # 2. 설정 파일 전송 (SCP)
+      - name: Copy files via SCP
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          source: "deploy.sh,docker-compose.prod.yml"
+          target: "/home/${{ secrets.SSH_USERNAME }}/"
+
+      # 3. SSH 접속 후 스크립트 실행
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SSH_HOST }} # Tailscale IP or Name
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            # .env 파일 생성 (환경변수 주입 - sudo 호환성 위해 파일로 저장)
+            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > .env
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+            
+            # 배포 스크립트 실행
+            ./deploy.sh
