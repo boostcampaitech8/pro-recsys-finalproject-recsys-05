@@ -1,43 +1,81 @@
-# RecServer Project
+# 📚 Pro RecSys - Book Rating Prediction
 
-추천 시스템 백엔드 서비스입니다.
+부스트캠프 AI Tech 8기 RecSys 05조의 최종 프로젝트 백엔드 레포지토리입니다.
+FastAPI를 기반으로 추천 시스템 모델 서빙 및 비지니스 로직을 처리합니다.
 
-## 🚀 시작 가이드 (Quick Start)
+## � 기술 스택 (Tech Stack)
 
-### 1. 로컬 개발 (Development)
+- **Language**: Python 3.11
+- **Framework**: FastAPI
+- **Database**: PostgreSQL, Redis
+- **Dependency Manager**: uv
+- **Infrastructure**: Docker, Docker Compose, GitHub Actions
 
-내 컴퓨터에서 코드를 수정하고 바로바로 확인하고 싶을 때 사용합니다.
-현재 폴더의 소스 코드를 빌드(`build: .`)해서 실행합니다.
+## �🚀 시작 가이드 (Quick Start)
+
+### 1. 환경 설정 (Prerequisites)
+
+이 프로젝트는 Docker 환경에서 실행하는 것을 권장합니다.
+
+- Docker & Docker Compose 설치
+
+### 2. 로컬 개발 환경 실행 (Development)
+
+내 컴퓨터에서 코드를 수정하고 바로 확인하는 모드입니다.
+현재 폴더의 소스 코드를 빌드하여 컨테이너를 실행합니다.
 
 ```bash
-# 실행 (빌드 포함)
+# 실행 (이미지 빌드 및 컨테이너 실행)
 docker-compose up --build
 
-# 종료
-docker-compose down
+# 백그라운드 실행
+docker-compose up --build -d
+
+# 실행 확인
+# 브라우저에서 http://localhost:8000/docs 접속 (Swagger UI)
+# DB 연결 확인: http://localhost:8000/health/db
 ```
 
-### 2. 서버 배포 (Production)
+### 3. 서버 배포 환경 실행 (Production)
 
-실제 운영 서버(GCP 등)에서 사용합니다.
-Docker Hub에 올라간 안정적인 버전(`image: rlaqudwn/rec-server:latest`)을 다운로드해서 실행합니다.
-
-```bash
-# 실행 (이미지 다운로드 및 실행)
-docker-compose -f docker-compose.prod.yml up -d
-
-# 로그 확인
-docker-compose -f docker-compose.prod.yml logs -f
-
-# 종료
-docker-compose -f docker-compose.prod.yml down
-```
-
-### 3. 배포 스크립트 사용
-
-간편한 배포를 위해 `deploy.sh` 스크립트를 사용할 수도 있습니다.
+실제 운영 서버(GCP 등)에서 사용하는 모드입니다.
+GitHub Actions(CI/CD)를 통해 Docker Hub에 업로드된 안정된 이미지를 다운로드하여 실행합니다.
 
 ```bash
+# 배포 스크립트 실행 (권장)
 chmod +x deploy.sh
 ./deploy.sh
+
+# 또는 수동 실행
+docker-compose -f docker-compose.prod.yml up -d
 ```
+
+---
+
+## 📂 프로젝트 구조 (Project Structure)
+
+```
+.
+├── backend/            # FastAPI 백엔드 메인 코드
+│   ├── app/
+│   │   ├── main.py     # 앱 진입점 (엔드포인트 정의)
+│   │   └── database.py # DB 연결 설정 (SQLAlchemy)
+│   └── pyproject.toml  # 의존성 관리 설정 (uv)
+├── configs/            # 모델 및 서버 설정 파일
+├── ml_rec/             # 추천 모델 관련 코드 (Inference)
+├── .github/workflows/  # CI/CD 설정 (GitHub Actions)
+├── docker-compose.yml  # [개발용] 로컬 빌드 설정
+├── docker-compose.prod.yml # [배포용] 이미지 풀 설정
+└── deploy.sh           # 간편 배포 스크립트
+```
+
+## 🔄 CI/CD 파이프라인
+
+1. **GitHub Actions**: `main` 브랜치 푸시 또는 `v*` 태그 생성 시 동작
+2. **Docker Hub**: 빌드된 이미지가 `rlaqudwn/rec-server`로 업로드됨
+3. **Deployment**: 서버에서 `deploy.sh`를 실행하여 최신 이미지로 갱신
+
+## 💾 데이터베이스 연결
+
+- **Local**: `localhost:5432` (PostgreSQL), `localhost:6379` (Redis)
+- **Container**: 서비스명 `db`, `redis`를 호스트네임으로 사용하여 통신
