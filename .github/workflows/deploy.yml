@@ -108,7 +108,6 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
 
       # 2. 설정 파일 전송 (SCP)
       - name: Copy files via SCP
