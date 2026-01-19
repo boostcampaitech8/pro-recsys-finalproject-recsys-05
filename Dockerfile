@@ -25,6 +25,9 @@ FROM python:3.11-slim-bookworm AS runner
 
 WORKDIR /app
 
+# 0. 헬스체크용 curl 설치 (docker-compose에서 사용)
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # 1. 빌드 스테이지에서 설치된 가상환경(.venv) 복사
 COPY --from=builder /app/.venv /app/.venv
 

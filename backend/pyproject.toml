@@ -13,6 +13,8 @@ dependencies = [
     "pandas>=2.2.0",
     "torch==2.2.0",
     "torchvision==0.17.0",
+    "sqlalchemy>=2.0.45",
+    "psycopg2-binary>=2.9.11",
 ]
 
 # [tool.uv] 섹션에서 패키지 소스(Index)를 관리합니다.
