@@ -19,7 +19,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # (중간 생략: Python 세팅, Pytest 등은 동일) ...
+    # ---------------------------------------------------
+    # [검증: Docker Compose로 실행 및 헬스 체크]
+    # PR 및 모든 푸시에서 실행되어, 서버가 정상적으로 DB에 붙는지 테스트합니다.
+    # ---------------------------------------------------
+    - name: Build and Run with Docker Compose
+      run: |
+        docker-compose up --build -d
+        echo "Waiting for services to start..."
+        sleep 20  # DB 초기화 및 서버 구동 대기
+
+    - name: Check Health (Integration Test)
+      run: |
+        # 5번 재시도 (총 50초 대기)
+        for i in {1..5}; do
+          if curl -f http://localhost:8000/health/db; then
+            echo "Health Check Passed!"
+            exit 0
+          fi
+          echo "Retrying... ($i/5)"
+          sleep 10
+        done
+        echo "Health Check Failed!"
+        # 실패 시 로그 출력 (디버깅용)
+        docker-compose logs
+        exit 1
+
+    - name: Tear Down
+      if: always()
+      run: docker-compose down
 
     # ---------------------------------------------------
     # [태그 이름 추출]
