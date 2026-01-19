@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+.idea/
+.vscode/
+.DS_Store
+
+# docker volumes(로컬 파일로 잡는 경우)
+.pgdata/
