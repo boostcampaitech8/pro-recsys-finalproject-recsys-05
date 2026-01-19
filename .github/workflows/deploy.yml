@@ -25,7 +25,7 @@ jobs:
     # ---------------------------------------------------
     - name: Build and Run with Docker Compose
       run: |
-        docker-compose up --build -d
+        docker compose up --build -d
         echo "Waiting for services to start..."
         sleep 20  # DB 초기화 및 서버 구동 대기
 
@@ -42,12 +42,12 @@ jobs:
         done
         echo "Health Check Failed!"
         # 실패 시 로그 출력 (디버깅용)
-        docker-compose logs
+        docker compose logs
         exit 1
 
     - name: Tear Down
       if: always()
-      run: docker-compose down
+      run: docker compose down
 
     # ---------------------------------------------------
     # [태그 이름 추출]
