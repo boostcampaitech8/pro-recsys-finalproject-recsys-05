@@ -2,6 +2,8 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from google.cloud import storage
+import redis
 
 # 1. 환경 변수에서 DB 주소 가져오기
 # (Docker Compose에서 DATABASE_URL을 넣어줍니다)

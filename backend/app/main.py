@@ -5,13 +5,15 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from backend.app.database import get_db
+from contextlib import asynccontextmanager
+import redis 
 
 app = FastAPI()
 
 @app.get("/")
 def health_check():
     return {"status": "ok"}
-
+@asy
 @app.get("/health/db")
 def health_check_db(db: Session = Depends(get_db)):
     try:
