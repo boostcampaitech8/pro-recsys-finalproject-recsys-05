@@ -14,3 +14,9 @@ build/
 
 # docker volumes(로컬 파일로 잡는 경우)
 .pgdata/
+
+# ml_rec 데이터 파일
+ml_rec/dataset/
+ml_rec/scripts/saved/
+ml_rec/scripts/log/
+ml_rec/scripts/log_tensorboard/

@@ -1,0 +1,18 @@
+model: LightGCN
+dataset: steam
+data_path: ../dataset
+field_separator: ","
+USER_ID_FIELD: user_id
+ITEM_ID_FIELD: item_id
+RATING_FIELD: rating
+load_col:
+  inter: [user_id, item_id, rating]
+threshold:
+  rating: 0.5
+metrics: ['Recall', 'MRR', 'NDCG', 'Hit', 'Precision']
+topk: [10, 20]
+valid_metric: NDCG@10
+train_neg_sample_args:
+  strategy: full
+  by: 1
+epochs: 50
