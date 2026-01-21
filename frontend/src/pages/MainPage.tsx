@@ -7,22 +7,33 @@ export default function MainPage() {
   return (
     <div className="w-full max-w-360 mx-auto px-12 min-h-screen flex flex-col text-center items-center pt-20 pb-28 gap-6">
       {/* 상단: 로고 및 인사말 */}
-      <div className="w-full">
+      <div className="w-full flex flex-col items-center">
         <img
-          src={budocki as string}
+          src={budocki}
           alt="Logo"
           className="w-14 h-auto m-auto"
           loading="lazy"
         />
         <p className="text-white mb-2">Budocki</p>
-        <h1 className="text-5xl font-bold text-white mb-8">
+        <h1 className="text-5xl font-bold text-white mb-2">
           Welcome to TailorPlay!
         </h1>
-        <p className="text-xl text-slate-300 mb-10">
+
+        <p className="text-l text-slate-300 mb-4">
           A personalized Steam game recommendation chatbot.
         </p>
 
-        <div className="mt-10 flex gap-5 text-slate-300 p-6 bg-[#2D3338] rounded-lg shadow-lg">
+        <div className="w-50 flex items-end gap-2 justify-center bg-[#212529]">
+          <input
+            id="searchInput"
+            type="text"
+            className="w-full border-0 border-b p-1 text-center border-slate-400 outline-none text-sm text-slate-300 placeholder-slate-400"
+            placeholder="Your Steam ID"
+          />
+          <p className="text-slate-400 text-sm">⮐</p>
+        </div>
+
+        <div className="w-full mt-10 flex gap-5 text-slate-300 p-6 bg-[#2D3338] rounded-lg shadow-lg">
           <div className="w-32 h-32 bg-slate-600 rounded-lg flex items-center justify-center">
             1번 게임
           </div>
@@ -42,14 +53,14 @@ export default function MainPage() {
       <div className="mt-10 text-slate-300 flex flex-col gap-6 w-full flex-1">
         {style ? (
           <button
-            className="self-end text-sm text-blue-400 underline"
+            className="self-end text-sm text-slate-400 underline"
             onClick={() => setStyle(false)}
           >
             스타일 개선 보기
           </button>
         ) : (
           <button
-            className="self-end text-sm text-blue-400 underline"
+            className="self-end text-sm text-slate-400 underline"
             onClick={() => setStyle(true)}
           >
             기존 스타일 보기
@@ -64,7 +75,7 @@ export default function MainPage() {
           <input
             id="searchInput"
             type="text"
-            className="border-0 border-b-2 p-2 text-center border-slate-400 outline-none text-slate-300 bg-transparent placeholder-slate-400"
+            className="border-0 border-b-2 p-2 text-center border-slate-400 outline-none text-slate-300 placeholder-slate-400"
             placeholder="What kind of games are you looking for?"
           />
         </div>
@@ -166,9 +177,7 @@ export function NewRecommendationView() {
                   <span className="text-blue-400 font-bold text-lg">
                     #{game.num}
                   </span>
-                  <h3 className="text-xl font-bold text-white">
-                    {game.title}
-                  </h3>
+                  <h3 className="text-xl font-bold text-white">{game.title}</h3>
                 </div>
                 <p className="text-slate-300 mt-2 text-sm">{game.desc}</p>
               </div>
