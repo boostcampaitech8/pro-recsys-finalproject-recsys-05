@@ -4,16 +4,18 @@ from fastapi import FastAPI, Depends
 # from ml_rec.inference import get_recommendations  <-- 파일 삭제됨
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from backend.app.database import get_db
+from app.database import get_db
 from contextlib import asynccontextmanager
 import redis 
+from app.routers import test
 
 app = FastAPI()
+
+app.include_router(test.router)
 
 @app.get("/")
 def health_check():
     return {"status": "ok"}
-@asy
 @app.get("/health/db")
 def health_check_db(db: Session = Depends(get_db)):
     try:

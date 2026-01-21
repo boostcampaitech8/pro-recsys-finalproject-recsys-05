@@ -7,30 +7,33 @@ from google.cloud import storage
 def get_gcs_client():
     # 1. 환경변수 'GCS_KEY_BASE64' 가져오기
     encoded_key = os.getenv("GCS_KEY_BASE64")
-    # local_path입니다 배포시 gcs문제가 생기면 백엔드로 연락주세요
+    
+    # local_path: 현재 파일(storage.py) 위치 기준 -> app -> backend -> root (gcs_key.json)
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    key_path= os.path.join(current_dir,"..","..","gcs_key.json")
+    # backend/app/storage.py 이므로 '..'을 두 번 올라가야 프로젝트 루트입니다
+    key_path = os.path.join(current_dir, "..", "..", "gcs_key.json")
+    
     # 2. 환경변수가 있으면(CI/CD 환경):
-    #    - Base64 디코딩 -> JSON 파싱 -> credentials 생성 -> Client 반환
     if encoded_key:
-        key=base64.b64decode(encoded_key).decode('utf-8')
-        key_json=json.loads(key)
+        print("환경변수 GCS_KEY_BASE64를 사용합니다.")
+        # Base64 디코딩 (bytes) -> UTF-8 디코딩 (str) -> JSON 로드 (dict)
+        key_decoded = base64.b64decode(encoded_key).decode('utf-8')
+        key_json = json.loads(key_decoded)
         
-        credentials=service_account.Credentials.from_service_account_info(key_json)
+        credentials = service_account.Credentials.from_service_account_info(key_json)
         client = storage.Client(credentials=credentials)
         return client
-        pass
 
     # 3. 환경변수가 없으면(로컬 환경):
-    #    - 로컬 'gcs_key.json' 경로 찾기 -> Credentials 생성 -> Client 반환
     else:
+        print(f"로컬 키 파일({key_path})을 사용합니다.")
         try:
-            with open(key_path, "r")as f:
+            with open(key_path, "r") as f:
                 key_json = json.load(f)
-                
             
-            credentials=service_account.Credentials.from_service_account_info(key_json)
-            client=storage.Client(credentials=credentials)
+            credentials = service_account.Credentials.from_service_account_info(key_json)
+            client = storage.Client(credentials=credentials)
+            return client
+            
         except FileNotFoundError:
-            raise FileNotFoundError("로컬 인증 파일이 없습니다")
-        return client
+            raise FileNotFoundError(f"로컬 GCS 인증 파일이 없습니다: {key_path}")
