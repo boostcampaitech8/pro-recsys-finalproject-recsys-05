@@ -3,6 +3,9 @@
 # 0. 시스템 패키지 리스트 업데이트 (사용자 요청)
 sudo apt-get update
 
+# Use a fixed Compose project name to avoid duplicate stacks.
+export COMPOSE_PROJECT_NAME=recsys
+
 # 0.5. Docker 설치 확인 및 설치
 if ! command -v docker &> /dev/null
 then
@@ -29,7 +32,7 @@ fi
 sudo docker-compose -f docker-compose.prod.yml pull
 
 # 3. 서비스 재시작 (변경된 이미지만 새로 띄움)
-sudo docker-compose -f docker-compose.prod.yml up -d
+sudo docker-compose -f docker-compose.prod.yml up -d --force-recreate
 
 # 4. 안 쓰는 구버전 이미지 청소
 sudo docker image prune -f

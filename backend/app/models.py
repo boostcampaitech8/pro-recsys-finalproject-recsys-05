@@ -6,7 +6,7 @@ class Game(Base):
     __tablename__ = "games"
 
     # Steam App ID (Not Auto-increment) - index=True는 검색 속도를 위해 필수
-    game_id = Column(Integer, primary_key=True, index=True) 
+    App_id = Column(Integer, primary_key=True, index=True) 
     
     # title: Text (Some titles are very long)
     title = Column(Text, nullable=False)

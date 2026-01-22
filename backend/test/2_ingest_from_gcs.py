@@ -1,6 +1,8 @@
 import sys
 import os
 import io
+import time
+
 
 # 1. 환경 설정 (backend 폴더를 sys.path에 추가하여 app 모듈 접근 가능하게 함)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -10,23 +12,31 @@ sys.path.append(parent_dir)
 # 0. 로컬 테스트를 위한 DB 설정 (Docker Compose 환경과 일치)
 os.environ["DATABASE_URL"] = "postgresql://myuser:mypassword@127.0.0.1:5432/mydatabase"
 
+## 파이썬 객체로 이루어져 있기에 데이터를 Parquet -> 파이썬 리스트 -> SQL Alchemy 객체로 변환한다
+# Session과 ORM을 
+
 # TODO: 필요한 패키지 임포트
 import pandas as pd
 import numpy as np
 from app.storage import get_gcs_client
 from app.database import SessionLocal, engine
+from sqlalchemy import text # text 임포트 추가
 from models import Game, Base  # test/models.py 에서 가져옴
+
 
 # 상수 정의
 BUCKET_NAME = "data-tailor-test"
 SOURCE_BLOB_NAME = "raw/games.parquet"
 
 def ingest_from_gcs():
-    print("Starting ingestion process...")
+    print("Starting ingestion process (Pandas + ORM)...")
+    
     
     try:
+
         # TODO 1: GCS에서 데이터 다운로드 (메모리 버퍼 사용 권장)
         client = get_gcs_client()
+        start_time = time.time()
         bucket = client.bucket(BUCKET_NAME)
         blob = bucket.get_blob(SOURCE_BLOB_NAME)
         data_bytes = blob.download_as_string()
@@ -34,9 +44,16 @@ def ingest_from_gcs():
         df = pd.read_parquet(buffer)
         print(f"Loaded {len(df)} rows from GCS.")
         
+        
         # TODO 3: DB 테이블 생성 (test/models.py의 스키마 기반)
+        # 먼저 pgvector 확장을 DB에 설치합니다. (없으면 에러남)
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
+
         Base.metadata.drop_all(bind=engine)
         Base.metadata.create_all(bind=engine)
+
         
         # TODO 4: 데이터 DB 적재 (Bulk Insert 또는 Iteration)
         db = SessionLocal()
@@ -69,7 +86,10 @@ def ingest_from_gcs():
             
         db.commit()
         db.close()
+        end_time = time.time()
         print("Ingestion complete!")
+        print(f"Pandas + ORM Ingestion Execution Time: {end_time - start_time:.2f} seconds")
+
         
     except Exception as e:
         print(f"Error: {e}")
