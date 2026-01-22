@@ -1,6 +1,8 @@
 model: BPR
+device: cuda          # GPU 사용
+gpu_id: '0'           # GPU ID
 dataset: steam
-data_path: ../dataset
+data_path: ../dataset/
 field_separator: ","
 USER_ID_FIELD: user_id
 ITEM_ID_FIELD: item_id
@@ -12,7 +14,16 @@ threshold:
 metrics: ['Recall', 'MRR', 'NDCG', 'Hit', 'Precision']
 topk: [10, 20]
 valid_metric: NDCG@10
+train_batch_size: 2048
+eval_batch_size: 2048
+worker: 4
+
 train_neg_sample_args:
-  strategy: full
+  strategy: uniform
   by: 1
 epochs: 50
+eval_args:
+  split: {'RS': [0.8, 0.1, 0.1]} # 8:1:1 랜덤 분할
+  group_by: user                # 유저별로 데이터를 나눔
+  order: RO                     # 데이터 순서를 섞음
+  mode: full                    # 테스트 시에는 모든 아이템을 대상으로 순위 매김 (중요!)

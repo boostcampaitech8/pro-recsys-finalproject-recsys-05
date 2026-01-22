@@ -17,6 +17,12 @@ build/
 
 # ml_rec 데이터 파일
 ml_rec/dataset/
+
+ml_rec/scripts/inference/saved/
+ml_rec/scripts/inference/log
+ml_rec/scripts/inference/log_tensorboard/
+
 ml_rec/scripts/saved/
-ml_rec/scripts/log/
+ml_rec/scripts/log
 ml_rec/scripts/log_tensorboard/
+
