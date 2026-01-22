@@ -1,5 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, Numeric, ARRAY
 from sqlalchemy.dialects.postgresql import TSVECTOR
+from pgvector.sqlalchemy import Vector
+
 from app.database import Base
 
 # 실험용 Game 모델 (Test Folder)
@@ -25,9 +27,11 @@ class Game(Base):
     genres = Column(ARRAY(String))
     tags = Column(ARRAY(String))
     
-    # embedding: vector(768) - pgvector 설치 필요 (일단 주석 처리 추천)
-    # embedding = Column(Vector(768))
+    # embedding: vector(768) - pgvector 설치 필요
+    embedding = Column(Vector(768))
 
-    # ts_title: TSVector (검색용)
-    ts_title = Column(TSVECTOR)
+    # search_vector: TSVector (태그 + 장르 + 설명 검색용)
+    # 실제 데이터 채우기는 DB Trigger나 별도 업데이트 로직이 필요합니다.
+    search_vector = Column(TSVECTOR)
+
     
