@@ -17,4 +17,8 @@ build/
 *.txt
 *.parquet
 *.pth
-
+# ml_rec 데이터 파일
+ml_rec/dataset/
+ml_rec/scripts/saved/
+ml_rec/scripts/log/
+ml_rec/scripts/log_tensorboard/
