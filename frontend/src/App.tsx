@@ -3,7 +3,7 @@ import MainPage from "./pages/MainPage";
 
 function App(): ReactElement {
   return (
-    <div className="bg-[#212529]">
+    <div className="bg-slate-900">
       <MainPage />
     </div>
   );
