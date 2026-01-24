@@ -35,7 +35,7 @@ export function GameListBox() {
           <>
             {/* 모달 오버레이 */}
             <div
-              className="fixed inset-0 bg-black/50 z-40"
+              className="fixed inset-0 bg-black/50 z-50"
               onClick={() => setSelectedGame(null)}
             />
             {/* 모달 */}
