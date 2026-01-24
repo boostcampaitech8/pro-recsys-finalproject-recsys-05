@@ -1,6 +1,6 @@
 export function SearchGuide() {
   return (
-    <div className="mt-1 p-4 bg-slate-800 rounded-lg border-l-4 border-emerald-400 animate-fade-in-up">
+    <div className="p-4 bg-slate-800 rounded-lg border-l-4 border-emerald-400 animate-fade-in-up">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-lg">💡</span>
         <span className="text-xs text-slate-400 font-semibold">
