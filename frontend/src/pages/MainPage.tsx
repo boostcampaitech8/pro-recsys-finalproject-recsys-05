@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Header } from "@/pages/components/Header";
-import { InputSteamID } from "@/pages/components/InputSteamID";
 import { GameListBox } from "@/pages/components/GameListBox";
 import { LLMAnswerBox } from "@/pages/components/LLMAnswerBox";
 import { InputGameSearch } from "@/pages/components/InputGameSearch";
@@ -23,7 +22,6 @@ export default function MainPage() {
   return (
     <div className="w-full max-w-360 mx-auto px-12 min-h-screen flex flex-col text-center items-center pt-20 pb-28 gap-6 bg-slate-900 text-emerald-300">
       <Header />
-      <InputSteamID />
       <GameListBox />
 
       <div className="w-full mt-auto">
