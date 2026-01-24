@@ -20,13 +20,17 @@ export default function MainPage() {
   };
 
   return (
-    <div className="w-full max-w-360 mx-auto px-12 min-h-screen flex flex-col text-center items-center pt-20 pb-28 gap-6 bg-slate-900 text-emerald-300">
-      <Header />
-      <GameListBox />
+    <div className="w-full min-h-screen flex flex-col bg-slate-900 text-emerald-300">
+      <div className="w-full bg-linear-to-b from-emerald-900/40 to-slate-900/20 py-20 text-center">
+        <Header />
+      </div>
+      <div className="w-full max-w-360 mx-auto px-12 flex flex-col text-center items-center pb-28 gap-6">
+        <GameListBox />
 
-      <div className="w-full mt-auto">
-        {hasSearched && showAnswerBox && <LLMAnswerBox searchQuery={searchQuery} onClose={handleCloseAnswerBox} />}
-        <InputGameSearch onSearch={handleSearch} />
+        <div className="w-full mt-auto">
+          {hasSearched && showAnswerBox && <LLMAnswerBox searchQuery={searchQuery} onClose={handleCloseAnswerBox} />}
+          <InputGameSearch onSearch={handleSearch} />
+        </div>
       </div>
     </div>
   );
