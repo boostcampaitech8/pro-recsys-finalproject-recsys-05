@@ -22,10 +22,6 @@ export function InputGameSearch({ onSearch }: InputGameSearchProps) {
     }
   };
 
-  const handleCloseAnswerBox = () => {
-    setShowAnswerBox(false);
-  };
-
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleSearch();
@@ -41,7 +37,6 @@ export function InputGameSearch({ onSearch }: InputGameSearchProps) {
             {showAnswerBox && (
               <LLMAnswerBox
                 searchQuery={searchQuery}
-                onClose={handleCloseAnswerBox}
               />
             )}
             {isFocused && <SearchGuide />}

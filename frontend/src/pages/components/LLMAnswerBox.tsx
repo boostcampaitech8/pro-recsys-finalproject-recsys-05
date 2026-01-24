@@ -1,22 +1,10 @@
-import { useState } from "react";
-
 interface LLMAnwerBoxProps {
   searchQuery: string;
-  onClose: () => void;
 }
 
-export function LLMAnswerBox({ searchQuery, onClose }: LLMAnwerBoxProps) {
-  const [isClosing, setIsClosing] = useState(false);
-
+export function LLMAnswerBox({ searchQuery }: LLMAnwerBoxProps) {
   // TODO: searchQuery를 백엔드 API 호출에 사용할 예정
   console.log("Search query:", searchQuery);
-
-  const handleClose = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      onClose();
-    }, 300);
-  };
 
   const games = [
     {
@@ -47,7 +35,7 @@ export function LLMAnswerBox({ searchQuery, onClose }: LLMAnwerBoxProps) {
 
   return (
     <div
-      className={`flex flex-col text-start w-full gap-4 ${isClosing ? "animate-fade-out-down" : "animate-fade-in-up"}`}
+      className={"flex flex-col text-start w-full gap-4 animate-fade-in-up"}
     >
       {/* LLM 답변 */}
       <div className="bg-slate-800 p-4 rounded-lg border-l-4 border-emerald-400">
