@@ -22,10 +22,6 @@ export function InputGameSearch({ onSearch }: InputGameSearchProps) {
     }
   };
 
-  const handleCloseAnswerBox = () => {
-    setShowAnswerBox(false);
-  };
-
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleSearch();
@@ -36,12 +32,11 @@ export function InputGameSearch({ onSearch }: InputGameSearchProps) {
     <div className="mt-auto px-12">
       {(showAnswerBox || isFocused) && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-40" />
-          <div className="fixed bottom-28 left-0 right-0 w-full max-w-360 mx-auto px-12 z-50 flex flex-col gap-2 max-h-[60vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/50 z-20" />
+          <div className="fixed bottom-28 left-0 right-0 w-full max-w-360 mx-auto px-12 z-40 flex flex-col gap-2 max-h-[60vh] overflow-y-auto">
             {showAnswerBox && (
               <LLMAnswerBox
                 searchQuery={searchQuery}
-                onClose={handleCloseAnswerBox}
               />
             )}
             {isFocused && <SearchGuide />}
@@ -50,7 +45,7 @@ export function InputGameSearch({ onSearch }: InputGameSearchProps) {
       )}
 
       <div
-        className={`fixed bottom-0 left-0 right-0 w-full max-w-360 mx-auto px-12 flex items-end gap-5 justify-center pb-10 z-50 ${showAnswerBox || isFocused ? "bg-transparent" : "bg-slate-900"}`}
+        className={`fixed bottom-0 left-0 right-0 w-full max-w-360 mx-auto px-12 flex items-end gap-5 justify-center pb-10 z-40 ${showAnswerBox || isFocused ? "bg-transparent" : "bg-slate-900"}`}
       >
         <div className="flex flex-col w-full">
           <input
