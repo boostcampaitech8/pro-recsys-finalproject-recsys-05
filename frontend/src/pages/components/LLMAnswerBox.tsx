@@ -46,23 +46,16 @@ export function LLMAnswerBox({ searchQuery, onClose }: LLMAnwerBoxProps) {
   ];
 
   return (
-    <div className={`flex flex-col text-start max-h-screen overflow-y-auto w-full gap-4 ${isClosing ? "animate-fade-out-down" : "animate-fade-in-up"}`}>
+    <div
+      className={`flex flex-col text-start w-full gap-4 ${isClosing ? "animate-fade-out-down" : "animate-fade-in-up"}`}
+    >
       {/* LLM 답변 */}
       <div className="bg-slate-800 p-4 rounded-lg border-l-4 border-emerald-400">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🤖</span>
-            <span className="text-xs text-slate-400 font-semibold">
-              TailorPlay AI 분석 결과
-            </span>
-          </div>
-          <button
-            onClick={handleClose}
-            className="text-emerald-500 hover:text-emerald-300 transition-colors cursor-pointer text-2xl rotate-180 mr-2"
-            aria-label="Close"
-          >
-            ⌃
-          </button>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-lg">🤖</span>
+          <span className="text-xs text-slate-400 font-semibold">
+            TailorPlay AI 분석 결과
+          </span>
         </div>
         <div className="space-y-2">
           <p className="text-slate-200 text-sm leading-relaxed">
