@@ -37,7 +37,7 @@ class UserService:
         # 1. 중복 체크
         existing_user = await self.repository.get_user_by_steam_id(user_in.steam_id)
         if existing_user:
-            logger.info(f"User already exists: {user_in.steam_id}")ㅔp
+            logger.info(f"User already exists: {user_in.steam_id}")
             raise HTTPException(status_code=409, detail="User already exists")
         
         # 2. 없으면 생성

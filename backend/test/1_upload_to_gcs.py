@@ -2,13 +2,8 @@ import sys
 import os
 import io
 
-# 1. 필요한 패키지 임포트 (pandas, app.storage 등)
-# TODO: pandas 임포트
 import pandas as pd
-# TODO: app.storage에서 get_gcs_client 임포트 (경로 설정 필요)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# 경로 설정 (backend 폴더를 sys.path에 추가)
-# from app.storage import ... # (여기서 임포트 하세요)
 from app.storage import get_gcs_client
 
 # 상수 정의
@@ -20,9 +15,7 @@ def upload_to_gcs():
     print(f"Loading data from {DATA_PATH}...")
     
     try:
-        # TODO 1: Pandas로 Parquet 데이터 다운로드/로드 (read_parquet)
 
-        # 현재 스크립트 위치(test/)에 data 폴더가 있으므로, 절대 경로로 변환하여 안전하게 접근
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, DATA_PATH)
         
