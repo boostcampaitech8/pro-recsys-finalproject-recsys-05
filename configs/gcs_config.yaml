@@ -1,0 +1,22 @@
+gcs:
+  bucket_name: "data-tailor-test"
+  project_id: "pro-recsys-finalproject-recsys-05"
+
+# GCS 저장 경로 (Bucket Root 기준)
+paths:
+  raw_data: "raw"        # 원본 데이터 저장 폴더 (예: gs://bucket/raw/...)
+  processed_data: "processed" # 가공된 데이터
+  models: "models"       # 모델 저장 폴더
+
+# 로컬 데이터 기본 경로 (스크립트 실행 위치 기준)
+local:
+  data_root: "app/data"      # 로컬 데이터 폴더 (backend/app/data)
+  files:
+    games: 
+      path: "steam_games_info.jsonl"
+      destination: "raw/steam_games_info.jsonl"
+    # users: "raw/users.csv"   # 예: backend/data/raw/users.csv
+
+versioning:
+  use_timestamp: true    # 업로드 시 파일명에 타임스탬프 자동 추가
+  timestamp_format: "%Y%m%d_%H%M%S"
