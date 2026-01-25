@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.domains.user.schemas import UserCreate, UserResponse
+from app.domains.user.schemas import UserCreate, UserResponse, UserUpdate
 from app.domains.user.service import UserService
 from app.domains.user.repository import UserRepository
 
@@ -29,3 +29,18 @@ async def get_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@router.patch("/{steam_id}", response_model=UserResponse)
+async def update_user(
+    steam_id: str,
+    user_in: UserUpdate,
+    service: UserService = Depends(get_user_service)
+):
+    return await service.update_user(steam_id, user_in)
+
+@router.delete("/{steam_id}", status_code=204)
+async def delete_user(
+    steam_id: str,
+    service: UserService = Depends(get_user_service)
+):
+    await service.delete_user(steam_id)

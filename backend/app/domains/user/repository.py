@@ -31,5 +31,23 @@ class UserRepository:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def update_user(self, user: User) -> User:
+        try:
+            await self.db.commit()
+            await self.db.refresh(user)
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        return user
+
+    async def delete_user(self, user: User) -> None:
+        try:
+            await self.db.delete(user)
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
 
 

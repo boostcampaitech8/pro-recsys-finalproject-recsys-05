@@ -7,6 +7,12 @@ class UserCreate(BaseModel):
     pass
 
 
+class UserUpdate(BaseModel):
+    steam_id : str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class UserResponse(BaseModel):
     steam_id : str
     user_id : int

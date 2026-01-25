@@ -4,23 +4,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.core.database import get_db
 from app.domains.user.router import router as user_router
+from app.routers.test import router as test_router
+from app.routers.health import router as health_router
+from app.domains.user import models as user_models
+from app.domains.chat import models as chat_models
 
 
 app = FastAPI()
 
+app.include_router(health_router, prefix="/health", tags=["health"])
 app.include_router(user_router, prefix="/api/v1/users", tags=["users"])
+app.include_router(test_router, prefix="/test", tags=["test"])
 
 @app.get("/")
-def health_check():
-    return {"status": "ok"}
-
-@app.get("/health/db")
-async def health_check_db(db: AsyncSession = Depends(get_db)):
-    try:
-        await db.execute(text("SELECT 1"))
-        return {"status": "ok", "message": "Database connection successful"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+def root():
+    return {"status": "ok", "message": "Pro RecSys Backend API"}
 
 @app.get("/rec/{user_id}")
 def recommend(user_id: int):
