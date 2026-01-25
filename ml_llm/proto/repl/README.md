@@ -14,8 +14,8 @@
 graph LR
     User[User] <--> UI[Streamlit App]
     UI <--> Core[LangChain RAG]
-    Core <--> |Retrieve| DB[(PostgreSQL\npgvector)]
-    Core <--> |Generate| LLM[Ollama\n(Llama 3.2)]
+    Core <--> |Retrieve| DB[("PostgreSQL\npgvector")]
+    Core <--> |Generate| LLM["Ollama\n(Llama 3.2)"]
     
     Ingestion[db_ingest.py] --> |Batch Insert| DB
 ```
@@ -55,16 +55,25 @@ graph LR
 
 ## 📂 디렉토리 구조
 ```text
-proto/repl/
-├── app.py              # Streamlit 엔트리포인트
-├── core/               # RAG 로직 (Recommender, Chain)
-├── ui/                 # UI 컴포넌트 (Sidebar, Chat)
-├── scripts/            # 데이터 유틸리티 (DB Ingesiton)
-├── data/               # 임베딩 데이터 (Parquet)
-├── models/             # HuggingFace 모델 캐시
-├── Dockerfile          # App/Ingestion 이미지 정의
-├── docker-compose.yml  # 서비스 오케스트레이션
-└── .gitignore          # Git 설정
+ml_llm/ (Root)
+├── execute.sh          # 실행 스크립트 (Mac/Linux 통합)
+├── pyproject.toml      # 의존성 관리
+├── uv.lock             # 의존성 잠금 파일
+├── .dockerignore       # Docker 빌드 제외 설정
+├── raw_to_doc.py       # (전처리) Parquet -> JSONL 변환
+├── doc_to_vector_local.py # (임베딩) 로컬 벡터 생성
+├── run_*.sh            # 전처리/임베딩 실행 쉘 스크립트
+└── proto/repl/         # 챗봇 프로토타입 디렉토리
+    ├── app.py              # Streamlit 엔트리포인트
+    ├── docker-compose.yml  # 서비스 오케스트레이션
+    ├── Dockerfile          # App/Ingestion 이미지 정의
+    ├── core/               # RAG 로직 (Recommender, Chain)
+    ├── ui/                 # UI 컴포넌트 (Sidebar, Chat)
+    ├── scripts/            # DB Ingestion 유틸리티
+    ├── data/               # 임베딩 데이터 (Parquet)
+    ├── models/             # HuggingFace 모델 캐시
+    ├── logs/               # 실행 로그
+    └── .gitignore          # Git 설정
 ```
 
 ## 🛠️ 개발 가이드
