@@ -14,7 +14,7 @@ from sentence_transformers import SentenceTransformer
 class EmbeddingEngine:
     """
     로컬 임베딩 모델을 관리하는 래퍼 클래스입니다.
-    Python 3.13+ 문법을 준수하며, 하드웨어 가속(CUDA, MPS)을 지원합니다.
+    Python 3.10+ 문법을 준수하며, 하드웨어 가속(CUDA, MPS)을 지원합니다.
     """
     def __init__(self, model_id: str, device: str = "auto", use_fp16: bool = True):
         self.model_id = model_id
@@ -152,7 +152,7 @@ def run_embedding_pipeline(
 # 3. Entry Point
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Step 2: Doc to Vector (Local, Python 3.13+)")
+    parser = argparse.ArgumentParser(description="Step 2: Doc to Vector (Local, Python 3.10+)")
     
     parser.add_argument("--input", type=Path, required=True, help="Input JSONL file path")
     parser.add_argument("--output_dir", type=Path, default=Path("./data/vectors"), help="Directory to save parquet")
