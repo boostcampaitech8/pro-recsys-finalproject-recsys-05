@@ -2,22 +2,29 @@ import os
 import httpx
 import asyncio
 import logging
-from fastapi import HTTPException
+import json
+from pathlib import Path
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 # 로거 설정
 logger = logging.getLogger(__name__)
 
-# 환경 변수에서 API 키 로드 (없으면 None)
+# 데이터 저장 경로 설정 (backend/data/)
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
+LATEST_GAMES_FILE = DATA_DIR / "latest_games.json"
+
+# Steam API Key 호출
 STEAM_API_KEY = os.getenv("STEAM_API_KEY")
 
 
 async def safe_request(
     url: str, params: dict, client: httpx.AsyncClient = None, retries: int = 3
 ):
-    """
-    API 요청을 안전하게 수행합니다. (재시도 및 예외 처리 포함)
-    """
-    if not os.getenv("STEAM_API_KEY"):
+    """API 요청을 안전하게 수행합니다."""
+    if not STEAM_API_KEY:
         logger.error("환경 변수에 STEAM_API_KEY가 없습니다.")
         return None
 
@@ -40,18 +47,15 @@ async def _execute_request_with_retries(
 
             if status == 200:
                 return response.json()
-
             if status == 429:
                 logger.warning(
                     f"요청 제한(Rate Limit) 발생. 10초 대기 후 재시도... ({i+1}/{retries})"
                 )
                 await asyncio.sleep(10)
                 continue
-
             if status == 403:
                 logger.info(f"비공개 프로필입니다: {url}")
                 return None
-
             # 그 외 에러 코드
             logger.warning(f"예상치 못한 상태 코드({status}): {url}")
 
@@ -65,18 +69,17 @@ async def _execute_request_with_retries(
     return None
 
 
-async def get_user_data(steam_id: str):
+async def get_user_data(steam_id: str, save_to_file: bool = True):
     """
-    유저의 보유 게임 목록 및 플레이 기록을 조회합니다. (Async)
+    유저의 Steam 데이터를 조회하고 선택적으로 JSON 파일로 저장합니다.
     """
-    api_key = os.getenv("STEAM_API_KEY")
-    if not api_key:
+    if not STEAM_API_KEY:
         logger.error("API Key not found")
         return None
 
     url_games = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/"
     params_games = {
-        "key": api_key,
+        "key": STEAM_API_KEY,
         "steamid": steam_id,
         "format": "json",
         "include_appinfo": 1,
@@ -96,10 +99,10 @@ async def get_user_data(steam_id: str):
         return None
 
     games = data_games["response"]["games"]
-
     games_json = [
         {
             "appid": g["appid"],
+            "name": g.get("name", "Unknown"),
             "playtime_forever": g.get("playtime_forever", 0),
             "playtime_2weeks": g.get("playtime_2weeks", 0),
             "rtime_last_played": g.get("rtime_last_played", 0),
@@ -107,13 +110,34 @@ async def get_user_data(steam_id: str):
         for g in games
     ]
 
+    # 플레이타임 공개 여부 체크 (Heuristic)
+    is_playtime_public = True
     if games_json and sum(g["playtime_forever"] for g in games_json) == 0:
         logger.info(
             f"steamid {steam_id}: 계정 공개를 플레이타임까지 하면 더 좋은 추천 결과를 얻을 수 있습니다."
         )
+        is_playtime_public = False
 
-    return {
+    result = {
         "steamid": steam_id,
+        "is_playtime_public": is_playtime_public,
         "game_count": len(games_json),
         "games": games_json,
     }
+
+    # JSON 파일로 저장 (최신 사용자 데이터 유지)
+    if save_to_file:
+        _save_latest_games(result)
+
+    return result
+
+
+def _save_latest_games(data: dict):
+    """가공된 데이터를 local JSON 파일로 저장합니다."""
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(LATEST_GAMES_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        logger.info(f"최신 게임 데이터 저장 완료: {LATEST_GAMES_FILE}")
+    except Exception as e:
+        logger.error(f"파일 저장 중 오류 발생: {e}")
