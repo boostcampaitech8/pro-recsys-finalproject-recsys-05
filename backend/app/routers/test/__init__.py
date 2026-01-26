@@ -1,3 +1,4 @@
+from fastapi import APIRouter
 from app.routers.test.user import router as user_test_router
 from app.routers.test.game import router as game_test_router
 
