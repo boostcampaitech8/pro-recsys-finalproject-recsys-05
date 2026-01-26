@@ -32,12 +32,12 @@ async def verify_game_flow(db: AsyncSession = Depends(get_db)):
             return {"status": "warning", "message": "DB에 게임 데이터가 없습니다."}
             
         test_game = all_games[0]
-        logger.info(f"1. 게임 조회 성공: {test_game.name} (ID: {test_game.steam_id})")
+        logger.info(f"1. 게임 조회 성공: {test_game.name} (ID: {test_game.app_id})")
         
         # 2. 상세 조회 테스트
-        detail = await service.get_game_detail(test_game.steam_id)
+        detail = await service.get_game_detail(test_game.app_id)
         if not detail:
-             raise AssertionError(f"상세 조회 실패: {test_game.steam_id}")
+             raise AssertionError(f"상세 조회 실패: {test_game.app_id}")
         logger.info("   -> 상세 조회 성공")
         
         return {

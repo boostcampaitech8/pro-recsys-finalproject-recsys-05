@@ -64,7 +64,7 @@ async def insert_games(file_path: str, batch_size: int = 1000):
             try:
                 # 1. 기본 정보 매핑
                 game_data = {
-                    "steam_id": int(row.get("appid", 0)) if row.get("appid") else None,
+                    "app_id": int(row.get("appid", 0)) if row.get("appid") else None,
                     "name": row.get("name"),
                     "price": int(row.get("price_int", 0)) if row.get("price_int") is not None else 0,
                     "currency": row.get("price_currency", "KRW"),
@@ -99,7 +99,7 @@ async def insert_games(file_path: str, batch_size: int = 1000):
                 }
 
                 # 필수 필드 체크
-                if not game_data["steam_id"]:
+                if not game_data["app_id"]:
                     continue
 
                 # Game 객체 생성
