@@ -12,7 +12,8 @@ class User(Base):
     user_id = Column(Integer, primary_key=True, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     
-    # Relationship (Conversations)
+   
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     
+    recommendations = relationship("Recommendation", back_populates="user", cascade="all, delete-orphan")
     pass
