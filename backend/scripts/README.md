@@ -34,31 +34,18 @@
 
 ### 1. 데이터 관리 (Data Management) - `manage_data.py`
 
-데이터를 GCS에 업로드하거나 다운로드할 때 사용합니다.
-
-#### 데이터 업로드 (Upload Data)
-
-로컬 파일을 GCS의 특정 경로로 업로드합니다. 설정 파일(`configs/gcs_config.yaml`)에 정의된 **키(Key)**를 사용하면 편리합니다.
+설정 파일(`configs/gcs_config.yaml`)에 정의된 **파일 키**를 기준으로 데이터를 업로드하거나 다운로드합니다.
 
 ```bash
-# 옵션 1: Config 키 사용 (권장)
-# - 경로와 목적지가 자동으로 설정됨
-uv run python scripts/manage_data.py upload-data games --upload
+# 옵션 1: 데이터 다운로드 (Download)
+# config의 'files' 섹션에 정의된 키를 사용
+uv run python scripts/manage_data.py games_metadata.jsonl --download
 
-# 옵션 2: 직접 경로 입력
-uv run python scripts/manage_data.py upload-data ./data/games.jsonl raw/games.jsonl --save
-```
+# 옵션 2: 데이터 업로드 (Upload)
+uv run python scripts/manage_data.py games_metadata.jsonl --upload
 
-#### 데이터 다운로드 (Download Data)
-
-GCS에 있는 파일을 로컬로 다운로드합니다. 마찬가지로 Config 키를 지원합니다.
-
-```bash
-# 옵션 1: Config 키 사용
-uv run python scripts/manage_data.py download-data games
-
-# 옵션 2: 직접 경로 입력
-uv run python scripts/manage_data.py download-data raw/games.jsonl ./data/games.jsonl
+# 옵션 3: 데이터 목록 조회 (List)
+uv run python scripts/manage_data.py --list
 ```
 
 #### 버전 관리 옵션 (Versioning Flags)
@@ -82,3 +69,17 @@ uv run python scripts/manage_data.py upload-model ./models/rec_v1.pkl game_rec_v
 
 - **`gcs_utils.py`**: GCS 클라이언트 생성 및 업로드/다운로드 핵심 로직을 담은 모듈입니다.
 - **`manage_data.py`**: 터미널에서 실행 가능한 CLI(Command Line Interface) 스크립트입니다.
+- **`load_games.py`**: 게임 메타데이터를 DB에 적재하는 스크립트입니다.
+
+### 2. 게임 데이터 적재 (Load Game Metadata) - `load_games.py`
+
+준비된 게임 데이터(`.jsonl` 또는 `.parquet`)를 DB에 적재합니다.
+
+```bash
+# 로컬 데이터 파일을 DB에 적재
+uv run python scripts/load_games.py ./data/games_metadata.jsonl
+
+# 만약 데이터가 먼저 필요하다면# 옵션 2: config에 정의된 파일 키 (예: games_metadata.jsonl) 사용
+# config 키가 곧 파일명으로 사용됩니다.
+uv run python scripts/manage_data.py download-data games_metadata.jsonl
+```

@@ -58,3 +58,19 @@ def upload_blob(bucket_name, source_file_name, destination_blob_name):
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         return False
+
+def list_blobs(bucket_name, prefix=None):
+    """Lists all the blobs in the bucket."""
+    try:
+        storage_client = get_gcs_client()
+        # Note: Client.list_blobs requires at least package version 1.17.0.
+        blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
+        
+        results = []
+        for blob in blobs:
+            results.append(blob.name)
+            
+        return results
+    except Exception as e:
+        logger.error(f"List failed: {e}")
+        return []

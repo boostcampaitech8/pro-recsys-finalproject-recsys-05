@@ -85,7 +85,16 @@ async def insert_games(file_path: str, batch_size: int = 1000):
                     "tags_en": row.get("tags_en"),
                     "categories": row.get("categories_kr") or row.get("categories_en"), # 한글 카테고리 우선
                     
-                    # 4. 임베딩 (데이터에 이미 vector가 있다면)
+                    # 4. Context for RAG (종합 텍스트 정보)
+                    # 데이터에 명시적인 context 컬럼이 없으면, 주요 정보를 조합해 생성
+                    "context": row.get("context") or (
+                        f"Game Name: {row.get('name')}\n"
+                        f"Genres: {', '.join(row.get('genres_en', []) or [])}\n"
+                        f"Tags: {', '.join(row.get('tags_en', []) or [])}\n"
+                        f"Description: {row.get('short_description_en') or row.get('short_description_kr') or ''}\n"
+                    ).strip(),
+
+                    # 5. 임베딩 (데이터에 이미 vector가 있다면)
                     "embedding": row.get("embedding") # 없으면 None
                 }
 

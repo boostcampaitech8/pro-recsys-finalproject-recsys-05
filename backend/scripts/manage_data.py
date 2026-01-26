@@ -3,21 +3,11 @@ import sys
 import os
 import yaml
 from datetime import datetime
-from gcs_utils import upload_blob, download_blob
+from gcs_utils import upload_blob, download_blob, list_blobs
 
 def load_config():
     """configs/gcs_config.yaml 파일을 로드합니다."""
-    # 현재 스크립트: backend/scripts/manage_data.py
-    # 상대 경로: ../../configs/gcs_config.yaml
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir))) 
-    # 주의: 
-    # os.path.dirname(__file__) -> backend/scripts
-    # .. -> backend
-    # .. -> root (project dir)
-    
-    # 더 안전한 방법: git root 쯤으로 추정되는 곳 탐색 or 상대경로 고정
-    # 여기서는 ../../configs/gcs_config.yaml 로 시도해보겠습니다.
     
     # backend/scripts/../../configs/gcs_config.yaml
     config_path = os.path.abspath(os.path.join(current_dir, "..", "..", "configs", "gcs_config.yaml"))
@@ -30,7 +20,6 @@ def load_config():
             config_path = cwd_config
         else:
             print(f"❌ 설정 파일을 찾을 수 없습니다: {config_path}")
-            # sys.exit(1) # 일단 없으면 기본값 쓰도록 에러 대신 경고만 할 수도 있음
             return {}
         
     with open(config_path, "r", encoding="utf-8") as f:
@@ -38,7 +27,6 @@ def load_config():
 
 def get_versioned_path(base_path, timestamp_format):
     """파일 경로에 타임스탬프를 추가하여 버저닝된 경로를 반환합니다."""
-    # 예: raw/games.jsonl -> raw/games_20240101_120000.jsonl
     now = datetime.now().strftime(timestamp_format)
     root, ext = os.path.splitext(base_path)
     return f"{root}_{now}{ext}"
@@ -52,179 +40,150 @@ def main():
     timestamp_fmt = version_config.get("timestamp_format", "%Y%m%d_%H%M%S")
     use_versioning = version_config.get("use_timestamp", True)
 
-    parser = argparse.ArgumentParser(description="데이터 관리 도구: GCS 업로드/다운로드 (with Config)")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    # 1. 데이터 업로드 명령
-    upload_parser = subparsers.add_parser("upload-data", help="로컬 데이터 파일을 GCS로 업로드합니다.")
-    upload_parser.add_argument("source", help="로컬 파일 경로 또는 config에 정의된 파일 키 (예: games)")
-    upload_parser.add_argument("destination", nargs="?", help="GCS 저장 경로 (생략 시 config 기반 자동 결정)")
-    upload_parser.add_argument("--bucket", default=default_bucket, help="GCS 버킷 이름")
+    parser = argparse.ArgumentParser(description="데이터 관리 도구: GCS 통합 관리 (Config 기반)")
     
-    # 모드 설정: --save (덮어쓰기) vs --upload (버저닝)
-    mode_group = upload_parser.add_mutually_exclusive_group()
-    mode_group.add_argument("--save", action="store_true", help="저장 모드: 덮어쓰기 (타임스탬프 없음)")
-    mode_group.add_argument("--upload", action="store_true", help="업로드 모드: 새 버전 생성 (타임스탬프 추가)")
-    mode_group.add_argument("--no-version", action="store_true", help="--save와 동일 (하위 호환용)")
-
-    # 2. 데이터 다운로드 명령
-    download_parser = subparsers.add_parser("download-data", help="GCS 데이터를 로컬로 다운로드합니다.")
-    download_parser.add_argument("source", help="GCS 파일 경로 또는 config 키")
-    download_parser.add_argument("destination", nargs="?", help="로컬 저장 경로 (생략 시 config 기반 자동 결정)")
-    download_parser.add_argument("--bucket", default=default_bucket, help="GCS 버킷 이름")
-
-    # 3. 모델 업로드 명령
-    model_parser = subparsers.add_parser("upload-model", help="학습된 모델을 GCS로 업로드합니다.")
-    model_parser.add_argument("source", help="로컬 모델 파일 경로")
-    model_parser.add_argument("model_name", help="모델 이름 (예: game_rec_v1)")
-    model_parser.add_argument("model_name", help="모델 이름 (예: game_rec_v1)")
-    model_parser.add_argument("--bucket", default=default_bucket, help="GCS 버킷 이름")
+    # Target: Config Key 또는 File Path
+    parser.add_argument("target", nargs="?", help="대상 파일 키(Config) 또는 경로 (prefix for list)")
     
-    # 모드 설정
-    model_mode = model_parser.add_mutually_exclusive_group()
-    model_mode.add_argument("--save", action="store_true", help="저장 모드: 덮어쓰기")
-    model_mode.add_argument("--upload", action="store_true", help="업로드 모드: 버저닝")
-    model_mode.add_argument("--no-version", action="store_true", help="하위 호환용")
-
+    # Flag Group
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--upload", action="store_true", help="업로드 모드")
+    group.add_argument("--download", action="store_true", help="다운로드 모드")
+    group.add_argument("--list", action="store_true", help="목록 조회 모드")
+    
+    # Upload/Download Options
+    parser.add_argument("--bucket", default=default_bucket, help="GCS 버킷 이름")
+    
+    # Versioning Flags (override config)
+    ver_group = parser.add_mutually_exclusive_group()
+    ver_group.add_argument("--save", action="store_true", help="덮어쓰기 (버저닝 끔)")
+    ver_group.add_argument("--no-version", action="store_true", help="--save와 동일")
+    
     args = parser.parse_args()
 
-    if args.command == "upload-data":
-        source_input = args.source
-        destination = args.destination
-        
-        # 1. Config에서 파일 키 조회 시도
-        local_files = config.get("local", {}).get("files", {})
-        data_root = config.get("local", {}).get("data_root", "data")
-        
-        # 소스가 키(key)로 정의되어 있는지 확인 (예: 'games')
-        if source_input in local_files:
-            # 실제 경로 조립
-            # manage_data.py 위치: backend/scripts/
-            # data_root (config): app/data
-            # relative_path (config): steam_games_info.jsonl
-            
-            # 1. backend 루트 찾기 (scripts의 상위 폴더)
-            current_script_dir = os.path.dirname(os.path.abspath(__file__))
-            backend_root = os.path.dirname(current_script_dir)
-            
-            relative_path = local_files[source_input]
-            custom_destination = None
-
-            # 만약 설정값이 딕셔너리라면 (path, destination 구분)
-            if isinstance(relative_path, dict):
-                custom_destination = relative_path.get("destination")
-                relative_path = relative_path.get("path")
-
-            # 2. 경로 결합: backend/ + app/data + steam_games_info.jsonl
-            source_path = os.path.join(backend_root, data_root, relative_path)
-            
-            print(f"ℹ️ Config 키 '{source_input}' 감지 -> 경로: {source_path}")
-            
-            # 목적지(Destination)가 없으면 소스 파일명(또는 상대경로) 그대로 사용
-            if not destination:
-                if custom_destination:
-                    destination = custom_destination
-                else:
-                    destination = relative_path # 예: steam_games_info.jsonl
+    # 1. 목록 조회 (--list)
+    if args.list:
+        prefix = args.target # Optional
+        print(f"📦 Bucket '{args.bucket}' 목록 조회 (Prefix: {prefix})...")
+        blobs = list_blobs(args.bucket, prefix)
+        if blobs:
+            print(f"✅ 총 {len(blobs)}개의 파일 발견:")
+            for blob in blobs:
+                print(f" - {blob}")
         else:
-            # 키가 아니면 입력받은 경로 그대로 사용
-            source_path = source_input
-            if not destination:
-                 print("❌ Destination(GCS 경로)은 필수입니다 (Config 키를 사용하지 않을 경우).")
-                 sys.exit(1)
+            print("📭 파일이 없거나 조회에 실패했습니다.")
+        return
 
-        # 버저닝(타임스탬프) 여부 결정
-        # 1. CLI 인자 우선 (--save 또는 --no-version이면 끄기, --upload면 켜기)
-        # 2. Config 값 따르기
-        
-        force_save = args.save or args.no_version
-        force_upload = args.upload
-        
-        final_use_versioning = use_versioning # Config 기본값
-        
-        if force_save:
+    # 2. 업로드/다운로드 로직
+    source_input = args.target
+    local_files = config.get("local", {}).get("files", {})
+    data_root = config.get("local", {}).get("data_root", "app/data")
+    
+    # 경로 결정 변수
+    local_final_path = None
+    gcs_final_path = None
+
+    # Case A: Target이 없고, Config가 단일 파일 모드인 경우 (files 바로 아래에 path 존재)
+    # user snippet structure: files: { upload_path: ..., download_path: ... }
+    is_single_file_config = isinstance(local_files, dict) and ("upload_path" in local_files or "download_path" in local_files)
+
+    if not source_input:
+        if is_single_file_config:
+            # 단일 파일 모드 사용
+            config_entry = local_files
+            
+            # Local Path 결정
+            # Priority: local_path -> upload_path basename -> download_path basename -> default
+            if config_entry.get("local_path"):
+                 rel_local = config_entry.get("local_path")
+            elif config_entry.get("upload_path"):
+                 rel_local = os.path.basename(config_entry.get("upload_path"))
+            elif config_entry.get("download_path"):
+                 rel_local = os.path.basename(config_entry.get("download_path"))
+            else:
+                 rel_local = "games_metadata.jsonl" # Fallback
+
+            # GCS Path 결정
+            if args.upload:
+                gcs_final_path = config_entry.get("upload_path") or config_entry.get("gcs_path")
+            else: # download
+                gcs_final_path = config_entry.get("download_path") or config_entry.get("gcs_path")
+
+            # Local Absolute Path 조립
+            current_script_dir = os.path.dirname(os.path.abspath(__file__))
+            backend_root = os.path.dirname(current_script_dir) # backend/
+            local_final_path = os.path.join(backend_root, data_root, rel_local)
+            
+            print(f"ℹ️ Default Config 사용 -> Local: {local_final_path}, GCS: {gcs_final_path}")
+
+        else:
+            print("❌ 대상(Target)을 지정해야 합니다. (Config Key 또는 파일 경로)")
+            sys.exit(1)
+
+    # Case B: Target이 있는 경우 (기존 로직)
+    else:
+        # Config Key 확인
+        if source_input in local_files:
+            config_entry = local_files[source_input]
+            
+            # 1) Dictionary 구조
+            if isinstance(config_entry, dict):
+                # Local Path
+                rel_local = config_entry.get("local_path") or config_entry.get("path") or source_input
+                
+                # GCS Path
+                if args.upload:
+                    gcs_final_path = config_entry.get("upload_path") or config_entry.get("gcs_path") or config_entry.get("destination")
+                else: # download
+                    gcs_final_path = config_entry.get("download_path") or config_entry.get("gcs_path") or config_entry.get("destination")
+                    
+            # 2) String (Simple Mapping)
+            elif isinstance(config_entry, str):
+                rel_local = source_input # Key is filename
+                gcs_final_path = config_entry # Value is GCS Path
+                
+            # Local Absolute Path 조립
+            current_script_dir = os.path.dirname(os.path.abspath(__file__))
+            backend_root = os.path.dirname(current_script_dir) # backend/
+            local_final_path = os.path.join(backend_root, data_root, rel_local)
+            
+            print(f"ℹ️ Config '{source_input}' 적용 -> Local: {local_final_path}, GCS: {gcs_final_path}")
+            
+        else:
+            # Config에 없는 경우 -> Ad-hoc 처리
+            print(f"⚠️ Config에서 '{source_input}' 키를 찾을 수 없습니다. 입력값을 경로로 직접 사용합니다.")
+            local_final_path = source_input
+            gcs_final_path = source_input 
+    
+    if not local_final_path or not gcs_final_path:
+        print("❌ 경로 설정에 실패했습니다. Config를 확인해주세요.")
+        sys.exit(1)
+
+    # 실행
+    if args.upload:
+        # 버저닝 처리
+        final_use_versioning = use_versioning
+        if args.save or args.no_version:
             final_use_versioning = False
-        elif force_upload:
-            final_use_versioning = True
             
         if final_use_versioning:
-            destination = get_versioned_path(destination, timestamp_fmt)
+            gcs_final_path = get_versioned_path(gcs_final_path, timestamp_fmt)
             
-        print(f"업로드 시작: {source_path} -> gs://{args.bucket}/{destination}")
-        if upload_blob(args.bucket, source_path, destination):
+        print(f"🚀 업로드 시작: {local_final_path} -> gs://{args.bucket}/{gcs_final_path}")
+        if upload_blob(args.bucket, local_final_path, gcs_final_path):
             print("✅ 업로드 성공")
-            print(f"   -> 저장 경로: {destination}")
         else:
             print("❌ 업로드 실패")
-
-    elif args.command == "download-data":
-        source_input = args.source
-        destination = args.destination
-
-        # 1. Config 조회
-        local_files = config.get("local", {}).get("files", {})
-        data_root = config.get("local", {}).get("data_root", "app/data")
-
-        # Config 키(key) 사용 여부 확인
-        if source_input in local_files:
-            relative_path = local_files[source_input]
-            from_gcs_path = None
             
-            # Dictionary 구조 처리
-            if isinstance(relative_path, dict):
-                from_gcs_path = relative_path.get("destination") # GCS 경로 (upload시 destination)
-                relative_path = relative_path.get("path")       # 로컬 상대 경로
-            
-            # 1. GCS Source Path 결정
-            if from_gcs_path:
-                source = from_gcs_path
-            else:
-                source = relative_path
-            
-            # 2. Local Destination Path 결정
-            if not destination:
-                current_script_dir = os.path.dirname(os.path.abspath(__file__))
-                backend_root = os.path.dirname(current_script_dir)
-                destination = os.path.join(backend_root, data_root, relative_path)
-                print(f"ℹ️ Config 키 '{source_input}' 감지 -> 로컬 저장 경로: {destination}")
-        else:
-            # 키가 아니면 입력값 그대로 사용
-            source = source_input
-            if not destination:
-                print("❌ Destination(로컬 경로)은 필수입니다 (Config 키를 사용하지 않을 경우).")
-                sys.exit(1)
-
-        print(f"다운로드 시작: gs://{args.bucket}/{source} -> {destination}")
-        os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
-        if download_blob(args.bucket, source, destination):
+    elif args.download:
+        # 다운로드 시 디렉토리 생성
+        os.makedirs(os.path.dirname(os.path.abspath(local_final_path)), exist_ok=True)
+        
+        print(f"📥 다운로드 시작: gs://{args.bucket}/{gcs_final_path} -> {local_final_path}")
+        if download_blob(args.bucket, gcs_final_path, local_final_path):
             print("✅ 다운로드 성공")
         else:
             print("❌ 다운로드 실패")
-
-    elif args.command == "upload-model":
-        model_filename = os.path.basename(args.source)
-        # 모델명/파일명_날짜.확장자
-        
-        force_save = args.save or args.no_version
-        force_upload = args.upload
-        final_use_versioning = use_versioning
-        
-        if force_save:
-            final_use_versioning = False
-        elif force_upload:
-            final_use_versioning = True
-
-        if final_use_versioning:
-             model_filename = get_versioned_path(model_filename, timestamp_fmt)
-        
-        destination = f"models/{args.model_name}/{model_filename}"
-        
-        print(f"모델 업로드 시작: {args.source} -> gs://{args.bucket}/{destination}")
-        if upload_blob(args.bucket, args.source, destination):
-            print("✅ 모델 업로드 성공")
-            print(f"   -> 저장 경로: {destination}")
-        else:
-            print("❌ 모델 업로드 실패")
 
 if __name__ == "__main__":
     main()
