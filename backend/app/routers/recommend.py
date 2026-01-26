@@ -1,38 +1,34 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from app.services import steam_service
-
-# from ml_rec.inference import get_recommendations  <-- 파일 삭제됨
+import json
 
 router = APIRouter()
 
 
-@router.get("/rec/{user_id}")
-async def recommend(user_id: int):
+@router.get("/predict", tags=["recommend"])
+async def predict_recommend():
     """
-    유저 ID를 받아 Steam 게임 목록을 조회하고,
-    추천 시스템(ML) 모델에 입력하여 추천 결과를 반환합니다.
+    2단계: 저장된 최신 JSON 파일을 읽어 추천 결과를 반환합니다.
     """
-    # 1단계: 스팀 서비스로 게임 목록 가져오기 (Async)
-    # user_id int -> str 변환 필요
-    user_data = await steam_service.get_user_data(str(user_id))
+    if not steam_service.LATEST_GAMES_FILE.exists():
+        raise HTTPException(
+            status_code=400,
+            detail="저장된 스팀 데이터가 없습니다. 먼저 fetch 기능을 사용하세요.",
+        )
 
-    if not user_data:
+    try:
+        with open(steam_service.LATEST_GAMES_FILE, "r", encoding="utf-8") as f:
+            my_games_data = json.load(f)
+
+        my_games = my_games_data.get("games", [])
+
+        # ML 모델 예측 시뮬레이션
+        recommended_items = [101, 202, 303]
+
         return {
-            "error": "공개된 스팀 계정이 아니거나 게임이 없습니다.",
-            "steam_id": user_id,
+            "user_id": my_games_data.get("steamid"),
+            "is_playtime_public": my_games_data.get("is_playtime_public"),
+            "recommended_games": recommended_items,
         }
-
-    my_games = user_data["games"]  # 게임 목록 확보!
-
-    # 2단계: 추천 모델에 게임 목록 넣기 (Placeholder)
-    # 추후 ML 팀의 모델(inference.predict)을 여기서 호출합니다.
-    # recommended_items = inference.predict(my_games)
-
-    # 임시 결과
-    recommended_items = [10, 20, 30]
-
-    return {
-        "user_id": user_id,
-        "input_games_count": len(my_games),
-        "recommended_games": recommended_items,
-    }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"추천 처리 중 오류 발생: {str(e)}")
