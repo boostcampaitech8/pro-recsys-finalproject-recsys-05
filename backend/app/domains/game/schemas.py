@@ -37,8 +37,6 @@ class GameDetailResponse(BaseModel):
     categories: List[str] | None
     
     # contnet 와 vector
-    content: str | None
-    vector : str | None
     
     model_config = ConfigDict(from_attributes=True)
 

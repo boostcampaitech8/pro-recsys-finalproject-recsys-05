@@ -33,4 +33,5 @@ class Game(Base):
     # Embedding (For Recommendation/RAG)
     # 차원 수는 사용 모델에 따라 결정 (예: 768 for BERT-base, 1536 for OpenAI)
     # 일단 768로 설정 (변경 가능)
+    context = Column(Text)
     embedding = Column(Vector(768)) 
