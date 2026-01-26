@@ -1,21 +1,26 @@
 # backend/app/main.py
 from fastapi import FastAPI, Depends
+
 # 경로 설정(PYTHONPATH) 덕분에 바로 import 가능
 # from ml_rec.inference import get_recommendations  <-- 파일 삭제됨
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
 from contextlib import asynccontextmanager
-import redis 
-from app.routers import test
+import redis
+from app.routers import test, recommend
 
 app = FastAPI()
 
 app.include_router(test.router)
+app.include_router(recommend.router)
+
 
 @app.get("/")
 def health_check():
     return {"status": "ok"}
+
+
 @app.get("/health/db")
 def health_check_db(db: Session = Depends(get_db)):
     try:
@@ -24,10 +29,3 @@ def health_check_db(db: Session = Depends(get_db)):
         return {"status": "ok", "message": "Database connection successful"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-@app.get("/rec/{user_id}")
-def recommend(user_id: int):
-    # ML 팀의 코드가 아직 없으므로 더미 응답 반환
-    # items = get_recommendations(user_id)
-    items = [1, 2, 3] # 임시 결과
-    return {"user_id": user_id, "recommended_games": items}
