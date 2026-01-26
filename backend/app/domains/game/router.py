@@ -22,4 +22,3 @@ async def get_game(
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     return game
-
