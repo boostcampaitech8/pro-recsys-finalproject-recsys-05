@@ -8,12 +8,13 @@ from sqlalchemy import text
 from app.database import get_db
 from contextlib import asynccontextmanager
 import redis
-from app.routers import test, recommend
+from app.routers import test, recommend, steam
 
 app = FastAPI()
 
 app.include_router(test.router)
-app.include_router(recommend.router)
+app.include_router(steam.router, prefix="/steam")
+app.include_router(recommend.router, prefix="/rec")
 
 
 @app.get("/")

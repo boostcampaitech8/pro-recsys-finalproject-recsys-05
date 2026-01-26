@@ -38,15 +38,18 @@ async def main():
         if result:
             print("\n✅ 성공! 데이터 수신 완료:")
             print(f"Steam ID: {result['steamid']}")
+            print(
+                f"공개 설정 여부: {'공개(전체)' if result['is_playtime_public'] else '비공개(또는 게임목록만 공개)'}"
+            )
             print(f"총 게임 수: {result['game_count']}")
-            print("모든 보유 게임 목록:")
+            print("\n--- 모든 보유 게임 목록 ---")
             for game in result["games"]:
                 print(
-                    f" - AppID: {game['appid']}, Playtime: {game['playtime_forever']} min"
+                    f" - [{game['appid']}] {game['name']: <20} | Playtime: {game['playtime_forever']} min"
                 )
         else:
             print(
-                "\n❌ 실패: 데이터를 가져오지 못했습니다. (비공개 계정이거나 오류 발생)"
+                "\n❌ 실패: 데이터를 가져오지 못했습니다. (비공개 계정, 잘못된 ID 또는 API 오류)"
             )
 
     except Exception as e:
