@@ -140,9 +140,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Load Game Data to DB")
     parser.add_argument("file", help="Path to data file (.jsonl or .parquet)")
+    parser.add_argument("--reset", action="store_true", help="Reset DB table before loading")
     args = parser.parse_args()
 
     async def main():
+        if args.reset:
+            async with engine.begin() as conn:
+                print("🗑️ Resetting 'games' table...")
+                await conn.execute(text("DROP TABLE IF EXISTS games CASCADE"))
+        
         await init_db()
         await insert_games(args.file)
     
