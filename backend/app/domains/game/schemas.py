@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any, Union
 
 class GameSimpleResponse(BaseModel):
     """추천 목록 등에서 사용하는 간단한 게임 정보"""
-    steam_id: int
+    app_id: int
     name: str | None
     price: int | None
     currency: str | None
@@ -14,7 +14,7 @@ class GameSimpleResponse(BaseModel):
 
 class GameDetailResponse(BaseModel):
     """게임 상세 페이지용 전체 정보"""
-    steam_id: int
+    app_id: int
     name: str | None
     price: int | None
     currency: str | None

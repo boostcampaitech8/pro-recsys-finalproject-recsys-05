@@ -8,8 +8,8 @@ class GameService:
     def __init__(self, repository: GameRepository):
         self.repository = repository
 
-    async def get_game_detail(self, steam_id: int) -> GameDetailResponse:
-        game = await self.repository.get_game_by_steam_id(steam_id)
+    async def get_game_detail(self, app_id: int) -> GameDetailResponse:
+        game = await self.repository.get_game_by_app_id(app_id)
         if not game:
             return None
         

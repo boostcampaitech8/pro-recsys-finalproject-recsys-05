@@ -7,9 +7,9 @@ class GameRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_game_by_steam_id(self, steam_id: int) -> Optional[Game]:
-        """Steam ID로 게임 상세 조회"""
-        query = select(Game).where(Game.steam_id == steam_id)
+    async def get_game_by_app_id(self, app_id: int) -> Optional[Game]:
+        """Steam ID(App ID)로 게임 상세 조회"""
+        query = select(Game).where(Game.app_id == app_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 

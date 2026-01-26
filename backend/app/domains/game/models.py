@@ -7,7 +7,7 @@ class Game(Base):
     __tablename__ = "games"
 
     id = Column(Integer, primary_key=True, index=True)
-    steam_id = Column(Integer, unique=True, index=True, nullable=False) # appid와 매핑
+    app_id = Column(Integer, unique=True, index=True, nullable=False) # appid와 매핑
     name = Column(String, index=True)
     price = Column(Integer) # price_int
     currency = Column(String, default="KRW") # price_currency
