@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from dotenv import load_dotenv
-from app.services.steam_service import get_user_data
+from app.domains.steam.service import SteamService
 
 # .env 파일 로드
 load_dotenv()
@@ -14,8 +14,10 @@ load_dotenv()
 
 async def main():
     print("=== Steam API Service Test ===")
+    service = SteamService()
 
     # API Key 확인
+
     api_key = os.getenv("STEAM_API_KEY")
     if not api_key:
         print("Error: .env 파일에 STEAM_API_KEY가 없습니다.")
@@ -33,7 +35,7 @@ async def main():
     print(f"\nRequests info for Steam ID: {steam_id}...")
 
     try:
-        result = await get_user_data(steam_id)
+        result = await service.get_user_data(steam_id)
 
         if result:
             print("\n✅ 성공! 데이터 수신 완료:")
