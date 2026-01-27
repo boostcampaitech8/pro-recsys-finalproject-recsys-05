@@ -72,7 +72,7 @@ class ParquetToDocConverter:
                     print(f"[WARN] Failed to render ID {row.get(id_col)}: {e}", file=sys.stderr)
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Parquet to RAG Document (Polars & Python 3.13)")
+    parser = argparse.ArgumentParser(description="Parquet to RAG Document (Polars & Python 3.10+)")
     parser.add_argument("--input_parquet", type=Path, required=True, help="Input .parquet file path")
     parser.add_argument("--template_path", type=Path, required=True, help="Template .j2 file path")
     parser.add_argument("--output_path", type=Path, required=True, help="Output .jsonl file path")

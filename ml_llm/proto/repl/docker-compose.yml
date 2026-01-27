@@ -1,0 +1,99 @@
+services:
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: rag-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag-net
+
+  ingestion:
+    build:
+      context: ../../
+      dockerfile: proto/repl/Dockerfile
+    container_name: rag-ingestion
+    command: python scripts/db_ingest.py
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    links:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=postgres
+    networks:
+      - rag-net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - rag-net
+    entrypoint: /bin/sh
+    command: -c "ollama serve & sleep 5 && ollama pull llama3.2:3b && wait"
+
+  app:
+    build:
+      context: ../../
+      dockerfile: proto/repl/Dockerfile
+    container_name: rag-app
+    command: streamlit run app.py
+    depends_on:
+      db:
+        condition: service_healthy
+      ingestion:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_started
+    links:
+      - db
+      - ollama
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./models:/app/models
+      - ./app.py:/app/app.py
+      - ./core:/app/core
+      - ./ui:/app/ui
+      - ./scripts:/app/scripts
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=postgres
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    networks:
+      - rag-net
+
+volumes:
+  postgres_data:
+  ollama_models:
+
+networks:
+  rag-net:
+    driver: bridge
