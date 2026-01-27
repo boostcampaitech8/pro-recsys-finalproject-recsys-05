@@ -59,6 +59,16 @@ class GameRecommenderUI:
             # Performance Info
             with st.expander("⚡ 성능 정보"):
                 st.write(f"**응답 시간**: {duration:.2f}초")
+                
+                # Granular Metrics
+                if debug_data and "metrics" in debug_data:
+                    m = debug_data["metrics"]
+                    st.markdown(f"""
+                    - **Embedding**: {m.get('embedding_time', 0):.2f}s
+                    - **Retrieval**: {m.get('retrieval_time', 0):.2f}s
+                    - **Generation**: {m.get('generation_time', 0):.2f}s
+                    """)
+
                 st.write(f"**처리 속도**: ~{len(response.split()) / duration if duration > 0 else 0:.1f} 단어/초")
                 st.write(f"**총 호출 횟수**: {call_count}")
                 st.write(f"**모델**: llama3.2:3b (로컬)")

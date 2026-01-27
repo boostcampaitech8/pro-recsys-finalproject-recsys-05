@@ -126,25 +126,43 @@ class SteamRecommender:
 
     def generate_response_with_details(self, user_query: str):
         """
-        Execute RAG steps manually to capture intermediate data.
-        Returns: (response_text, retrieved_docs, formatted_prompt)
+        Execute RAG steps manually to capture intermediate data and granular timings.
+        Returns: (response_text, retrieved_docs, formatted_prompt, app_metrics)
         """
-        if not self.llm:
+        import time
+        if not self.llm or not self.vectorstore:
             raise ValueError("Resources not initialized.")
 
-        # 1. Retrieve
-        retrieved_docs = self.retriever.invoke(user_query)
+        app_metrics = {}
+
+        # 1. Embedding
+        start_embed = time.time()
+        # retriever uses the same embeddings key
+        query_vector = self.vectorstore.embeddings.embed_query(user_query)
+        end_embed = time.time()
+        app_metrics["embedding_time"] = end_embed - start_embed
+
+        # 2. Retrieval
+        start_retrieval = time.time()
+        # Equivalent to search_kwargs={"k": 5} defined in initialize
+        retrieved_docs = self.vectorstore.similarity_search_by_vector(query_vector, k=5)
+        end_retrieval = time.time()
+        app_metrics["retrieval_time"] = end_retrieval - start_retrieval
+        
         context_text = "\n\n".join(doc.page_content for doc in retrieved_docs)
 
-        # 2. Prompt Formatting
+        # 3. Prompt Formatting
         prompt_value = self.prompt_template.invoke({
             "context": context_text,
             "question": user_query
         })
         formatted_prompt = prompt_value.to_string()
 
-        # 3. Generate
+        # 4. Generate
+        start_gen = time.time()
         response_msg = self.llm.invoke(prompt_value)
         response_text = self.output_parser.invoke(response_msg)
+        end_gen = time.time()
+        app_metrics["generation_time"] = end_gen - start_gen
 
-        return response_text, retrieved_docs, formatted_prompt
+        return response_text, retrieved_docs, formatted_prompt, app_metrics

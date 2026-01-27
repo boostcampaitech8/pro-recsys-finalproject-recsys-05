@@ -36,7 +36,7 @@ def main():
         
         try:
             with st.spinner("답변 생성 중..."):
-                response_text, retrieved_docs, formatted_prompt = recommender.generate_response_with_details(user_input)
+                response_text, retrieved_docs, formatted_prompt, app_metrics = recommender.generate_response_with_details(user_input)
             
             duration = time.time() - start_time
             
@@ -48,7 +48,8 @@ def main():
             # Display assistant response
             debug_data = {
                 "context_docs": retrieved_docs,
-                "full_prompt": formatted_prompt
+                "full_prompt": formatted_prompt,
+                "metrics": app_metrics # Pass granular metrics
             }
             ui.display_assistant_response(response_text, duration, st.session_state.llm_call_count, debug_data)
             
