@@ -13,7 +13,7 @@ local:
     # "로컬 파일명": { "upload_path": ..., "download_path": ... } 또는 "GCS 경로"
       local_path: "games_metadata.jsonl"       # 로컬 파일명 (data_root 기준)
       upload_path: "processed/games_metadata.jsonl" 
-      download_path: "raw/steam_games_info.jsonl"
+      download_path: "processed/games_metadata.jsonl"
 
 versioning:
   use_timestamp: false    # 업로드 시 파일명에 타임스탬프 자동 추가
