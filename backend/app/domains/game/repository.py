@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy import or_
+from sqlalchemy.dialects.postgresql import array
 from app.domains.game.models import Game
 from typing import Optional, List
 
@@ -35,7 +36,7 @@ class GameRepository:
         languages: Optional[List[str]] = None
     ) -> List[Game]:
         """
-        - vector: 768 dim embedding
+        - vector: 1024 dim embedding
         - genres/tags/languages: OR 조건 (하나라도 포함되면 결과에 포함)
         """
         query = select(Game).order_by(Game.embedding.cosine_distance(vector)).limit(top_k)
@@ -46,13 +47,10 @@ class GameRepository:
             query = query.where(Game.price<= max_price)
 
         if genres:
-            conditions = [Game.genres_kr.contains([g])for g in genres]
-            query = query.where(or_(*conditions))
+            query = query.where(Game.genres_kr.op("?|")(array(genres)))
         if tags:
-            conditions = [Game.tags_en.contains([t])for t in tags]
-            query = query.where(or_(*conditions))
+            query = query.where(Game.tags_en.op("?|")(array(tags)))
         if languages:
-            conditions = [Game.supported_languages.contains([l])for l in languages]
-            query = query.where(or_(*conditions))
+            query = query.where(Game.supported_languages.op("?|")(array(languages)))
         result = await self.db.execute(query)
         return result.scalars().all()
