@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Header } from "@/pages/components/Header";
 import { GameListBox } from "@/pages/components/GameListBox";
 import { InputGameSearch } from "@/pages/components/InputGameSearch";
-import { getGameRecommendations } from "@/api/gameApi";
 import type { RecommendedGame } from "@/api/gameApi";
 
 export default function MainPage() {
@@ -11,38 +10,23 @@ export default function MainPage() {
   );
   const [loading, setLoading] = useState(true);
 
-  // 1단계: 마운트될 때 localStorage에서 Steam ID 읽기
+  // localStorage에 저장된 추천 게임 데이터 로드
   useEffect(() => {
-    const savedSteamId = localStorage.getItem("steamId");
+    const savedGames = localStorage.getItem("recommendedGames");
 
-    if (!savedSteamId) {
-      console.log("Steam ID를 찾을 수 없습니다. 다시 설정해주세요.");
-      setLoading(false);
-      return;
+    if (savedGames) {
+      try {
+        const games = JSON.parse(savedGames);
+        setRecommendedGames(games);
+        console.log(`✅ 저장된 ${games.length}개의 게임 추천 데이터 로드 완료`);
+      } catch (err) {
+        console.error("❌ 저장된 데이터 파싱 실패:", err);
+      }
+    } else {
+      console.log("저장된 추천 게임 데이터가 없습니다. Onboarding을 다시 완료해주세요.");
     }
 
-    // 3단계: API 호출 함수
-    const fetchRecommendations = async (id: string) => {
-      setLoading(true);
-
-      try {
-        const data = await getGameRecommendations({
-          steamid: id,
-          top_k: 10,
-        });
-        setRecommendedGames(data.recommended_games);
-        console.log(`✅ ${data.recommended_games.length}개의 게임 추천 완료`);
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "알 수 없는 오류";
-        console.error("❌ API 호출 실패:", errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // 2단계: Steam ID가 있으면 자동으로 API 호출
-    void fetchRecommendations(savedSteamId);
+    setLoading(false);
   }, []);
 
   return (
