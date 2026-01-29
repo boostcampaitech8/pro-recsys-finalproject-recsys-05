@@ -1,68 +1,54 @@
-"use client";
-
 import { useState } from "react";
+import type { RecommendedGame } from "@/api/gameApi";
 
-interface Game {
-  id: number;
-  name: string;
-  genre: string;
-  description: string;
-  image: string;
+interface GameListBoxProps {
+  games?: RecommendedGame[];
+  loading?: boolean;
 }
 
-export function GameListBox() {
+export function GameListBox({ games = [], loading = false }: GameListBoxProps) {
   const [selectedGame, setSelectedGame] = useState<number | null>(null);
 
-  const games: Game[] = [
-    {
-      id: 1,
-      name: "위처 3: 와일드 헌트",
-      genre: "RPG",
-      description:
-        "오픈월드 RPG의 정점. 풍부한 스토리와 선택지, 그리고 매력적인 캐릭터들이 가득한 마스터피스입니다.",
-      image: "🏰",
-    },
-    {
-      id: 2,
-      name: "디스코 엘리시움",
-      genre: "RPG",
-      description:
-        "독특한 턴 기반 RPG로, 깊이 있는 스토리텔링과 정치, 철학을 다루는 혁신적인 게임입니다.",
-      image: "💭",
-    },
-    {
-      id: 3,
-      name: "레드 데드 리뎀션 2",
-      genre: "액션 어드벤처",
-      description:
-        "방대한 오픈월드에서 경험하는 몰입감 있는 스토리. 세세한 디테일이 살아있는 서부시대 액션 게임입니다.",
-      image: "🤠",
-    },
-    {
-      id: 4,
-      name: "하데스",
-      genre: "액션 로그라이크",
-      description:
-        "신화 속 세계관을 배경으로 한 어려운 난이도의 액션 게임. 각 플레이마다 다른 경험을 제공합니다.",
-      image: "⚔️",
-    },
-  ];
+  const selectedGameData = games.find((game) => game.app_id === selectedGame);
 
-  const selectedGameData = games.find((game) => game.id === selectedGame);
+  if (loading) {
+    return (
+      <div className="w-full mt-6 p-6 bg-slate-800 rounded-lg border border-emerald-500/30 text-center">
+        <p className="text-emerald-300">로딩 중...</p>
+      </div>
+    );
+  }
+
+  if (games.length === 0) {
+    return (
+      <div className="w-full mt-6 p-6 bg-slate-800 rounded-lg border border-emerald-500/30 text-center">
+        <p className="text-emerald-300">Steam ID를 입력하여 게임을 추천받으세요.</p>
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="w-full mt-6 relative">
-        <div className="flex gap-5 text-emerald-300 p-6 bg-slate-800 rounded-lg shadow-lg border border-emerald-500/30">
+        <div className="flex gap-5 text-emerald-300 p-6 bg-slate-800 rounded-lg shadow-lg border border-emerald-500/30 overflow-x-auto">
           {games.map((game) => (
             <div
-              key={game.id}
-              onClick={() => setSelectedGame(game.id)}
-              className="flex flex-col items-center justify-center gap-2 p-3 bg-emerald-900/30 rounded-lg border border-emerald-500/50 hover:bg-emerald-900/50 transition-all duration-300 cursor-pointer group w-28 h-32"
+              key={game.app_id}
+              onClick={() => setSelectedGame(game.app_id)}
+              className="flex flex-col items-center justify-center gap-2 p-3 bg-emerald-900/30 rounded-lg border border-emerald-500/50 hover:bg-emerald-900/50 transition-all duration-300 cursor-pointer group w-28 h-32 flex-shrink-0"
             >
-              <div className="text-3xl group-hover:scale-110 transition-transform">
-                {game.image}
+              <div className="text-xs text-emerald-400 font-semibold">
+                {game.score.toFixed(2)}
               </div>
+              {game.header_image ? (
+                <img
+                  src={game.header_image}
+                  alt={game.name}
+                  className="w-20 h-16 object-cover rounded group-hover:scale-110 transition-transform"
+                />
+              ) : (
+                <div className="text-3xl group-hover:scale-110 transition-transform">🎮</div>
+              )}
               <div className="text-center">
                 <h4 className="text-xs font-bold text-emerald-400 leading-tight line-clamp-2">
                   {game.name}
@@ -84,7 +70,15 @@ export function GameListBox() {
               <div className="w-full max-w-md bg-slate-800 rounded-lg shadow-2xl border border-emerald-500/30 overflow-hidden animate-modal-slide-in">
                 {/* 게임 이미지 */}
                 <div className="flex justify-center py-10 bg-emerald-900/20 border-b border-emerald-500/20">
-                  <div className="text-6xl">{selectedGameData.image}</div>
+                  {selectedGameData.header_image ? (
+                    <img
+                      src={selectedGameData.header_image}
+                      alt={selectedGameData.name}
+                      className="w-64 h-40 object-cover rounded"
+                    />
+                  ) : (
+                    <div className="text-6xl">🎮</div>
+                  )}
                 </div>
 
                 {/* 게임 정보 */}
@@ -96,22 +90,40 @@ export function GameListBox() {
                     </h2>
                   </div>
 
-                  {/* 장르 */}
+                  {/* 추천 점수 */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-900/40 px-3 py-1 rounded-full border border-emerald-500/30">
-                      {selectedGameData.genre}
+                    <span className="text-lg font-bold text-yellow-400">
+                      ⭐ {selectedGameData.score.toFixed(4)}
                     </span>
+                  </div>
+
+                  {/* 장르 */}
+                  <div className="flex flex-wrap gap-2">
+                    {selectedGameData.genres_kr.map((genre, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs font-semibold text-emerald-400 bg-emerald-900/40 px-3 py-1 rounded-full border border-emerald-500/30"
+                      >
+                        {genre}
+                      </span>
+                    ))}
                   </div>
 
                   {/* 설명 */}
                   <div className="pt-2">
                     <p className="text-slate-200 text-sm leading-relaxed">
-                      {selectedGameData.description}
+                      {selectedGameData.short_description_kr}
                     </p>
+                  </div>
+
+                  {/* 가격 및 출시일 */}
+                  <div className="flex justify-between text-sm text-slate-300">
+                    <span>💰 {selectedGameData.price.toLocaleString()} KRW</span>
+                    <span>📅 {selectedGameData.release_date}</span>
                   </div>
                 </div>
 
-                {/* 닫기 버튼 */}
+                {/* 버튼 */}
                 <div className="px-6 pb-6 flex gap-3">
                   <button
                     onClick={() => setSelectedGame(null)}
@@ -120,10 +132,13 @@ export function GameListBox() {
                     닫기
                   </button>
                   <button
-                    onClick={() => alert("게임 url로 이동합니다.")}
+                    onClick={() => {
+                      const url = `https://store.steampowered.com/app/${selectedGameData.app_id}`;
+                      window.open(url, "_blank");
+                    }}
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-300"
                   >
-                    게임하러 가기
+                    Steam에서 보기
                   </button>
                 </div>
               </div>
