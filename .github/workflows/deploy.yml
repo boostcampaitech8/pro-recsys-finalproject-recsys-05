@@ -23,6 +23,15 @@ jobs:
     # [검증: Docker Compose로 실행 및 헬스 체크]
     # PR 및 모든 푸시에서 실행되어, 서버가 정상적으로 DB에 붙는지 테스트합니다.
     # ---------------------------------------------------
+    - name: Create .env file from secrets
+      run: |
+        cat > .env << EOF
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        REDIS_URL=${{ secrets.REDIS_URL }}
+        ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+        EOF
+        echo "✅ .env file created successfully"
+
     - name: Build and Run with Docker Compose
       run: |
         docker compose up --build -d

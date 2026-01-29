@@ -26,3 +26,17 @@ class GameRepository:
         query = select(Game).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def get_games_by_app_ids(self, app_ids: List[int]) -> List[Game]:
+        """
+        여러 app_id로 게임 메타데이터를 일괄 조회합니다.
+
+        Args:
+            app_ids: Steam 게임 ID 리스트 (예: [730, 570, 440])
+
+        Returns:
+            Game 모델 리스트 (순서는 app_ids와 다를 수 있음)
+        """
+        query = select(Game).where(Game.app_id.in_(app_ids))
+        result = await self.db.execute(query)
+        return result.scalars().all()
