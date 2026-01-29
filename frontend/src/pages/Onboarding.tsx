@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/pages/components/Header";
+import { getGameRecommendations } from "@/api/gameApi";
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -8,15 +9,32 @@ export default function Onboarding() {
   const [genre, setGenre] = useState("");
   const [tags, setTags] = useState("");
   const [os, setOS] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!steamId.trim()) {
       alert("Steam ID를 입력해주세요.");
       return;
     }
 
-    localStorage.setItem("steamId", steamId);
-    void navigate("/main");
+    setLoading(true);
+    try {
+      const data = await getGameRecommendations({
+        steamid: steamId,
+        top_k: 10,
+      });
+
+      localStorage.setItem("steamId", steamId);
+      localStorage.setItem("recommendedGames", JSON.stringify(data.recommended_games));
+      void navigate("/main");
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "알 수 없는 오류";
+      alert(`추천 게임 로드 실패: ${errorMessage}`);
+      console.error("API 호출 실패:", errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -91,10 +109,11 @@ export default function Onboarding() {
 
           {/* Submit Button */}
           <button
-            onClick={handleContinue}
-            className="w-full mt-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            onClick={() => void handleContinue()}
+            disabled={loading}
+            className="w-full mt-10 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-colors"
           >
-            계속하기
+            {loading ? "로딩 중..." : "계속하기"}
           </button>
         </div>
       </div>
