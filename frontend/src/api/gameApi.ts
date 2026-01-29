@@ -26,7 +26,7 @@ interface RecommendationResponse {
 export async function getGameRecommendations(
   request: RecommendationRequest,
 ): Promise<RecommendationResponse> {
-  const baseUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+  const baseUrl = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
 
   const response = await fetch(`${baseUrl}/rec/recommend-from-steam`, {
     method: "POST",
