@@ -10,9 +10,9 @@ gcs:
 local:
   data_root: "app/data"      # 로컬 데이터 폴더 (backend/app/data)
   files:
-    # "로컬 파일명": { "upload_path": ..., "download_path": ... } 또는 "GCS 경로"
+    games_metadata.jsonl:
       local_path: "games_metadata.jsonl"       # 로컬 파일명 (data_root 기준)
-      upload_path: "processed/games_metadata.jsonl" 
+      upload_path: "processed/games_metadata.jsonl"
       download_path: "raw/steam_games_info.jsonl"
 
 versioning:

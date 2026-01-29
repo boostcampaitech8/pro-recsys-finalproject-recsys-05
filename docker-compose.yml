@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # [Development] FastAPI (현재 소스코드로 빌드)
@@ -6,11 +6,16 @@ services:
     build: .
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
       - REDIS_URL=redis://redis:6379
+      - ML_REC_ROOT=/app/ml_rec
     volumes:
       - ./backend:/app/backend
+      - ./ml_rec:/app/ml_rec
+      - ./configs:/app/configs
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       db:
@@ -18,7 +23,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -36,7 +41,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U myuser -d mydatabase" ]
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydatabase"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -47,7 +52,7 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
