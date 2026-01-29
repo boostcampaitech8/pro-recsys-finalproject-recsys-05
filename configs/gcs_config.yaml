@@ -15,6 +15,11 @@ local:
       upload_path: "processed/games_metadata.jsonl"
       download_path: "raw/steam_games_info.jsonl"
 
+    item_similarity.pkl:
+      local_path: "item_similarity.pkl"
+      upload_path: "ml_rec/item_similarity.pkl"
+      download_path: "ml_rec/item_similarity.pkl"
+
 versioning:
   use_timestamp: false    # 업로드 시 파일명에 타임스탬프 자동 추가
   timestamp_format: "%Y%m%d_%H%M%S"

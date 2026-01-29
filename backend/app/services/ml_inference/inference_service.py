@@ -10,6 +10,7 @@ import pandas as pd
 import pickle
 from typing import List, Dict, Tuple
 import os
+from .config import get_model_path
 
 
 class GameRecommendationService:
@@ -20,14 +21,18 @@ class GameRecommendationService:
     새로운 게임을 추천합니다.
     """
 
-    def __init__(self, similarity_data_path='saved/item_similarity.pkl'):
+    def __init__(self, similarity_data_path=None):
         """
         서비스 초기화
 
         Args:
-            similarity_data_path: 아이템 유사도 데이터 파일 경로
+            similarity_data_path: 아이템 유사도 데이터 파일 경로 (None이면 자동 감지)
         """
         print("추천 서비스 초기화 중...")
+
+        # 경로가 지정되지 않으면 자동 감지
+        if similarity_data_path is None:
+            similarity_data_path = get_model_path()
 
         # 유사도 데이터 로드
         with open(similarity_data_path, 'rb') as f:
@@ -193,8 +198,8 @@ def demo():
     print("게임 추천 서비스 데모")
     print("="*60)
 
-    # 서비스 초기화
-    service = GameRecommendationService('saved/item_similarity.pkl')
+    # 서비스 초기화 (경로 자동 감지)
+    service = GameRecommendationService()
 
     # 아이템 매핑 정보 로드 (실제 게임 ID 확인용)
     mapping_df = pd.read_csv('saved/item_mapping.csv')
@@ -268,8 +273,8 @@ def demo():
 def main():
     """메인 함수 - 실제 서비스 사용 예시"""
 
-    # 서비스 초기화
-    service = GameRecommendationService('saved/item_similarity.pkl')
+    # 서비스 초기화 (경로 자동 감지)
+    service = GameRecommendationService()
 
     # 사용자 입력 (예시)
     print("\n" + "="*60)

@@ -41,17 +41,18 @@ async def init_db_and_load_data():
             await conn.run_sync(Base.metadata.create_all)
         logger.info("✅ Database tables created successfully")
 
-        # 2단계: 게임 데이터 다운로드 및 로드
+        # 2단계: 게임 데이터 및 ML 모델 다운로드
         try:
             data_dir = Path(__file__).parent / "data"
             data_dir.mkdir(exist_ok=True)
             data_file = data_dir / "games_metadata.jsonl"
+            model_file = data_dir / "item_similarity.pkl"
 
             # GCS에서 다운로드 (gcs_key.json이 있으면)
             if os.path.exists(Path(__file__).parent / "gcs_key.json"):
-                logger.info("📥 Attempting to download game data from GCS...")
+                logger.info("📥 Attempting to download data and models from GCS...")
                 try:
-                    # manage_data.py를 subprocess로 실행
+                    # manage_data.py를 subprocess로 실행 - 게임 데이터
                     process = await asyncio.create_subprocess_exec(
                         sys.executable,
                         "scripts/manage_data.py",
@@ -63,11 +64,30 @@ async def init_db_and_load_data():
                     )
                     stdout, stderr = await process.communicate()
                     if process.returncode == 0:
-                        logger.info(f"✅ Data downloaded to {data_file}")
+                        logger.info(f"✅ Game data downloaded to {data_file}")
                     else:
-                        logger.warning(f"⚠️ Download failed: {stderr.decode()}")
+                        logger.warning(f"⚠️ Game data download failed: {stderr.decode()}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Could not download from GCS: {e}")
+                    logger.warning(f"⚠️ Could not download game data from GCS: {e}")
+
+                try:
+                    # manage_data.py를 subprocess로 실행 - 아이템 유사도 모델
+                    process = await asyncio.create_subprocess_exec(
+                        sys.executable,
+                        "scripts/manage_data.py",
+                        "item_similarity.pkl",
+                        "--download",
+                        cwd=str(Path(__file__).parent.parent),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    if process.returncode == 0:
+                        logger.info(f"✅ ML model downloaded to {model_file}")
+                    else:
+                        logger.warning(f"⚠️ ML model download failed: {stderr.decode()}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not download ML model from GCS: {e}")
 
             # 3단계: 데이터 파일이 있으면 로드
             if data_file.exists():
