@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # [Production] FastAPI (Docker Hub에서 이미지 다운로드)
   backend:
-    image: rlaqudwn/rec-server:latest
+    image: rlaqudwn/rec-server:dev
     ports:
       - "8000:8000"
     environment:
