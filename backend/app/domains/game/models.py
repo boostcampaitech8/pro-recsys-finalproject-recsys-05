@@ -28,10 +28,18 @@ class Game(Base):
     
     # Tags & Categories
     tags_en = Column(JSONB)
-    categories = Column(JSONB) 
+    categories = Column(JSONB)
 
-    # Embedding (For Recommendation/RAG)
-    # 차원 수는 사용 모델에 따라 결정 (예: 768 for BERT-base, 1536 for OpenAI)
-    # 일단 768로 설정 (변경 가능)
+    # Embedding (For Recommendation/RAG) - BAAI/bge-m3 (1024 dim)
     context = Column(Text)
-    embedding = Column(Vector(768)) 
+    # HNSW Index for Cosine Similarity (m=16, ef_construction=64)
+    # GIN Index for JSONB Filtering
+    embedding = Column(Vector(1024)) 
+
+    from sqlalchemy import Index
+    __table_args__ = (
+        Index('idx_games_embedding_hnsw', embedding, postgresql_using='hnsw', postgresql_with={'m': 16, 'ef_construction': 64}, postgresql_ops={'embedding': 'vector_cosine_ops'}),
+        Index('idx_games_genres_kr_gin', genres_kr, postgresql_using='gin'),
+        Index('idx_games_tags_en_gin', tags_en, postgresql_using='gin'),
+        Index('idx_games_supported_languages_gin', supported_languages, postgresql_using='gin'),
+    ) 
