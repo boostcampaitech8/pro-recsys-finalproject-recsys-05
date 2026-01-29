@@ -37,6 +37,7 @@ COPY backend/ ./backend/
 # 3. 환경 변수 (가상환경 bin을 PATH에 추가)
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app/backend:/app
+ENV ML_REC_ROOT=/app/ml_rec
 
 # 4. 실행
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

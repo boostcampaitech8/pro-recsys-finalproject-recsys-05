@@ -6,7 +6,7 @@ gpu_id: '0'           # 사용할 GPU 번호 (보통 0번)
 
 # 데이터 설정
 dataset: steam_filtered_k30_activity
-data_path: ../dataset/
+data_path: ../../dataset/
 field_separator: ","
 USER_ID_FIELD: user_id
 ITEM_ID_FIELD: item_id

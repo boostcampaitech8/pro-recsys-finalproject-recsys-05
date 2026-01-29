@@ -4,11 +4,18 @@ import { Header } from "@/pages/components/Header";
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const [steamId, setSteamId] = useState("");
   const [genre, setGenre] = useState("");
   const [tags, setTags] = useState("");
   const [os, setOS] = useState("");
 
   const handleContinue = () => {
+    if (!steamId.trim()) {
+      alert("Steam ID를 입력해주세요.");
+      return;
+    }
+
+    localStorage.setItem("steamId", steamId);
     void navigate("/main");
   };
 
@@ -30,9 +37,14 @@ export default function Onboarding() {
               </label>
               <input
                 type="text"
-                placeholder="Steam ID 입력"
+                value={steamId}
+                onChange={(e) => setSteamId(e.target.value)}
+                placeholder="Steam ID 입력 (예: 76561198123456789)"
                 className="w-full bg-slate-900/50 border border-emerald-500/50 rounded px-4 py-3 text-emerald-300 placeholder-emerald-600/50 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/30 transition font-semibold"
               />
+              <p className="text-xs text-emerald-400/70 mt-2">
+                💡 Steam 프로필 URL: https://steamcommunity.com/profiles/[YOUR_ID]
+              </p>
             </div>
             {/* Genre Card */}
             <div className="bg-slate-800/50 border border-emerald-500/30 rounded-lg p-6 hover:border-emerald-500/60 transition-colors">

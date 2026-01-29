@@ -26,7 +26,7 @@ def load_model(model_file, config_file_list):
     train_data, _, _ = data_preparation(config, dataset)
 
     model = get_model(config['model'])(config, train_data.dataset).to(config['device'])
-    checkpoint = torch.load(model_file, map_location=config['device'])
+    checkpoint = torch.load(model_file, map_location=config['device'], weights_only=False)
     model.load_state_dict(checkpoint['state_dict'])
     model.eval()
 
@@ -57,15 +57,28 @@ def extract_item_similarity_matrix(model, dataset):
         # EASE 모델의 경우, 일반적으로 'item_similarity' 또는 'weight' 행렬이 있음
         # RecBole EASE 구현 확인 필요
         if hasattr(model, 'item_similarity'):
-            similarity_matrix = model.item_similarity.cpu().numpy()
+            item_sim = model.item_similarity
+            # torch tensor인 경우 numpy로 변환, 이미 numpy면 그대로 사용
+            if hasattr(item_sim, 'cpu'):
+                similarity_matrix = item_sim.cpu().numpy()
+            else:
+                similarity_matrix = np.asarray(item_sim)
         elif hasattr(model, 'weight'):
-            similarity_matrix = model.weight.cpu().numpy()
+            weight = model.weight
+            if hasattr(weight, 'cpu'):
+                similarity_matrix = weight.cpu().numpy()
+            else:
+                similarity_matrix = np.asarray(weight)
         else:
             # 대안: interaction matrix로부터 직접 계산
             print("\n직접 계산 방식 사용...")
             # EASE는 closed-form solution: B = I - P^{-1}
             # 여기서는 학습된 interaction matrix를 사용
-            interaction_matrix = model.interaction_matrix.cpu().numpy()
+            interaction_matrix = model.interaction_matrix
+            if hasattr(interaction_matrix, 'cpu'):
+                interaction_matrix = interaction_matrix.cpu().numpy()
+            else:
+                interaction_matrix = np.asarray(interaction_matrix)
 
             # 아이템 간 코사인 유사도 계산
             # normalize rows (각 아이템을 정규화)
@@ -159,8 +172,8 @@ def analyze_similarity(similarity_matrix, dataset, n_samples=5):
 
 def main():
     # 설정
-    MODEL_FILE = 'saved/EASE-Jan-21-2026_05-18-10.pth'
-    CONFIG_FILE = '../configs/recbole_config_ease.yaml'
+    MODEL_FILE = '../saved/EASE-Jan-21-2026_05-18-10.pth'
+    CONFIG_FILE = '../../configs/recbole_config_ease.yaml'
     OUTPUT_DIR = 'saved'
 
     print("="*60)
