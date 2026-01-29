@@ -11,6 +11,7 @@ from app.domains.steam.router import router as steam_router
 from app.core.database import get_db
 from app.domains.user.router import router as user_router
 from app.domains.game.router import router as game_router
+from app.domains.chat.router import router as chat_router
 from app.domains.user import models as user_models
 from app.domains.chat import models as chat_models
 from app.domains.game import models as game_models
@@ -25,6 +26,7 @@ app.include_router(test_router, prefix="/test", tags=["test"])
 app.include_router(game_router, prefix="/api/v1/games", tags=["games"])
 app.include_router(steam_router, prefix="/steam")
 app.include_router(recommend_router, prefix="/rec")
+app.include_router(chat_router, prefix="/chat", tags=["chat"])
 
 
 @app.get("/")
