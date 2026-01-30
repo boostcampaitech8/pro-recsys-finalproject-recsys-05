@@ -35,9 +35,11 @@ coverage.xml
 **/*.pth
 **/*.bin
 **/*.onnx
-app/data/games_metadata.jsonl  # Add if this file is generated/not needed in the production image. But currently may be needed.
-# If games_metadata.jsonl is needed, keep it. But if it's large and can be downloaded/generated, consider excluding.
-# Actually, it's 200MB, so it might stay if crucial. But .venv is ~GBs.
+**/*.parquet
+**/*.pkl
+**/*.jsonl
+backend/app/data/games_metadata.jsonl
+backend/test/data/
 
 # Other
 Dockerfile
