@@ -129,7 +129,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
-          source: "deploy.sh,docker-compose.prod.yml"
+          source: "deploy.sh,docker-compose.prod.yml,backend/nginx"
           target: "/home/${{ secrets.SSH_USERNAME }}/"
 
       # 3. SSH 접속 후 스크립트 실행
