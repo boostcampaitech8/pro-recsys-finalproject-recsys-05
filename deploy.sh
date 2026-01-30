@@ -33,7 +33,7 @@ fi
 sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml pull
 
 # 3. 서비스 재시작 (변경된 이미지만 새로 띄움)
-sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml up -d --force-recreate
+sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml up -d --build --force-recreate
 
 # 4. 안 쓰는 구버전 이미지 청소
 sudo docker image prune -f
