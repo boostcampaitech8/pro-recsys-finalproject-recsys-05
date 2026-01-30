@@ -17,7 +17,7 @@
 
 ### 1. 사전 준비 (Prerequisites)
 
-* **GCS 키 파일**: `backend/app/gcs_key.json` 파일이 필요합니다. (보안상 git ignore됨)
+* **GCS 키 파일**: `configs/gcs/gcs_key.json` 파일이 필요합니다. (보안상 git ignore됨)
 * **로컬 DB 실행**: Docker Compose로 PostgreSQL이 실행 중이어야 합니다.
 
     ```bash
@@ -82,5 +82,5 @@ uv run python 2_ingest_from_gcs.py
 
 ### 3. GitHub Secrets 설정
 
-* CI/CD 배포 시에는 로컬의 `gcs_key.json`을 사용할 수 없음.
+* CI/CD 배포 시에는 로컬의 `configs/gcs/gcs_key.json`을 사용할 수 없음.
 * 파일 내용을 **Base64**로 인코딩하여 `GCS_KEY_BASE64`라는 GitHub Secret으로 등록하고, `storage.py`에서 이를 디코딩하여 사용하도록 구현함. (현재 레포지토리 Secrets 목록에 추가 필요!)

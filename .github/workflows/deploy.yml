@@ -23,14 +23,16 @@ jobs:
     # [검증: Docker Compose로 실행 및 헬스 체크]
     # PR 및 모든 푸시에서 실행되어, 서버가 정상적으로 DB에 붙는지 테스트합니다.
     # ---------------------------------------------------
-    - name: Create .env file from secrets
+    - name: Create backend env file from secrets
       run: |
-        cat > .env << EOF
+        mkdir -p backend
+        cat > backend/.env << EOF
         DATABASE_URL=${{ secrets.DATABASE_URL }}
         REDIS_URL=${{ secrets.REDIS_URL }}
         ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+        STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
         EOF
-        echo "✅ .env file created successfully"
+        echo "✅ backend/.env file created successfully"
 
     - name: Build and Run with Docker Compose
       run: |
@@ -140,10 +142,13 @@ jobs:
           port: 22
           script: |
             # .env 파일 생성 (환경변수 주입 - sudo 호환성 위해 파일로 저장)
-            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > .env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-            echo "GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}" >> .env
+            ENV_PATH="/home/${{ secrets.SSH_USERNAME }}/.env"
+            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > "$ENV_PATH"
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> "$ENV_PATH"
+            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> "$ENV_PATH"
+            echo "GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}" >> "$ENV_PATH"
+            echo "STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}" >> "$ENV_PATH"
+            chmod 600 "$ENV_PATH"
             
             # 배포 스크립트 실행
             chmod +x ./deploy.sh

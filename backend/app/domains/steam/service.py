@@ -4,10 +4,10 @@ import asyncio
 import logging
 import json
 from pathlib import Path
-from dotenv import load_dotenv
+from app.core.env import load_backend_env
 
 # .env 파일 로드
-load_dotenv()
+load_backend_env()
 
 # 로거 설정
 logger = logging.getLogger(__name__)
