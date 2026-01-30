@@ -44,7 +44,7 @@ jobs:
       run: |
         # 5번 재시도 (총 50초 대기)
         for i in {1..5}; do
-          if curl -f http://localhost:8000/health/db; then
+          if curl -f http://localhost:80/health/db; then
             echo "Health Check Passed!"
             exit 0
           fi
