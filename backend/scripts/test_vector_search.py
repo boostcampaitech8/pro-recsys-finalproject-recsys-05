@@ -4,6 +4,7 @@ import os
 import random
 import numpy as np # Added numpy import
 
+
 # Add backend directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -26,6 +27,21 @@ async def test_vector_search(): # Renamed function
         dummy_vector = np.random.rand(settings.EMBEDDING_DIMENSION).tolist() # Modified dummy vector generation
         print(f"✅ Generated Dummy Vector (Dim: {len(dummy_vector)})")
 
+from app.core.database import get_db
+from app.domains.game.repository import GameRepository
+
+async def test_search():
+    print("🚀 Vector Search Test Start")
+    
+    # 1. Create a random vector (768 dim)
+    # 실제로는 ML 모델 출력값이 들어옴
+    dummy_vector = [random.random() for _ in range(768)]
+    print(f"✅ Generated Dummy Vector (Dim: {len(dummy_vector)})")
+
+    # DB Connection
+    async for db in get_db():
+        repo = GameRepository(db)
+        
         # 2. Test 1: Simple Search
         print("\n🔍 Test 1: Simple Vector Search (Top 3)")
         try:
@@ -54,3 +70,4 @@ if __name__ == "__main__":
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(test_vector_search())
+    asyncio.run(test_search())

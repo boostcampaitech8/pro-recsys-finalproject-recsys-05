@@ -36,7 +36,22 @@ class GameDetailResponse(BaseModel):
     tags_en: List[str] | None
     categories: List[str] | None
     
+
     # contnet 와 vector
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class GameSearchQuery(BaseModel):
+    """벡터 검색 및 필터링 조건을 위한 입력 스키마"""
+    vector: List[float]
+    top_k: int = 5
+    min_price: int | None = None
+    max_price: int | None = None
+    
+    # OR 조건 필터
+    genres: List[str] | None = None # 예: ["RPG", "Action"]
+    tags: List[str] | None = None # 예: ["FPS", "Story Rich"]
+    languages: List[str] | None = None # 예: ["Korean", "English"]
+
 

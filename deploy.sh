@@ -18,21 +18,22 @@ else
     echo "Docker가 이미 설치되어 있습니다."
 fi
 
-# 0.7 Docker Compose 설치 확인 (없으면 설치)
-if ! command -v docker-compose &> /dev/null
-then
-    echo "Docker Compose가 없습니다. 설치를 시도합니다..."
-    sudo apt-get install -y docker-compose-plugin
+# 0.8. Docker Compose 명령어 감지
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+else
+    DOCKER_COMPOSE_CMD="docker compose"
 fi
 
 # 1. (생략) 배포 파일은 SCP 등으로 업로드되었다고 가정
 # git pull origin main (삭제됨)
 
 # 2. 최신 이미지 당겨오기 (docker-compose.prod.yml 기반)
-sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME docker-compose -f docker-compose.prod.yml pull
+# sudo는 상황에 따라 필요할 수도 있고 아닐 수도 있으나, 기존 스크립트 문맥상 유지
+sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml pull
 
 # 3. 서비스 재시작 (변경된 이미지만 새로 띄움)
-sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME docker-compose -f docker-compose.prod.yml up -d --force-recreate
+sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml up -d --force-recreate
 
 # 4. 안 쓰는 구버전 이미지 청소
 sudo docker image prune -f
