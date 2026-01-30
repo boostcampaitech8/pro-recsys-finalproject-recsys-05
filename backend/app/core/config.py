@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
-import os
+from app.core.env import ENV_PATH
 
 class Settings(BaseSettings):
     # Base
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int = 1024
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(ENV_PATH),
         env_file_encoding="utf-8",
         extra="ignore" # .env에 다른 키가 있어도 무시
     )
