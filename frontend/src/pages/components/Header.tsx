@@ -1,8 +1,23 @@
 import budocki from "@/assets/budocki.png";
 
-export function Header() {
+interface HeaderProps {
+  onClear?: () => void;
+}
+
+export function Header({ onClear }: HeaderProps) {
   return (
-    <div className="w-full flex flex-col items-center">
+    <div className="w-full flex flex-col items-center relative">
+      {/* Clear 버튼 */}
+      {onClear && (
+        <button
+          onClick={onClear}
+          className="absolute top-0 right-12 text-emerald-400 hover:text-emerald-300 transition-colors text-sm font-semibold"
+          title="채팅 초기화"
+        >
+          🗑️ Clear
+        </button>
+      )}
+
       <img
         src={budocki}
         alt="Logo"

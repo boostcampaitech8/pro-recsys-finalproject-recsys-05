@@ -1,45 +1,76 @@
 import { useState, useEffect } from "react";
 import { Header } from "@/pages/components/Header";
-import { GameListBox } from "@/pages/components/GameListBox";
+import { ChatHistory, type ChatMessage } from "@/pages/components/ChatHistory";
 import { InputGameSearch } from "@/pages/components/InputGameSearch";
-import type { RecommendedGame } from "@/api/gameApi";
+
+const loadChatHistory = (): ChatMessage[] => {
+  const savedMessages = localStorage.getItem("chatMessages");
+  if (savedMessages) {
+    try {
+      const parsed = JSON.parse(savedMessages) as ChatMessage[];
+      // Date 객체 복원
+      return parsed.map((msg) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp),
+      }));
+    } catch (err) {
+      console.error("채팅 히스토리 로드 실패:", err);
+    }
+  }
+  return [];
+};
 
 export default function MainPage() {
-  const [recommendedGames, setRecommendedGames] = useState<RecommendedGame[]>(
-    [],
-  );
-  const [loading, setLoading] = useState(true);
+  const [messages, setMessages] = useState<ChatMessage[]>(loadChatHistory);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // localStorage에 저장된 추천 게임 데이터 로드
+  // messages 상태 변경 시 localStorage에 저장
   useEffect(() => {
-    const savedGames = localStorage.getItem("recommendedGames");
+    localStorage.setItem("chatMessages", JSON.stringify(messages));
+  }, [messages]);
 
-    if (savedGames) {
-      try {
-        const games = JSON.parse(savedGames);
-        setRecommendedGames(games);
-        console.log(`✅ 저장된 ${games.length}개의 게임 추천 데이터 로드 완료`);
-      } catch (err) {
-        console.error("❌ 저장된 데이터 파싱 실패:", err);
-      }
-    } else {
-      console.log("저장된 추천 게임 데이터가 없습니다. Onboarding을 다시 완료해주세요.");
-    }
+  const handleClearChat = () => {
+    setMessages([]);
+    localStorage.removeItem("chatMessages");
+  };
 
-    setLoading(false);
-  }, []);
+  const handleSendMessage = (query: string) => {
+    // 사용자 메시지 추가
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      content: query,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    // AI 응답 시뮬레이션 (TODO: 백엔드 API 호출)
+    setIsLoading(true);
+    setTimeout(() => {
+      const aiMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: query,
+        games: [],
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMessage]);
+      setIsLoading(false);
+    }, 1500);
+  };
 
   return (
-    <div className="w-full max-w-360 mx-auto min-h-screen flex flex-col text-center items-center pb-22 gap-6 bg-slate-900 text-emerald-300">
+    <div className="w-full max-w-360 mx-auto min-h-screen flex flex-col bg-slate-900 text-emerald-300">
+      {/* 헤더 */}
       <div className="w-full bg-linear-to-b from-emerald-900/40 to-slate-900/20 py-20 text-center">
-        <Header />
+        <Header onClear={handleClearChat} />
       </div>
 
-      {/* contents view */}
-      <div className="w-full px-12 flex flex-col text-center items-center">
-        <GameListBox games={recommendedGames} loading={loading} />
-      </div>
-      <InputGameSearch />
+      {/* 채팅 히스토리 */}
+      <ChatHistory messages={messages} isLoading={isLoading} />
+
+      {/* 채팅 입력 */}
+      <InputGameSearch onSearch={handleSendMessage} isLoading={isLoading} />
     </div>
   );
 }
