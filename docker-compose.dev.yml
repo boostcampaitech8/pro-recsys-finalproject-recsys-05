@@ -1,0 +1,94 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # [Backend] 개발 및 디버깅용 컨테이너
+  # ==========================================
+  backend:
+    # 앞서 작성한 '개발용 Dockerfile'을 사용하여 빌드
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    
+    # [포트 설정]
+    # 8000: API 서버 접근용
+    # 5678: VS Code 디버거 연결용 (Remote Attach)
+    ports:
+      - "8000:8000"
+      - "5678:5678"
+
+    # [환경 변수]
+    env_file:
+      - .env
+    environment:
+      # 1. 파이썬 경로 설정 (핵심)
+      # 소스 코드가 /app/backend 안에 있으므로, 파이썬이 모듈을 찾을 수 있게 경로 추가
+      - PYTHONPATH=/app/backend:/app
+      # 2. 파이썬 버퍼링 해제 (로그 즉시 출력)
+      - PYTHONUNBUFFERED=1
+      # 3. DB/Redis 연결 정보
+      - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
+      - REDIS_URL=redis://redis:6379
+      - ML_REC_ROOT=/app/ml_rec
+
+    # [볼륨 마운트]
+    # 로컬의 코드 변경사항이 컨테이너에 즉시 반영되도록 설정 (Hot-Reloading)
+    volumes:
+      - ./backend:/app/backend
+      - ./ml_rec:/app/ml_rec
+      - ./configs:/app/configs
+
+    # [실행 명령어 (디버깅 모드)]
+    # python -m debugpy: 디버거 어댑터를 실행
+    # --listen 0.0.0.0:5678: 외부(VS Code)에서 5678 포트로 접속 대기
+    # -m uvicorn ... --reload: 디버거 하위에서 uvicorn 서버 실행 및 코드 변경 감지
+    command: >
+      python -m debugpy --listen 0.0.0.0:5678
+      -m uvicorn app.main:app
+      --host 0.0.0.0 --port 8000 --reload
+
+    # [실행 순서 제어]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    # [헬스 체크]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # [Infrastructure] DB & Cache (변경 없음)
+  # ==========================================
+  db:
+    image: pgvector/pgvector:pg15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=mydatabase
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydatabase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
