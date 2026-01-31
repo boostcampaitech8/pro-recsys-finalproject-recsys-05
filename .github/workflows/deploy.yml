@@ -50,9 +50,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      # uv 설치 및 의존성 캐싱
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      # curl 설치 제거하고 공식 action으로 교체 + uv cache 활성화
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          working-directory: backend
+
+      #venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
+      - name: Cache backend .venv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: ${{ runner.os }}-py311-venv-${{ hashFiles('backend/uv.lock', 'backend/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-venv-
 
       - name: Install Dependencies
         run: |
