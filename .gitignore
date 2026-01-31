@@ -26,3 +26,8 @@ ml_rec/scripts/log/
 ml_rec/scripts/log_tensorboard/
 *.jsonl
 *.pkl
+*.npz
+
+log/
+logs/
+log_tensorboard/
