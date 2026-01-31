@@ -1,0 +1,33 @@
+# 모델 설정
+model: EASE
+reg_weight: 250.0  # EASE의 정규화 파라미터
+device: cuda          # cuda(GPU) 사용 설정
+gpu_id: '0'           # 사용할 GPU 번호 (보통 0번)
+
+# 데이터 설정
+dataset: steam_filtered_k30_activity
+data_path: ../../dataset/
+field_separator: ","
+USER_ID_FIELD: user_id
+ITEM_ID_FIELD: item_id
+RATING_FIELD: rating
+load_col:
+  inter: [user_id, item_id, rating]
+
+# 평가 방식 (속도 최적화 버전)
+eval_args:
+  split: {'RS': [0.8, 0.1, 0.1]}
+  group_by: user
+  order: RO
+  mode: uni100  # 정답 1개 + 무작위 오답 100개만 비교 (100배 빠름)
+
+# 속도 향상의 핵심 파라미터들
+train_batch_size: 2048
+eval_batch_size: 2048    # 메모리 안정성 우선
+valid_sample_rate: 0.1   # 검증 시 10% 유저만 샘플링
+worker: 4                # 멀티 프로세싱
+
+# 평가지표 (필요한 것 위주로 줄이면 더 빠릅니다)
+topk: [10, 20]
+metrics: ['Recall', 'NDCG', 'MRR'] # Precision, Hit은 사실 Recall/NDCG와 경향이 겹칩니다.
+valid_metric: NDCG@10

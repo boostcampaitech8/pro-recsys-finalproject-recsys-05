@@ -1,0 +1,22 @@
+# Version Control
+.git
+.gitignore
+
+# Python / Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+
+# Data & Models (Recursive ignore)
+**/data/
+**/models/
+**/output/
+**/logs/
+**/ollama_models/
+**/postgres_data/
+
+# Project specific
+run_*.sh
+run_*.ps1
