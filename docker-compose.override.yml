@@ -1,11 +1,13 @@
 version: "3.8"
 
 services:
-  # [Backend] Development Overrides
+  # [Backend] 개발 환경 전용 설정 (Override)
   backend:
     build:
       context: .
       target: dev
+    env_file:
+      - ./.env
     environment:
       - PYTHONPATH=/app/backend:/app
       - PYTHONUNBUFFERED=1
@@ -14,17 +16,17 @@ services:
       - ./ml_rec:/app/ml_rec
       - ./configs:/app/configs
     ports:
-      - "8000:8000" # API Port
-      - "5678:5678" # Debug Port
+      - "8000:8000" # API 포트
+      - "5678:5678" # 디버깅용 포트
     command: >
       python -m debugpy --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # [DB] Development Overrides (Host Access)
+  # [DB] 개발 환경 설정 (로컬 호스트 접근 허용)
   db:
     ports:
       - "127.0.0.1:5432:5432"
 
-  # [Redis] Development Overrides (Host Access)
+  # [Redis] 개발 환경 설정 (로컬 호스트 접근 허용)
   redis:
     ports:
       - "127.0.0.1:6379:6379"

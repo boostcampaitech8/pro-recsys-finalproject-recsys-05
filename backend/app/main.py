@@ -10,7 +10,6 @@ import asyncio
 import sys
 from pathlib import Path
 
-from app.routers.test import router as test_router
 from app.routers.health import router as health_router
 from app.domains.recommendation.router import router as recommend_router
 from app.domains.steam.router import router as steam_router
@@ -23,7 +22,10 @@ from app.domains.chat import models as chat_models
 from app.domains.game import models as game_models
 from app.domains.recommendation import models as rec_models
 
-logger = logging.getLogger(__name__)
+from app.core.logger import setup_logging
+
+# 전역 로깅 설정 초기화 (앱 시작 시 최초 1회)
+logger = setup_logging()
 
 
 async def init_db_and_load_data():
@@ -141,7 +143,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/health", tags=["health"])
 app.include_router(user_router, prefix="/api/v1/users", tags=["users"])
-app.include_router(test_router, prefix="/test", tags=["test"])
+# Test Router Removed (Migrated to Pytest)
 app.include_router(game_router, prefix="/api/v1/games", tags=["games"])
 app.include_router(steam_router, prefix="/steam")
 app.include_router(recommend_router, prefix="/rec")
