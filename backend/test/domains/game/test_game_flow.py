@@ -33,7 +33,7 @@ async def test_game_flow(db):
         "genres_en": ["Action", "Indie"],
         "tags_en": ["FPS", "Multiplayer"],
         "header_image": "http://example.com/image.jpg",
-        "supported_languages": "English, Korean",
+        "supported_languages": {"English": "Full", "Korean": "Interface"},
         # 필요한 다른 필드들도 load_games.py 로직에 맞춰 추가 가능
     }
 
@@ -59,7 +59,7 @@ async def test_game_flow(db):
         
         # 만약 limit=1이라서 안 보일 수도 있으니 직접 조회 시도
         if not target_game:
-            target_game = await repo.get_game_by_id(sample_game["appid"])
+            target_game = await repo.get_game_by_app_id(sample_game["appid"])
 
         assert target_game is not None, f"적재한 게임(ID: {sample_game['appid']})을 찾을 수 없습니다."
         logger.info(f"1. 게임 조회 성공: {target_game.name}")
