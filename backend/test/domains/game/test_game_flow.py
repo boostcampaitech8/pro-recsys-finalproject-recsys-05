@@ -33,7 +33,7 @@ async def test_game_flow(db):
         "genres_en": ["Action", "Indie"],
         "tags_en": ["FPS", "Multiplayer"],
         "header_image": "http://example.com/image.jpg",
-        "supported_languages": "English, Korean",
+        "supported_languages": {"English": "Full", "Korean": "Interface"},
         # 필요한 다른 필드들도 load_games.py 로직에 맞춰 추가 가능
     }
 

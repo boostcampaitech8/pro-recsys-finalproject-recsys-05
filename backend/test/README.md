@@ -20,8 +20,15 @@
 docker compose up -d db redis
 
 # 2. 테스트 실행 (backend 디렉토리에서)
+# 주의: 'ModuleNotFoundError: No module named app' 에러 방지를 위해 python -m 모드로 실행해야 합니다.
 cd backend
-uv run pytest test/
+uv run python -m pytest test/
+```
+
+### 특정 테스트 파일 실행 예시
+
+```bash
+uv run python -m pytest test/domains/game/test_game_flow.py
 ```
 
 ## 2. 테스트 파일 구조
