@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1
 COPY backend/pyproject.toml backend/uv.lock ./
 
 # ==========================================
-# [Stage 2] Dev: 개발 환경 (uv 포함, dev 의존성 설치)
+# [Stage 2] Dev: 개발 환경 (uv 도구 포함, 개발용 의존성 설치)
 # ==========================================
 FROM base AS dev
 # 개발용 환경변수
@@ -24,22 +24,22 @@ ENV PATH="/app/.venv/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
-# 헬스체크용 curl 설치 (User Request: Dev 환경에서도 필요 시)
+# 헬스체크용 curl 설치 (개발 환경에서도 헬스체크가 필요한 경우)
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8000 5678
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # ==========================================
-# [Stage 3] Builder: 프로덕션용 빌드 (no-dev)
+# [Stage 3] Builder: 프로덕션 빌드 단계 (개발툴 제외)
 # ==========================================
 FROM base AS builder
-# Prod 의존성만 설치
+# 운영(Prod) 환경용 의존성만 설치
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev --no-install-project
 
 # ==========================================
-# [Stage 4] Runner: 프로덕션 실행 이미지 (Slim, uv 미포함)
+# [Stage 4] Runner: 최종 실행 이미지 (Slim 버전, uv 빌드도구 미포함)
 # ==========================================
 FROM python:3.11-slim-bookworm AS runner
 WORKDIR /app
@@ -47,10 +47,10 @@ WORKDIR /app
 # 헬스체크용 curl 설치
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# 가상환경 복사 from Builder
+# Builder 단계에서 생성한 가상환경(.venv) 복사
 COPY --from=builder /app/.venv /app/.venv
 
-# 소스 코드 복사 (Prod는 이미지 안에 코드 포함)
+# 소스 코드 복사 (운영 환경은 이미지 내부에 코드를 포함)
 COPY configs/ ./configs/
 COPY ml_rec/ ./ml_rec/
 COPY backend/ ./backend/

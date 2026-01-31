@@ -1,15 +1,9 @@
 version: "3.8"
 
 services:
-  # [Backend] Common Configuration
+  # [Backend] 백엔드 공통 설정
   backend:
-    image: rec-server # Placeholder name, overridden in prod/dev
-    env_file:
-      - ./backend/.env
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
-      - REDIS_URL=redis://redis:6379
-      - ML_REC_ROOT=/app/ml_rec
+    image: rec-server # 임시 이미지 이름, prod/dev에서 오버라이드 됨
     depends_on:
       db:
         condition: service_healthy
@@ -23,24 +17,24 @@ services:
     networks:
       - app_network
 
-  # [DB] PostgreSQL Common Configuration
+  # [DB] PostgreSQL 공통 설정
   db:
     image: pgvector/pgvector:pg15
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=myuser
-      - POSTGRES_PASSWORD=mypassword
-      - POSTGRES_DB=mydatabase
+      - POSTGRES_USER=${POSTGRES_USER:-myuser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mypassword}
+      - POSTGRES_DB=${POSTGRES_DB:-mydatabase}
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U myuser -d mydatabase" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-mydatabase}" ]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - app_network
 
-  # [Redis] Cache Common Configuration
+  # [Redis] Redis 캐시 공통 설정
   redis:
     image: redis:alpine
     healthcheck:
