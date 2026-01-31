@@ -2,46 +2,24 @@
 .git
 .gitignore
 
-# Virtual Environments
+# 가상환경 (이게 범인일 확률 90%)
 .venv
 venv
 env
 backend/.venv
 backend/venv
-**/venv
-**/.venv
-**/env
 
-# Python Cache
+# 파이썬 캐시 (이것도 꽤 크다)
 __pycache__
 **/*.pyc
-**/*.pyo
-**/*.pyd
-**/.pytest_cache
-.pytest_cache
+**/__pycache__
 
-# Pytest / Coverage
-.coverage
-.coverage.*
-nosetests.xml
-coverage.xml
-*.cover
-
-# Logs
-*.log
-
-# Large Files / Models (Check specific folders if needed)
+# 모델 파일 (혹시 backend 안에 숨겨놨나?)
 **/*.pt
 **/*.pth
 **/*.bin
 **/*.onnx
-**/*.parquet
-**/*.pkl
-**/*.jsonl
-backend/app/data/games_metadata.jsonl
-backend/test/data/
 
-# Other
-Dockerfile
+# 기타
 README.md
-backend/README.md
+Dockerfile
