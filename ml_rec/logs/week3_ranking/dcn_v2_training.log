@@ -1,0 +1,93 @@
+2026-01-31 18:22:51,472 - INFO - Device: cuda
+2026-01-31 18:22:51,473 - INFO - ================================================================================
+2026-01-31 18:22:51,473 - INFO - Task 2: DCN v2 모델 학습 시작
+2026-01-31 18:22:51,473 - INFO - ================================================================================
+2026-01-31 18:22:51,473 - INFO - 
+[Step 1] 데이터 로드 중...
+2026-01-31 18:22:51,921 - INFO - ✓ 학습 데이터 로드: 347832개 샘플
+2026-01-31 18:22:51,991 - INFO - ✓ 검증 데이터 로드: 43479개 샘플
+2026-01-31 18:22:52,062 - INFO - ✓ 테스트 데이터 로드: 43480개 샘플
+2026-01-31 18:22:52,063 - INFO - 
+[Step 2] DCN v2 모델 초기화 중...
+2026-01-31 18:22:52,175 - INFO - ✓ 모델 초기화: 입력 차원=66
+2026-01-31 18:22:53,204 - INFO - 
+[Step 3] 모델 학습 중...
+2026-01-31 18:22:55,578 - INFO - Epoch  1: train_loss=24.5917, val_loss=23.5023, val_acc=0.7426
+2026-01-31 18:22:55,583 - INFO -   → Best model saved (val_loss=23.5023)
+2026-01-31 18:22:57,583 - INFO - Epoch  2: train_loss=22.0354, val_loss=22.7201, val_acc=0.7402
+2026-01-31 18:22:57,587 - INFO -   → Best model saved (val_loss=22.7201)
+2026-01-31 18:22:59,591 - INFO - Epoch  3: train_loss=23.6312, val_loss=25.5981, val_acc=0.7232
+2026-01-31 18:23:01,552 - INFO - Epoch  4: train_loss=24.2733, val_loss=23.7302, val_acc=0.7451
+2026-01-31 18:23:03,565 - INFO - Epoch  5: train_loss=23.5666, val_loss=23.3955, val_acc=0.7450
+2026-01-31 18:23:05,482 - INFO - Epoch  6: train_loss=23.2106, val_loss=22.9671, val_acc=0.7392
+2026-01-31 18:23:07,467 - INFO - Epoch  7: train_loss=22.6626, val_loss=22.3136, val_acc=0.7386
+2026-01-31 18:23:07,471 - INFO -   → Best model saved (val_loss=22.3136)
+2026-01-31 18:23:09,446 - INFO - Epoch  8: train_loss=21.5802, val_loss=21.1383, val_acc=0.7009
+2026-01-31 18:23:09,451 - INFO -   → Best model saved (val_loss=21.1383)
+2026-01-31 18:23:11,433 - INFO - Epoch  9: train_loss=23.6832, val_loss=23.4388, val_acc=0.7459
+2026-01-31 18:23:13,351 - INFO - Epoch 10: train_loss=22.9794, val_loss=22.3046, val_acc=0.7394
+2026-01-31 18:23:15,339 - INFO - Epoch 11: train_loss=24.2863, val_loss=22.7440, val_acc=0.7409
+2026-01-31 18:23:17,305 - INFO - Epoch 12: train_loss=23.2296, val_loss=22.6909, val_acc=0.7436
+2026-01-31 18:23:19,272 - INFO - Epoch 13: train_loss=22.3462, val_loss=22.8926, val_acc=0.7380
+2026-01-31 18:23:19,272 - INFO -   → Early stopping at epoch 13 (patience=5)
+2026-01-31 18:23:19,272 - INFO - 
+[Step 4] 테스트 성능 평가 중...
+2026-01-31 18:23:19,281 - ERROR - 
+❌ 오류 발생: Weights only load failed. This file can still be loaded, to do so you have two options, [1mdo those steps only if you trust the source of the checkpoint[0m. 
+	(1) In PyTorch 2.6, we changed the default value of the `weights_only` argument in `torch.load` from `False` to `True`. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code execution. Do it only if you got the file from a trusted source.
+	(2) Alternatively, to load with `weights_only=True` please check the recommended steps in the following error message.
+	WeightsUnpickler error: Unsupported global: GLOBAL numpy.core.multiarray.scalar was not an allowed global by default. Please use `torch.serialization.add_safe_globals([numpy.core.multiarray.scalar])` or the `torch.serialization.safe_globals([numpy.core.multiarray.scalar])` context manager to allowlist this global if you trust this class/function.
+
+Check the documentation of torch.load to learn more about types accepted by default with weights_only https://pytorch.org/docs/stable/generated/torch.load.html.
+Traceback (most recent call last):
+  File "/data/ephemeral/home/pro-recsys-finalproject-recsys-05/ml_rec/scripts/dcn_v2_trainer.py", line 240, in train
+    checkpoint = torch.load(self.models_path / 'dcn_v2_steam.pth', map_location=self.device)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/torch/serialization.py", line 1548, in load
+    raise pickle.UnpicklingError(_get_wo_message(str(e))) from None
+_pickle.UnpicklingError: Weights only load failed. This file can still be loaded, to do so you have two options, [1mdo those steps only if you trust the source of the checkpoint[0m. 
+	(1) In PyTorch 2.6, we changed the default value of the `weights_only` argument in `torch.load` from `False` to `True`. Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code execution. Do it only if you got the file from a trusted source.
+	(2) Alternatively, to load with `weights_only=True` please check the recommended steps in the following error message.
+	WeightsUnpickler error: Unsupported global: GLOBAL numpy.core.multiarray.scalar was not an allowed global by default. Please use `torch.serialization.add_safe_globals([numpy.core.multiarray.scalar])` or the `torch.serialization.safe_globals([numpy.core.multiarray.scalar])` context manager to allowlist this global if you trust this class/function.
+
+Check the documentation of torch.load to learn more about types accepted by default with weights_only https://pytorch.org/docs/stable/generated/torch.load.html.
+2026-01-31 18:24:21,607 - INFO - Device: cuda
+2026-01-31 18:24:21,607 - INFO - ================================================================================
+2026-01-31 18:24:21,607 - INFO - Task 2: DCN v2 모델 학습 시작
+2026-01-31 18:24:21,607 - INFO - ================================================================================
+2026-01-31 18:24:21,607 - INFO - 
+[Step 1] 데이터 로드 중...
+2026-01-31 18:24:22,006 - INFO - ✓ 학습 데이터 로드: 347832개 샘플
+2026-01-31 18:24:22,078 - INFO - ✓ 검증 데이터 로드: 43479개 샘플
+2026-01-31 18:24:22,148 - INFO - ✓ 테스트 데이터 로드: 43480개 샘플
+2026-01-31 18:24:22,148 - INFO - 
+[Step 2] DCN v2 모델 초기화 중...
+2026-01-31 18:24:22,265 - INFO - ✓ 모델 초기화: 입력 차원=66
+2026-01-31 18:24:23,285 - INFO - 
+[Step 3] 모델 학습 중...
+2026-01-31 18:24:25,685 - INFO - Epoch  1: train_loss=24.5917, val_loss=23.5023, val_acc=0.7426
+2026-01-31 18:24:25,691 - INFO -   → Best model saved (val_loss=23.5023)
+2026-01-31 18:24:27,749 - INFO - Epoch  2: train_loss=22.0354, val_loss=22.7201, val_acc=0.7402
+2026-01-31 18:24:27,753 - INFO -   → Best model saved (val_loss=22.7201)
+2026-01-31 18:24:29,772 - INFO - Epoch  3: train_loss=23.6312, val_loss=25.5981, val_acc=0.7232
+2026-01-31 18:24:31,752 - INFO - Epoch  4: train_loss=24.2733, val_loss=23.7302, val_acc=0.7451
+2026-01-31 18:24:33,767 - INFO - Epoch  5: train_loss=23.5666, val_loss=23.3955, val_acc=0.7450
+2026-01-31 18:24:35,717 - INFO - Epoch  6: train_loss=23.2106, val_loss=22.9671, val_acc=0.7392
+2026-01-31 18:24:37,732 - INFO - Epoch  7: train_loss=22.6626, val_loss=22.3136, val_acc=0.7386
+2026-01-31 18:24:37,736 - INFO -   → Best model saved (val_loss=22.3136)
+2026-01-31 18:24:39,699 - INFO - Epoch  8: train_loss=21.5802, val_loss=21.1383, val_acc=0.7009
+2026-01-31 18:24:39,703 - INFO -   → Best model saved (val_loss=21.1383)
+2026-01-31 18:24:41,705 - INFO - Epoch  9: train_loss=23.6832, val_loss=23.4388, val_acc=0.7459
+2026-01-31 18:24:43,689 - INFO - Epoch 10: train_loss=22.9794, val_loss=22.3046, val_acc=0.7394
+2026-01-31 18:24:45,700 - INFO - Epoch 11: train_loss=24.2863, val_loss=22.7440, val_acc=0.7409
+2026-01-31 18:24:47,715 - INFO - Epoch 12: train_loss=23.2296, val_loss=22.6909, val_acc=0.7436
+2026-01-31 18:24:49,701 - INFO - Epoch 13: train_loss=22.3462, val_loss=22.8926, val_acc=0.7380
+2026-01-31 18:24:49,701 - INFO -   → Early stopping at epoch 13 (patience=5)
+2026-01-31 18:24:49,701 - INFO - 
+[Step 4] 테스트 성능 평가 중...
+2026-01-31 18:24:49,929 - INFO - ✓ 테스트 결과:
+2026-01-31 18:24:49,929 - INFO -   - Test Loss: 21.4054
+2026-01-31 18:24:49,929 - INFO -   - Test Accuracy: 0.7016
+2026-01-31 18:24:49,929 - INFO - 
+================================================================================
+2026-01-31 18:24:49,929 - INFO - ✅ Task 2 완료!
+2026-01-31 18:24:49,929 - INFO - ================================================================================

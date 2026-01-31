@@ -1,0 +1,309 @@
+Fri 30 Jan 2026 10:03:47 INFO  ['scripts/training/run_recbole_lightgcn.py']
+Fri 30 Jan 2026 10:03:47 INFO  
+General Hyper Parameters:
+gpu_id = 0
+use_gpu = True
+seed = 2024
+state = INFO
+reproducibility = True
+data_path = dataset/steam_optimal
+checkpoint_dir = saved_models
+show_progress = True
+save_dataset = False
+dataset_save_path = None
+save_dataloaders = False
+dataloaders_save_path = None
+log_wandb = False
+
+Training Hyper Parameters:
+epochs = 100
+train_batch_size = 4096
+learner = adam
+learning_rate = 0.001
+train_neg_sample_args = {'distribution': 'uniform', 'sample_num': 1, 'alpha': 1.0, 'dynamic': False, 'candidate_num': 0}
+eval_step = 5
+stopping_step = 20
+clip_grad_norm = None
+weight_decay = 0.0
+loss_decimal_place = 4
+
+Evaluation Hyper Parameters:
+eval_args = {'split': {'RS': [0.8, 0.1, 0.1]}, 'order': 'RO', 'group_by': 'user', 'mode': {'valid': 'full', 'test': 'full'}}
+repeatable = False
+metrics = ['Recall', 'MRR', 'NDCG', 'Hit', 'Precision']
+topk = [10]
+valid_metric = Recall@10
+valid_metric_bigger = True
+eval_batch_size = 4096
+metric_decimal_place = 4
+
+Dataset Hyper Parameters:
+field_separator = 	
+seq_separator =  
+USER_ID_FIELD = user_id
+ITEM_ID_FIELD = item_id
+RATING_FIELD = rating
+TIME_FIELD = timestamp
+seq_len = None
+LABEL_FIELD = label
+threshold = None
+NEG_PREFIX = neg_
+load_col = {'inter': ['user_id', 'item_id']}
+unload_col = None
+unused_col = None
+additional_feat_suffix = None
+rm_dup_inter = None
+val_interval = None
+filter_inter_by_user_or_item = True
+user_inter_num_interval = [0,inf)
+item_inter_num_interval = [0,inf)
+alias_of_user_id = None
+alias_of_item_id = None
+alias_of_entity_id = None
+alias_of_relation_id = None
+preload_weight = None
+normalize_field = None
+normalize_all = None
+ITEM_LIST_LENGTH_FIELD = item_length
+LIST_SUFFIX = _list
+MAX_ITEM_LIST_LENGTH = 50
+POSITION_FIELD = position_id
+HEAD_ENTITY_ID_FIELD = head_id
+TAIL_ENTITY_ID_FIELD = tail_id
+RELATION_ID_FIELD = relation_id
+ENTITY_ID_FIELD = entity_id
+benchmark_filename = None
+
+Other Hyper Parameters: 
+worker = 0
+wandb_project = recbole
+shuffle = True
+require_pow = False
+enable_amp = False
+enable_scaler = False
+transform = None
+embedding_size = 64
+n_layers = 3
+reg_weight = 1e-05
+numerical_features = []
+discretization = None
+kg_reverse_r = False
+entity_kg_num_interval = [0,inf)
+relation_kg_num_interval = [0,inf)
+MODEL_TYPE = ModelType.GENERAL
+loss_type = BPR
+negative_sampler = uniform
+eval_strategy = epoch
+cutoff = 10
+top_k = [10, 20, 50]
+device = cuda
+num_workers = 4
+save_model = True
+saved_model_dir = saved_models
+eval_neg_sample_args = {'strategy': 'full'}
+MODEL_INPUT_TYPE = InputType.PAIRWISE
+eval_type = EvaluatorType.RANKING
+single_spec = True
+local_rank = 0
+valid_neg_sample_args = {'distribution': 'uniform', 'sample_num': 'none'}
+test_neg_sample_args = {'distribution': 'uniform', 'sample_num': 'none'}
+
+
+Fri 30 Jan 2026 10:04:22 INFO  steam_optimal
+The number of users: 96044
+Average actions of users: 98.57479462324167
+The number of items: 17532
+Average actions of items: 540.038731390109
+The number of inters: 9467419
+The sparsity of the dataset: 99.43774943946569%
+Remain Fields: ['user_id', 'item_id']
+Fri 30 Jan 2026 10:04:58 INFO  [Training]: train_batch_size = [4096] train_neg_sample_args: [{'distribution': 'uniform', 'sample_num': 1, 'alpha': 1.0, 'dynamic': False, 'candidate_num': 0}]
+Fri 30 Jan 2026 10:04:58 INFO  [Evaluation]: eval_batch_size = [4096] eval_args: [{'split': {'RS': [0.8, 0.1, 0.1]}, 'order': 'RO', 'group_by': 'user', 'mode': {'valid': 'full', 'test': 'full'}}]
+Fri 30 Jan 2026 10:05:23 INFO  LightGCN(
+  (user_embedding): Embedding(96044, 64)
+  (item_embedding): Embedding(17532, 64)
+  (mf_loss): BPRLoss()
+  (reg_loss): EmbLoss()
+)
+Trainable parameters: 7268864
+Fri 30 Jan 2026 10:05:23 INFO  FLOPs: 0.0
+Fri 30 Jan 2026 10:11:46 INFO  epoch 0 training [time: 381.49s, train loss: 667.0275]
+Fri 30 Jan 2026 10:18:07 INFO  epoch 1 training [time: 380.96s, train loss: 554.2351]
+Fri 30 Jan 2026 10:24:28 INFO  epoch 2 training [time: 381.21s, train loss: 513.0456]
+Fri 30 Jan 2026 10:30:49 INFO  epoch 3 training [time: 380.90s, train loss: 475.5173]
+Fri 30 Jan 2026 10:37:10 INFO  epoch 4 training [time: 381.41s, train loss: 435.1161]
+Fri 30 Jan 2026 10:39:07 INFO  epoch 4 evaluating [time: 116.75s, valid_score: 0.033000]
+Fri 30 Jan 2026 10:39:07 INFO  valid result: 
+recall@10 : 0.033    mrr@10 : 0.0875    ndcg@10 : 0.0373    hit@10 : 0.2322    precision@10 : 0.0283
+Fri 30 Jan 2026 10:39:07 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 10:45:31 INFO  epoch 5 training [time: 384.21s, train loss: 402.1241]
+Fri 30 Jan 2026 10:51:54 INFO  epoch 6 training [time: 382.10s, train loss: 385.2394]
+Fri 30 Jan 2026 10:58:16 INFO  epoch 7 training [time: 382.28s, train loss: 371.3090]
+Fri 30 Jan 2026 11:04:41 INFO  epoch 8 training [time: 384.90s, train loss: 354.8232]
+Fri 30 Jan 2026 11:11:07 INFO  epoch 9 training [time: 386.09s, train loss: 337.9661]
+Fri 30 Jan 2026 11:13:07 INFO  epoch 9 evaluating [time: 120.02s, valid_score: 0.046800]
+Fri 30 Jan 2026 11:13:07 INFO  valid result: 
+recall@10 : 0.0468    mrr@10 : 0.1225    ndcg@10 : 0.0532    hit@10 : 0.3077    precision@10 : 0.0396
+Fri 30 Jan 2026 11:13:08 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 11:19:37 INFO  epoch 10 training [time: 389.15s, train loss: 323.6644]
+Fri 30 Jan 2026 11:26:06 INFO  epoch 11 training [time: 389.67s, train loss: 311.6124]
+Fri 30 Jan 2026 11:32:36 INFO  epoch 12 training [time: 390.08s, train loss: 302.7695]
+Fri 30 Jan 2026 11:39:07 INFO  epoch 13 training [time: 390.56s, train loss: 295.6155]
+Fri 30 Jan 2026 11:45:37 INFO  epoch 14 training [time: 390.39s, train loss: 289.6177]
+Fri 30 Jan 2026 11:47:40 INFO  epoch 14 evaluating [time: 122.55s, valid_score: 0.054200]
+Fri 30 Jan 2026 11:47:40 INFO  valid result: 
+recall@10 : 0.0542    mrr@10 : 0.1407    ndcg@10 : 0.0618    hit@10 : 0.3442    precision@10 : 0.0458
+Fri 30 Jan 2026 11:47:41 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 11:54:12 INFO  epoch 15 training [time: 391.11s, train loss: 283.6289]
+Fri 30 Jan 2026 12:00:43 INFO  epoch 16 training [time: 391.60s, train loss: 278.1380]
+Fri 30 Jan 2026 12:07:24 INFO  epoch 17 training [time: 400.36s, train loss: 272.5121]
+Fri 30 Jan 2026 12:14:10 INFO  epoch 18 training [time: 406.72s, train loss: 268.6720]
+Fri 30 Jan 2026 12:21:01 INFO  epoch 19 training [time: 410.75s, train loss: 263.9036]
+Fri 30 Jan 2026 12:23:14 INFO  epoch 19 evaluating [time: 132.56s, valid_score: 0.059600]
+Fri 30 Jan 2026 12:23:14 INFO  valid result: 
+recall@10 : 0.0596    mrr@10 : 0.153    ndcg@10 : 0.0679    hit@10 : 0.3695    precision@10 : 0.0502
+Fri 30 Jan 2026 12:23:14 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 12:30:01 INFO  epoch 20 training [time: 406.96s, train loss: 259.5639]
+Fri 30 Jan 2026 12:36:49 INFO  epoch 21 training [time: 407.47s, train loss: 255.3823]
+Fri 30 Jan 2026 12:43:37 INFO  epoch 22 training [time: 407.94s, train loss: 252.2945]
+Fri 30 Jan 2026 12:50:26 INFO  epoch 23 training [time: 409.02s, train loss: 248.1314]
+Fri 30 Jan 2026 12:57:14 INFO  epoch 24 training [time: 408.03s, train loss: 245.2970]
+Fri 30 Jan 2026 12:59:29 INFO  epoch 24 evaluating [time: 134.82s, valid_score: 0.063200]
+Fri 30 Jan 2026 12:59:29 INFO  valid result: 
+recall@10 : 0.0632    mrr@10 : 0.1629    ndcg@10 : 0.0724    hit@10 : 0.3868    precision@10 : 0.0532
+Fri 30 Jan 2026 12:59:29 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 13:06:17 INFO  epoch 25 training [time: 407.80s, train loss: 242.1480]
+Fri 30 Jan 2026 13:13:05 INFO  epoch 26 training [time: 407.66s, train loss: 238.7073]
+Fri 30 Jan 2026 13:19:55 INFO  epoch 27 training [time: 410.41s, train loss: 235.6985]
+Fri 30 Jan 2026 13:26:19 INFO  epoch 28 training [time: 383.71s, train loss: 232.0579]
+Fri 30 Jan 2026 13:32:40 INFO  epoch 29 training [time: 381.08s, train loss: 229.3729]
+Fri 30 Jan 2026 13:34:36 INFO  epoch 29 evaluating [time: 115.92s, valid_score: 0.067200]
+Fri 30 Jan 2026 13:34:36 INFO  valid result: 
+recall@10 : 0.0672    mrr@10 : 0.1728    ndcg@10 : 0.0773    hit@10 : 0.403    precision@10 : 0.0566
+Fri 30 Jan 2026 13:34:36 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 13:40:57 INFO  epoch 30 training [time: 380.93s, train loss: 226.5348]
+Fri 30 Jan 2026 13:47:18 INFO  epoch 31 training [time: 380.94s, train loss: 223.0575]
+Fri 30 Jan 2026 13:53:39 INFO  epoch 32 training [time: 380.92s, train loss: 221.0737]
+Fri 30 Jan 2026 14:00:00 INFO  epoch 33 training [time: 380.95s, train loss: 218.0329]
+Fri 30 Jan 2026 14:06:21 INFO  epoch 34 training [time: 380.96s, train loss: 215.4413]
+Fri 30 Jan 2026 14:08:17 INFO  epoch 34 evaluating [time: 115.66s, valid_score: 0.071000]
+Fri 30 Jan 2026 14:08:17 INFO  valid result: 
+recall@10 : 0.071    mrr@10 : 0.1824    ndcg@10 : 0.082    hit@10 : 0.4198    precision@10 : 0.0598
+Fri 30 Jan 2026 14:08:17 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 14:14:38 INFO  epoch 35 training [time: 380.94s, train loss: 213.3845]
+Fri 30 Jan 2026 14:20:59 INFO  epoch 36 training [time: 380.89s, train loss: 210.8253]
+Fri 30 Jan 2026 14:27:20 INFO  epoch 37 training [time: 380.84s, train loss: 208.0608]
+Fri 30 Jan 2026 14:33:42 INFO  epoch 38 training [time: 381.76s, train loss: 206.0470]
+Fri 30 Jan 2026 14:40:03 INFO  epoch 39 training [time: 381.24s, train loss: 203.4254]
+Fri 30 Jan 2026 14:41:59 INFO  epoch 39 evaluating [time: 116.42s, valid_score: 0.074100]
+Fri 30 Jan 2026 14:41:59 INFO  valid result: 
+recall@10 : 0.0741    mrr@10 : 0.1894    ndcg@10 : 0.0856    hit@10 : 0.4317    precision@10 : 0.0623
+Fri 30 Jan 2026 14:42:00 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 14:48:22 INFO  epoch 40 training [time: 381.58s, train loss: 201.6310]
+Fri 30 Jan 2026 14:54:43 INFO  epoch 41 training [time: 381.53s, train loss: 199.4634]
+Fri 30 Jan 2026 15:01:05 INFO  epoch 42 training [time: 381.60s, train loss: 197.9140]
+Fri 30 Jan 2026 15:07:26 INFO  epoch 43 training [time: 381.64s, train loss: 196.2670]
+Fri 30 Jan 2026 15:13:48 INFO  epoch 44 training [time: 381.61s, train loss: 193.3833]
+Fri 30 Jan 2026 15:15:46 INFO  epoch 44 evaluating [time: 117.58s, valid_score: 0.076300]
+Fri 30 Jan 2026 15:15:46 INFO  valid result: 
+recall@10 : 0.0763    mrr@10 : 0.195    ndcg@10 : 0.0884    hit@10 : 0.4403    precision@10 : 0.0641
+Fri 30 Jan 2026 15:15:46 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 15:22:08 INFO  epoch 45 training [time: 381.59s, train loss: 192.4273]
+Fri 30 Jan 2026 15:28:30 INFO  epoch 46 training [time: 381.62s, train loss: 191.1061]
+Fri 30 Jan 2026 15:34:51 INFO  epoch 47 training [time: 381.65s, train loss: 189.4332]
+Fri 30 Jan 2026 15:41:13 INFO  epoch 48 training [time: 381.62s, train loss: 187.0740]
+Fri 30 Jan 2026 15:47:34 INFO  epoch 49 training [time: 381.61s, train loss: 185.9609]
+Fri 30 Jan 2026 15:49:32 INFO  epoch 49 evaluating [time: 117.35s, valid_score: 0.078700]
+Fri 30 Jan 2026 15:49:32 INFO  valid result: 
+recall@10 : 0.0787    mrr@10 : 0.1997    ndcg@10 : 0.091    hit@10 : 0.4497    precision@10 : 0.066
+Fri 30 Jan 2026 15:49:32 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 15:55:54 INFO  epoch 50 training [time: 381.52s, train loss: 184.1432]
+Fri 30 Jan 2026 16:02:15 INFO  epoch 51 training [time: 381.38s, train loss: 182.7290]
+Fri 30 Jan 2026 16:08:36 INFO  epoch 52 training [time: 381.19s, train loss: 181.4495]
+Fri 30 Jan 2026 16:14:57 INFO  epoch 53 training [time: 380.97s, train loss: 180.0241]
+Fri 30 Jan 2026 16:21:18 INFO  epoch 54 training [time: 380.88s, train loss: 178.7185]
+Fri 30 Jan 2026 16:23:16 INFO  epoch 54 evaluating [time: 117.27s, valid_score: 0.080500]
+Fri 30 Jan 2026 16:23:16 INFO  valid result: 
+recall@10 : 0.0805    mrr@10 : 0.2042    ndcg@10 : 0.0933    hit@10 : 0.4575    precision@10 : 0.0675
+Fri 30 Jan 2026 16:23:16 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 16:29:37 INFO  epoch 55 training [time: 380.92s, train loss: 177.2767]
+Fri 30 Jan 2026 16:35:58 INFO  epoch 56 training [time: 380.92s, train loss: 175.8989]
+Fri 30 Jan 2026 16:42:19 INFO  epoch 57 training [time: 380.91s, train loss: 174.5733]
+Fri 30 Jan 2026 16:48:40 INFO  epoch 58 training [time: 380.89s, train loss: 173.4559]
+Fri 30 Jan 2026 16:55:01 INFO  epoch 59 training [time: 380.92s, train loss: 172.0202]
+Fri 30 Jan 2026 16:56:57 INFO  epoch 59 evaluating [time: 115.94s, valid_score: 0.082500]
+Fri 30 Jan 2026 16:56:57 INFO  valid result: 
+recall@10 : 0.0825    mrr@10 : 0.2083    ndcg@10 : 0.0955    hit@10 : 0.4635    precision@10 : 0.069
+Fri 30 Jan 2026 16:56:58 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 17:03:18 INFO  epoch 60 training [time: 380.93s, train loss: 170.6261]
+Fri 30 Jan 2026 17:09:39 INFO  epoch 61 training [time: 380.94s, train loss: 169.3095]
+Fri 30 Jan 2026 17:16:00 INFO  epoch 62 training [time: 380.98s, train loss: 168.1877]
+Fri 30 Jan 2026 17:22:21 INFO  epoch 63 training [time: 380.92s, train loss: 166.8087]
+Fri 30 Jan 2026 17:28:42 INFO  epoch 64 training [time: 380.96s, train loss: 166.1150]
+Fri 30 Jan 2026 17:30:39 INFO  epoch 64 evaluating [time: 116.74s, valid_score: 0.084000]
+Fri 30 Jan 2026 17:30:39 INFO  valid result: 
+recall@10 : 0.084    mrr@10 : 0.2123    ndcg@10 : 0.0974    hit@10 : 0.4694    precision@10 : 0.0703
+Fri 30 Jan 2026 17:30:40 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 17:37:01 INFO  epoch 65 training [time: 381.02s, train loss: 164.4602]
+Fri 30 Jan 2026 17:43:22 INFO  epoch 66 training [time: 380.89s, train loss: 163.0584]
+Fri 30 Jan 2026 17:49:43 INFO  epoch 67 training [time: 380.97s, train loss: 162.3508]
+Fri 30 Jan 2026 17:56:04 INFO  epoch 68 training [time: 381.06s, train loss: 161.3091]
+Fri 30 Jan 2026 18:02:26 INFO  epoch 69 training [time: 381.60s, train loss: 160.1560]
+Fri 30 Jan 2026 18:04:25 INFO  epoch 69 evaluating [time: 118.90s, valid_score: 0.085600]
+Fri 30 Jan 2026 18:04:25 INFO  valid result: 
+recall@10 : 0.0856    mrr@10 : 0.216    ndcg@10 : 0.0993    hit@10 : 0.4752    precision@10 : 0.0715
+Fri 30 Jan 2026 18:04:25 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 18:10:47 INFO  epoch 70 training [time: 381.68s, train loss: 158.8335]
+Fri 30 Jan 2026 18:17:09 INFO  epoch 71 training [time: 381.58s, train loss: 157.3687]
+Fri 30 Jan 2026 18:23:30 INFO  epoch 72 training [time: 381.56s, train loss: 156.6774]
+Fri 30 Jan 2026 18:29:52 INFO  epoch 73 training [time: 381.55s, train loss: 155.6728]
+Fri 30 Jan 2026 18:36:13 INFO  epoch 74 training [time: 381.56s, train loss: 154.3059]
+Fri 30 Jan 2026 18:38:12 INFO  epoch 74 evaluating [time: 118.53s, valid_score: 0.087000]
+Fri 30 Jan 2026 18:38:12 INFO  valid result: 
+recall@10 : 0.087    mrr@10 : 0.2187    ndcg@10 : 0.1008    hit@10 : 0.4802    precision@10 : 0.0726
+Fri 30 Jan 2026 18:38:12 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 18:44:34 INFO  epoch 75 training [time: 381.49s, train loss: 153.5975]
+Fri 30 Jan 2026 18:50:56 INFO  epoch 76 training [time: 381.68s, train loss: 152.7295]
+Fri 30 Jan 2026 18:57:17 INFO  epoch 77 training [time: 381.61s, train loss: 151.2955]
+Fri 30 Jan 2026 19:03:39 INFO  epoch 78 training [time: 381.49s, train loss: 151.0411]
+Fri 30 Jan 2026 19:10:00 INFO  epoch 79 training [time: 381.58s, train loss: 149.6952]
+Fri 30 Jan 2026 19:11:59 INFO  epoch 79 evaluating [time: 118.31s, valid_score: 0.088000]
+Fri 30 Jan 2026 19:11:59 INFO  valid result: 
+recall@10 : 0.088    mrr@10 : 0.2208    ndcg@10 : 0.1019    hit@10 : 0.4833    precision@10 : 0.0734
+Fri 30 Jan 2026 19:11:59 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 19:18:21 INFO  epoch 80 training [time: 381.56s, train loss: 148.8367]
+Fri 30 Jan 2026 19:24:42 INFO  epoch 81 training [time: 381.51s, train loss: 147.6268]
+Fri 30 Jan 2026 19:31:04 INFO  epoch 82 training [time: 381.57s, train loss: 146.9016]
+Fri 30 Jan 2026 19:37:25 INFO  epoch 83 training [time: 381.59s, train loss: 146.1036]
+Fri 30 Jan 2026 19:43:47 INFO  epoch 84 training [time: 381.47s, train loss: 145.4542]
+Fri 30 Jan 2026 19:45:45 INFO  epoch 84 evaluating [time: 118.31s, valid_score: 0.088900]
+Fri 30 Jan 2026 19:45:45 INFO  valid result: 
+recall@10 : 0.0889    mrr@10 : 0.2227    ndcg@10 : 0.103    hit@10 : 0.4882    precision@10 : 0.0742
+Fri 30 Jan 2026 19:45:46 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 19:52:07 INFO  epoch 85 training [time: 381.60s, train loss: 144.4876]
+Fri 30 Jan 2026 19:58:29 INFO  epoch 86 training [time: 381.52s, train loss: 143.3900]
+Fri 30 Jan 2026 20:04:50 INFO  epoch 87 training [time: 381.52s, train loss: 142.3421]
+Fri 30 Jan 2026 20:11:12 INFO  epoch 88 training [time: 381.60s, train loss: 141.4049]
+Fri 30 Jan 2026 20:17:34 INFO  epoch 89 training [time: 381.57s, train loss: 141.1944]
+Fri 30 Jan 2026 20:19:33 INFO  epoch 89 evaluating [time: 118.97s, valid_score: 0.090200]
+Fri 30 Jan 2026 20:19:33 INFO  valid result: 
+recall@10 : 0.0902    mrr@10 : 0.2247    ndcg@10 : 0.1042    hit@10 : 0.4926    precision@10 : 0.0752
+Fri 30 Jan 2026 20:19:33 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 20:25:55 INFO  epoch 90 training [time: 381.50s, train loss: 139.9076]
+Fri 30 Jan 2026 20:32:16 INFO  epoch 91 training [time: 381.46s, train loss: 139.2399]
+Fri 30 Jan 2026 20:38:38 INFO  epoch 92 training [time: 381.55s, train loss: 138.1288]
+Fri 30 Jan 2026 20:44:59 INFO  epoch 93 training [time: 381.51s, train loss: 137.9407]
+Fri 30 Jan 2026 20:51:21 INFO  epoch 94 training [time: 381.49s, train loss: 136.6561]
+Fri 30 Jan 2026 20:53:18 INFO  epoch 94 evaluating [time: 116.81s, valid_score: 0.090700]
+Fri 30 Jan 2026 20:53:18 INFO  valid result: 
+recall@10 : 0.0907    mrr@10 : 0.2266    ndcg@10 : 0.1051    hit@10 : 0.496    precision@10 : 0.0758
+Fri 30 Jan 2026 20:53:18 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth
+Fri 30 Jan 2026 20:59:40 INFO  epoch 95 training [time: 381.61s, train loss: 136.2535]
+Fri 30 Jan 2026 21:06:01 INFO  epoch 96 training [time: 381.54s, train loss: 134.8083]
+Fri 30 Jan 2026 21:12:23 INFO  epoch 97 training [time: 381.48s, train loss: 134.3176]
+Fri 30 Jan 2026 21:18:44 INFO  epoch 98 training [time: 381.67s, train loss: 133.8208]
+Fri 30 Jan 2026 21:25:06 INFO  epoch 99 training [time: 381.42s, train loss: 133.0994]
+Fri 30 Jan 2026 21:27:03 INFO  epoch 99 evaluating [time: 117.16s, valid_score: 0.091200]
+Fri 30 Jan 2026 21:27:03 INFO  valid result: 
+recall@10 : 0.0912    mrr@10 : 0.228    ndcg@10 : 0.1057    hit@10 : 0.4969    precision@10 : 0.0762
+Fri 30 Jan 2026 21:27:04 INFO  Saving current: saved_models/LightGCN-Jan-30-2026_10-05-23.pth

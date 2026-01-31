@@ -1,0 +1,219 @@
+2026-01-31 18:29:24,333 - INFO - Device: cuda
+2026-01-31 18:29:24,334 - INFO - ================================================================================
+2026-01-31 18:29:24,334 - INFO - Task 3: XGBoost Stacking 시작
+2026-01-31 18:29:24,334 - INFO - ================================================================================
+2026-01-31 18:29:24,869 - INFO - 
+[Step 1] DCN v2 모델 로드 중...
+2026-01-31 18:29:24,986 - INFO - ✓ DCN v2 모델 로드 완료
+2026-01-31 18:29:24,987 - INFO - 
+[Step 2] DCN v2 예측값 추출 중...
+2026-01-31 18:29:26,828 - INFO - ✓ 예측값 추출 완료:
+2026-01-31 18:29:26,828 - INFO -   - 학습 데이터: 347832개
+2026-01-31 18:29:26,828 - INFO -   - 검증 데이터: 43479개
+2026-01-31 18:29:26,828 - INFO -   - 테스트 데이터: 43480개
+2026-01-31 18:29:26,829 - INFO - 
+[Step 4] XGBoost 입력 데이터 준비 중...
+2026-01-31 18:29:26,829 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:29:27,258 - INFO - ✓ 대리변수 생성 완료: 347832개 샘플
+2026-01-31 18:29:27,259 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:29:27,317 - INFO - ✓ 대리변수 생성 완료: 43479개 샘플
+2026-01-31 18:29:27,317 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:29:27,376 - INFO - ✓ 대리변수 생성 완료: 43480개 샘플
+2026-01-31 18:29:28,351 - INFO - ✓ XGBoost 입력 데이터 준비 완료:
+2026-01-31 18:29:28,351 - INFO -   - 특성 개수: 4
+2026-01-31 18:29:28,351 - INFO -   - 학습 샘플: 347832
+2026-01-31 18:29:28,351 - INFO -   - 검증 샘플: 43479
+2026-01-31 18:29:28,351 - INFO -   - 테스트 샘플: 43480
+2026-01-31 18:29:28,390 - INFO - 
+[Step 5] XGBoost 모델 학습 중...
+2026-01-31 18:29:28,462 - ERROR - 
+❌ 오류 발생: [18:29:28] /workspace/src/context.cc:242: `gpu_id` has been removed since 3.1. Use `device` instead.
+Stack trace:
+  [bt] (0) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(+0x2be09c) [0x7fe3cba0809c]
+  [bt] (1) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(+0x4ac810) [0x7fe3cbbf6810]
+  [bt] (2) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(+0x6eea74) [0x7fe3cbe38a74]
+  [bt] (3) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(XGBoosterBoostedRounds+0x34) [0x7fe3cb9123d4]
+  [bt] (4) /opt/conda/lib/python3.10/lib-dynload/../../libffi.so.8(+0xa052) [0x7fe517e3d052]
+  [bt] (5) /opt/conda/lib/python3.10/lib-dynload/../../libffi.so.8(+0x8925) [0x7fe517e3b925]
+  [bt] (6) /opt/conda/lib/python3.10/lib-dynload/../../libffi.so.8(ffi_call+0xde) [0x7fe517e3c06e]
+  [bt] (7) /opt/conda/lib/python3.10/lib-dynload/_ctypes.cpython-310-x86_64-linux-gnu.so(+0x91e7) [0x7fe52c9751e7]
+  [bt] (8) /opt/conda/lib/python3.10/lib-dynload/_ctypes.cpython-310-x86_64-linux-gnu.so(+0x869b) [0x7fe52c97469b]
+
+Traceback (most recent call last):
+  File "/data/ephemeral/home/pro-recsys-finalproject-recsys-05/ml_rec/scripts/xgboost_stacker.py", line 295, in run
+    xgb_model, evals_result = self.train_xgboost(X_train, X_val, y_train, y_val, feature_names)
+  File "/data/ephemeral/home/pro-recsys-finalproject-recsys-05/ml_rec/scripts/xgboost_stacker.py", line 231, in train_xgboost
+    model = xgb.train(
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 774, in inner_f
+    return func(**kwargs)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/training.py", line 194, in train
+    bst = cb_container.before_training(bst)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/callback.py", line 187, in before_training
+    model = c.before_training(model=model)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/callback.py", line 386, in before_training
+    self.starting_round = model.num_boosted_rounds()
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 3098, in num_boosted_rounds
+    _check_call(_LIB.XGBoosterBoostedRounds(self.handle, ctypes.byref(rounds)))
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 323, in _check_call
+    raise XGBoostError(py_str(_LIB.XGBGetLastError()))
+xgboost.core.XGBoostError: [18:29:28] /workspace/src/context.cc:242: `gpu_id` has been removed since 3.1. Use `device` instead.
+Stack trace:
+  [bt] (0) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(+0x2be09c) [0x7fe3cba0809c]
+  [bt] (1) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(+0x4ac810) [0x7fe3cbbf6810]
+  [bt] (2) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(+0x6eea74) [0x7fe3cbe38a74]
+  [bt] (3) /data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/lib/libxgboost.so(XGBoosterBoostedRounds+0x34) [0x7fe3cb9123d4]
+  [bt] (4) /opt/conda/lib/python3.10/lib-dynload/../../libffi.so.8(+0xa052) [0x7fe517e3d052]
+  [bt] (5) /opt/conda/lib/python3.10/lib-dynload/../../libffi.so.8(+0x8925) [0x7fe517e3b925]
+  [bt] (6) /opt/conda/lib/python3.10/lib-dynload/../../libffi.so.8(ffi_call+0xde) [0x7fe517e3c06e]
+  [bt] (7) /opt/conda/lib/python3.10/lib-dynload/_ctypes.cpython-310-x86_64-linux-gnu.so(+0x91e7) [0x7fe52c9751e7]
+  [bt] (8) /opt/conda/lib/python3.10/lib-dynload/_ctypes.cpython-310-x86_64-linux-gnu.so(+0x869b) [0x7fe52c97469b]
+
+
+2026-01-31 18:29:45,333 - INFO - Device: cuda
+2026-01-31 18:29:45,333 - INFO - ================================================================================
+2026-01-31 18:29:45,333 - INFO - Task 3: XGBoost Stacking 시작
+2026-01-31 18:29:45,333 - INFO - ================================================================================
+2026-01-31 18:29:45,861 - INFO - 
+[Step 1] DCN v2 모델 로드 중...
+2026-01-31 18:29:45,979 - INFO - ✓ DCN v2 모델 로드 완료
+2026-01-31 18:29:45,980 - INFO - 
+[Step 2] DCN v2 예측값 추출 중...
+2026-01-31 18:29:47,832 - INFO - ✓ 예측값 추출 완료:
+2026-01-31 18:29:47,832 - INFO -   - 학습 데이터: 347832개
+2026-01-31 18:29:47,833 - INFO -   - 검증 데이터: 43479개
+2026-01-31 18:29:47,833 - INFO -   - 테스트 데이터: 43480개
+2026-01-31 18:29:47,833 - INFO - 
+[Step 4] XGBoost 입력 데이터 준비 중...
+2026-01-31 18:29:47,833 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:29:48,248 - INFO - ✓ 대리변수 생성 완료: 347832개 샘플
+2026-01-31 18:29:48,249 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:29:48,307 - INFO - ✓ 대리변수 생성 완료: 43479개 샘플
+2026-01-31 18:29:48,307 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:29:48,364 - INFO - ✓ 대리변수 생성 완료: 43480개 샘플
+2026-01-31 18:29:49,323 - INFO - ✓ XGBoost 입력 데이터 준비 완료:
+2026-01-31 18:29:49,324 - INFO -   - 특성 개수: 4
+2026-01-31 18:29:49,324 - INFO -   - 학습 샘플: 347832
+2026-01-31 18:29:49,324 - INFO -   - 검증 샘플: 43479
+2026-01-31 18:29:49,324 - INFO -   - 테스트 샘플: 43480
+2026-01-31 18:29:49,361 - INFO - 
+[Step 5] XGBoost 모델 학습 중...
+2026-01-31 18:29:49,386 - ERROR - 
+❌ 오류 발생: Invalid Input: 'gpu_hist', valid values are: {'approx', 'auto', 'exact', 'hist'}
+Traceback (most recent call last):
+  File "/data/ephemeral/home/pro-recsys-finalproject-recsys-05/ml_rec/scripts/xgboost_stacker.py", line 295, in run
+    xgb_model, evals_result = self.train_xgboost(X_train, X_val, y_train, y_val, feature_names)
+  File "/data/ephemeral/home/pro-recsys-finalproject-recsys-05/ml_rec/scripts/xgboost_stacker.py", line 231, in train_xgboost
+    model = xgb.train(
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 774, in inner_f
+    return func(**kwargs)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/training.py", line 194, in train
+    bst = cb_container.before_training(bst)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/callback.py", line 187, in before_training
+    model = c.before_training(model=model)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/callback.py", line 386, in before_training
+    self.starting_round = model.num_boosted_rounds()
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 3098, in num_boosted_rounds
+    _check_call(_LIB.XGBoosterBoostedRounds(self.handle, ctypes.byref(rounds)))
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 323, in _check_call
+    raise XGBoostError(py_str(_LIB.XGBGetLastError()))
+xgboost.core.XGBoostError: Invalid Input: 'gpu_hist', valid values are: {'approx', 'auto', 'exact', 'hist'}
+2026-01-31 18:30:06,375 - INFO - Device: cuda
+2026-01-31 18:30:06,375 - INFO - ================================================================================
+2026-01-31 18:30:06,375 - INFO - Task 3: XGBoost Stacking 시작
+2026-01-31 18:30:06,375 - INFO - ================================================================================
+2026-01-31 18:30:06,913 - INFO - 
+[Step 1] DCN v2 모델 로드 중...
+2026-01-31 18:30:07,040 - INFO - ✓ DCN v2 모델 로드 완료
+2026-01-31 18:30:07,040 - INFO - 
+[Step 2] DCN v2 예측값 추출 중...
+2026-01-31 18:30:08,892 - INFO - ✓ 예측값 추출 완료:
+2026-01-31 18:30:08,892 - INFO -   - 학습 데이터: 347832개
+2026-01-31 18:30:08,892 - INFO -   - 검증 데이터: 43479개
+2026-01-31 18:30:08,892 - INFO -   - 테스트 데이터: 43480개
+2026-01-31 18:30:08,892 - INFO - 
+[Step 4] XGBoost 입력 데이터 준비 중...
+2026-01-31 18:30:08,892 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:30:09,318 - INFO - ✓ 대리변수 생성 완료: 347832개 샘플
+2026-01-31 18:30:09,318 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:30:09,375 - INFO - ✓ 대리변수 생성 완료: 43479개 샘플
+2026-01-31 18:30:09,375 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:30:09,431 - INFO - ✓ 대리변수 생성 완료: 43480개 샘플
+2026-01-31 18:30:10,388 - INFO - ✓ XGBoost 입력 데이터 준비 완료:
+2026-01-31 18:30:10,388 - INFO -   - 특성 개수: 4
+2026-01-31 18:30:10,388 - INFO -   - 학습 샘플: 347832
+2026-01-31 18:30:10,388 - INFO -   - 검증 샘플: 43479
+2026-01-31 18:30:10,388 - INFO -   - 테스트 샘플: 43480
+2026-01-31 18:30:10,425 - INFO - 
+[Step 5] XGBoost 모델 학습 중...
+2026-01-31 18:30:10,898 - INFO - ✓ XGBoost 모델 학습 완료
+2026-01-31 18:30:10,899 - INFO - 
+[Step 6] 모델 평가 및 저장 중...
+2026-01-31 18:30:10,901 - ERROR - 
+❌ 오류 발생: data did not contain feature names, but the following fields are expected: dcn_score, discount_proxy, concurrent_proxy, review_stability
+Traceback (most recent call last):
+  File "/data/ephemeral/home/pro-recsys-finalproject-recsys-05/ml_rec/scripts/xgboost_stacker.py", line 298, in run
+    self.evaluate_and_save(xgb_model, X_test, y_test)
+  File "/data/ephemeral/home/pro-recsys-finalproject-recsys-05/ml_rec/scripts/xgboost_stacker.py", line 250, in evaluate_and_save
+    y_pred = model.predict(dtest)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 774, in inner_f
+    return func(**kwargs)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 2689, in predict
+    self._validate_features(fn)
+  File "/data/ephemeral/home/venv/lib/python3.10/site-packages/xgboost/core.py", line 3403, in _validate_features
+    raise ValueError(
+ValueError: data did not contain feature names, but the following fields are expected: dcn_score, discount_proxy, concurrent_proxy, review_stability
+2026-01-31 18:30:27,836 - INFO - Device: cuda
+2026-01-31 18:30:27,836 - INFO - ================================================================================
+2026-01-31 18:30:27,836 - INFO - Task 3: XGBoost Stacking 시작
+2026-01-31 18:30:27,836 - INFO - ================================================================================
+2026-01-31 18:30:28,376 - INFO - 
+[Step 1] DCN v2 모델 로드 중...
+2026-01-31 18:30:28,493 - INFO - ✓ DCN v2 모델 로드 완료
+2026-01-31 18:30:28,494 - INFO - 
+[Step 2] DCN v2 예측값 추출 중...
+2026-01-31 18:30:30,382 - INFO - ✓ 예측값 추출 완료:
+2026-01-31 18:30:30,383 - INFO -   - 학습 데이터: 347832개
+2026-01-31 18:30:30,384 - INFO -   - 검증 데이터: 43479개
+2026-01-31 18:30:30,384 - INFO -   - 테스트 데이터: 43480개
+2026-01-31 18:30:30,384 - INFO - 
+[Step 4] XGBoost 입력 데이터 준비 중...
+2026-01-31 18:30:30,385 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:30:30,796 - INFO - ✓ 대리변수 생성 완료: 347832개 샘플
+2026-01-31 18:30:30,797 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:30:30,853 - INFO - ✓ 대리변수 생성 완료: 43479개 샘플
+2026-01-31 18:30:30,854 - INFO - 
+[Step 3] 대리변수 생성 중...
+2026-01-31 18:30:30,908 - INFO - ✓ 대리변수 생성 완료: 43480개 샘플
+2026-01-31 18:30:31,859 - INFO - ✓ XGBoost 입력 데이터 준비 완료:
+2026-01-31 18:30:31,859 - INFO -   - 특성 개수: 4
+2026-01-31 18:30:31,859 - INFO -   - 학습 샘플: 347832
+2026-01-31 18:30:31,859 - INFO -   - 검증 샘플: 43479
+2026-01-31 18:30:31,859 - INFO -   - 테스트 샘플: 43480
+2026-01-31 18:30:31,895 - INFO - 
+[Step 5] XGBoost 모델 학습 중...
+2026-01-31 18:30:32,083 - INFO - ✓ XGBoost 모델 학습 완료
+2026-01-31 18:30:32,084 - INFO - 
+[Step 6] 모델 평가 및 저장 중...
+2026-01-31 18:30:32,088 - INFO - ✓ 테스트 결과:
+2026-01-31 18:30:32,088 - INFO -   - Test Accuracy: 0.8071
+2026-01-31 18:30:32,091 - INFO - ✓ 모델 저장: xgb_final_scorer.pkl
+2026-01-31 18:30:32,091 - INFO - 
+[Step 7] 특성 중요도 분석:
+2026-01-31 18:30:32,091 - INFO -   - concurrent_proxy: 169.0
+2026-01-31 18:30:32,091 - INFO -   - dcn_score: 95.0
+2026-01-31 18:30:32,091 - INFO -   - discount_proxy: 12.0
+2026-01-31 18:30:32,091 - INFO - 
+================================================================================
+2026-01-31 18:30:32,091 - INFO - ✅ Task 3 완료!
+2026-01-31 18:30:32,091 - INFO - ================================================================================
