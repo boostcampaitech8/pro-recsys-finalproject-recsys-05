@@ -36,7 +36,8 @@ jobs:
 
     - name: Build and Run with Docker Compose
       run: |
-        docker compose up --build -d
+        # Use Base + Prod override
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
         echo "Waiting for services to start..."
         sleep 20  # DB 초기화 및 서버 구동 대기
 
@@ -129,7 +130,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
-          source: "deploy.sh,docker-compose.prod.yml,backend/nginx"
+          source: "deploy.sh,docker-compose.yml,docker-compose.prod.yml,backend/nginx"
           target: "/home/${{ secrets.SSH_USERNAME }}/"
 
       # 3. SSH 접속 후 스크립트 실행

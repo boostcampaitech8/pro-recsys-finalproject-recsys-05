@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  # [Backend] Development Overrides
+  backend:
+    build:
+      context: .
+      target: dev
+    environment:
+      - PYTHONPATH=/app/backend:/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/app/backend
+      - ./ml_rec:/app/ml_rec
+      - ./configs:/app/configs
+    ports:
+      - "8000:8000" # API Port
+      - "5678:5678" # Debug Port
+    command: >
+      python -m debugpy --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # [DB] Development Overrides (Host Access)
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  # [Redis] Development Overrides (Host Access)
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"

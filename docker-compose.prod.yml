@@ -1,58 +1,43 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # [Nginx] Reverse Proxy & Access Control Gateway
+  # Nginx is Production-Only service
   nginx:
-    # Prod 환경: 빌드하거나 이미지를 사용할 수 있음. 현재는 빌드 방식 사용.
     build: ./backend/nginx
     ports:
       - "80:80"
     depends_on:
       - backend
+    networks:
+      - app_network
 
-  # [Production] FastAPI (Docker Hub에서 이미지 다운로드)
+  # [Backend] Production Overrides
   backend:
-    image: rlaqudwn/rec-server:dev
-    # ports removed: Only accessible via Nginx
+    image: rlaqudwn/rec-server:dev # or :latest
+    restart: unless-stopped
+    # No ports exposed to host, only internal
+    # No volumes (code inside image)
+
+    # Environment Overrides (Injected via .env file on server)
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://redis:6379
       - GCS_KEY_BASE64=${GCS_KEY_BASE64}
       - STEAM_API_KEY=${STEAM_API_KEY}
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # PostgreSQL (DB)
-  db:
-    image: pgvector/pgvector:pg15
+  # [Monitoring] cAdvisor (Container Resource Usage)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    # Ports not exposed to host, only accessible via internal network (Nginx)
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # Redis (Cache)
-  redis:
-    image: redis:alpine
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    restart: unless-stopped
+    networks:
+      - app_network
+  # DB and Redis use Base config (no ports exposed)

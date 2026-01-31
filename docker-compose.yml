@@ -1,32 +1,15 @@
 version: "3.8"
 
 services:
-  # [Nginx] Reverse Proxy & Access Control Gateway
-  nginx:
-    build: ./backend/nginx
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - app_network
-
-  # [Development] FastAPI (Internal Only)
+  # [Backend] Common Configuration
   backend:
-    build: .
-    # ports removed: Only accessible via Nginx
+    image: rec-server # Placeholder name, overridden in prod/dev
     env_file:
       - ./backend/.env
     environment:
-      # Docker 내부 통신을 위해 호스트명을 컨테이너명(db, redis)으로 지정
       - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379
       - ML_REC_ROOT=/app/ml_rec
-    volumes:
-      - ./backend:/app/backend
-      - ./ml_rec:/app/ml_rec
-      - ./configs:/app/configs
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       db:
         condition: service_healthy
@@ -40,10 +23,9 @@ services:
     networks:
       - app_network
 
-  # PostgreSQL (DB) - Internal Only
+  # [DB] PostgreSQL Common Configuration
   db:
     image: pgvector/pgvector:pg15
-    # ports removed: Only accessible within Docker network
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -58,10 +40,9 @@ services:
     networks:
       - app_network
 
-  # Redis (Cache) - Internal Only
+  # [Redis] Cache Common Configuration
   redis:
     image: redis:alpine
-    # ports removed: Only accessible within Docker network
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
