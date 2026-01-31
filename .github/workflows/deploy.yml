@@ -184,6 +184,17 @@ jobs:
         oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
         tags: tag:ci
 
+    - name: Copy files to Server
+      if: github.event_name != 'pull_request'
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: 22
+        source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh"
+        target: "pro-recsys-finalproject-recsys-05"
+
     - name: Deploy to Server
       if: github.event_name != 'pull_request'
       uses: appleboy/ssh-action@master
