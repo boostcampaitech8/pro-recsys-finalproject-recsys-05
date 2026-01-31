@@ -127,7 +127,11 @@ async def lifespan(app: FastAPI):
     # 시작
     await init_db_and_load_data()
     chatbot = get_chatbot()
-    
+    await chatbot.initialize(
+        engine=engine,
+        clova_api_key=os.getenv("CLOVA_API_KEY"),
+        model_name="HCX-DASH-001",
+    )
     
     yield
     # 종료

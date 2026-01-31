@@ -1,22 +1,23 @@
 import os
 import time
+import json
 import traceback
 from typing import Optional, Tuple, List, Dict, Any
 
 from app.core.logger import logger
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
-from langchain_postgres import PGVector
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.documents import Document
 
 class chatbot:
     def __init__(self):
         self.embeddings: Optional[HuggingFaceEmbeddings] = None
-        self.vectorstore: Optional[PGVector] = None
+        # self.vectorstore: Optional[PGVector] = None
+        self.engine = None
         self.llm: Optional[ChatOpenAI] = None
         self.retriever = None
         self.prompt_template: Optional[ChatPromptTemplate] = None
@@ -28,11 +29,11 @@ class chatbot:
         self,
         engine: AsyncEngine,
         clova_api_key: str,          # Studio API Key
-        clova_base_url: str = "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions",
+        clova_base_url: str = "https://clovastudio.stream.ntruss.com/v1/openai/",
         model_name: str = "HCX-DASH-001",
         temperature: float = 0.5,     # 추천 시스템은 할루시네이션 방지를 위해 낮게 설정 권장
         max_tokens: int = 1024,
-        collection_name: str = "steam_games_bge_m3",
+        # collection_name: str = "steam_games_bge_m3",
         top_k: int = 3
     ) -> bool:
         """
@@ -53,22 +54,8 @@ class chatbot:
                 encode_kwargs={'normalize_embeddings': True}
             )
 
-            # 2. PGVector 연결
-            logger.info(f"💾 Connecting to PGVector (collection: {collection_name})...")
-            self.vectorstore = PGVector(
-                embeddings=self.embeddings,
-                collection_name=collection_name,
-                connection=engine,
-                use_jsonb=True,
-                async_mode=True,
-            )
-
-            # 3. Retriever 설정
-            self.retriever = self.vectorstore.as_retriever(
-                search_type="similarity",
-                search_kwargs={"k": top_k}
-            )
-
+            self.engine = engine
+            
             # 4. CLOVA Studio LLM 초기화 (OpenAI 호환 모드 + 헤더 주입)
             logger.info(f"🤖 Connecting to CLOVA Studio ({model_name})...")
             
@@ -78,10 +65,6 @@ class chatbot:
                 model=model_name,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                model_kwargs={
-                    "top_p": 0.8,
-                    "repetition_penalty": 1.2,
-                }
             )
 
             # 5. Prompt Template 설정
@@ -102,7 +85,7 @@ class chatbot:
         except Exception as e:
             logger.info(f"\n❌ Chatbot initialization failed: {e}")
             traceback.print_exc()
-            await self.cleanup()
+            self.cleanup()
             return False
 
     def _setup_prompt(self):
@@ -128,50 +111,104 @@ class chatbot:
     async def generate_response_with_details(
         self, 
         user_query: str
-    ) -> Tuple[str, List[Document], str, Dict[str, float]]:
+    ) -> Tuple[str, List[Dict[str, Any]], str, Dict[str, float]]:
         """
         RAG 파이프라인 실행 및 상세 정보 반환 (디버깅/모니터링 용)
+        
+        Returns:
+            Tuple[str, List[Dict], str, Dict]:
+                - response_text: LLM 생성 응답
+                - retrieved_docs: 검색된 문서 리스트 (dict 형태)
+                - formatted_prompt: LLM에 전달된 최종 프롬프트 (DEBUG_MODE용)
+                - metrics: 성능 메트릭 딕셔너리
         """
         if not self.is_ready():
             return "챗봇이 준비되지 않았습니다.", [], "", {}
 
         metrics = {}
+        retrieved_games = None
+        
+        search_sql = text("""
+        SELECT 
+            name,
+            context,
+            genres_kr::text as genres,
+            price,
+            header_image,
+            release_date,
+            1 - (embedding <=> (:query_embedding)::vector) as similarity
+        FROM games
+        WHERE embedding IS NOT NULL
+        -- 여기에 추후 가격이나 장르 필터링 조건 추가 (예: AND price = 0)
+        ORDER BY embedding <=> (:query_embedding)::vector
+        LIMIT :top_k
+    """)
+        
         start_total = time.time()
-
+        
         try:
-            # 1. 문서 검색
-            start_retr = time.time()
-            retrieved_docs = await self.vectorstore.asimilarity_search(
-                user_query, 
-                k=self.config.get("top_k", 3)
-            )
-            metrics["retrieval_time"] = time.time() - start_retr
+            # 1. 쿼리 임베딩 생성
+            start_embed = time.time()
+            query_embedding = self.embeddings.embed_query(user_query)
+            metrics["embedding_time"] = time.time() - start_embed
 
-            # 2. 프롬프트 구성
-            context_text = "\n\n".join([d.page_content for d in retrieved_docs])
+            # 2. 문서 검색
+            start_retr = time.time()
+            async with self.engine.begin() as conn:
+                result = await conn.execute(
+                    search_sql,
+                    {
+                        "query_embedding": json.dumps(query_embedding), # 드라이버에 따라 list 그대로 전달 가능 여부 확인 필요
+                        "top_k": self.config.get("top_k", 3)
+                    }
+                )
+                retrieved_games = result.fetchall()
+            metrics["retrieval_time"] = time.time() - start_retr
+            
+            if not retrieved_games:
+                metrics["total_time"] = time.time() - start_total
+                logger.warning(f"No games retrieved for query: {user_query}")
+                return "검색 결과가 없습니다.", [], "", metrics
+            
+            # 3. 검색 결과를 dict 형태로 변환 (API 응답용)
+            retrieved_docs = []
+            for row in retrieved_games:
+                retrieved_docs.append({
+                    "name": row.name,
+                    "genres": row.genres,
+                    "price": float(row.price) if row.price else 0.0,
+                    "similarity": float(row.similarity),
+                    "header_image": row.header_image,
+                    "release_date": str(row.release_date) if row.release_date else None
+                })
+
+            # 4. 프롬프트 구성
+            context_text = "\n\n".join([row.context for row in retrieved_games])
             chain_input = {"context": context_text, "question": user_query}
             
             formatted_prompt_val = self.prompt_template.invoke(chain_input)
             formatted_prompt = formatted_prompt_val.to_string()
 
-            # 3. LLM 생성
+            # 5. LLM 생성
             start_gen = time.time()
             response_msg = await self.llm.ainvoke(formatted_prompt_val)
             response_text = self.output_parser.invoke(response_msg)
             metrics["generation_time"] = time.time() - start_gen
 
             metrics["total_time"] = time.time() - start_total
+            
             return response_text, retrieved_docs, formatted_prompt, metrics
 
         except Exception as e:
-            logger.info(f"❌ Generation error: {e}")
-            return f"오류가 발생했습니다: {str(e)}", [], "", {"error": 1.0}
+            logger.error(f"❌ Generation error: {e}")
+            metrics["total_time"] = time.time() - start_total
+            return f"오류가 발생했습니다: {str(e)}", [], "", metrics
 
     async def generate_response(self, user_query: str) -> str:
         resp, _, _, _ = await self.generate_response_with_details(user_query)
         return resp
     
-    async def cleanup(self):
+    def cleanup(self):
         logger.info("🧹 Cleaning up chatbot resources...")
         self.embeddings = None
         self.vectorstore = None
