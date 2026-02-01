@@ -1,6 +1,27 @@
 version: "3.8"
 
 services:
+  # Week 4: BentoML 추론 서비스 (3-Stage 파이프라인)
+  bentoml:
+    build:
+      context: ./ml_rec
+      dockerfile: Dockerfile.bentoml
+    ports:
+      - "3000:3000"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./ml_rec/saved_models:/app/ml_rec/saved_models
+      - ./ml_rec/candidates:/app/ml_rec/candidates
+      - ./ml_rec/logs:/app/ml_rec/logs
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/metadata')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - app-network
+
   # [Development] FastAPI (현재 소스코드로 빌드)
   backend:
     build: .
@@ -12,6 +33,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
       - REDIS_URL=redis://redis:6379
       - ML_REC_ROOT=/app/ml_rec
+      - BENTOML_SERVICE_URL=http://bentoml:3000
     volumes:
       - ./backend:/app/backend
       - ./ml_rec:/app/ml_rec
@@ -22,16 +44,19 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      bentoml:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - app-network
 
   # PostgreSQL (DB)
   db:
     image: pgvector/pgvector:pg15
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -45,6 +70,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
 
   # Redis (Cache)
   redis:
@@ -56,6 +83,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
