@@ -16,6 +16,8 @@ services:
       retries: 3
     networks:
       - app_network
+    environment:
+      - DEBUG_MODE=True  # ← 개발 환경: True, 프로덕션: False
 
   # [DB] PostgreSQL 공통 설정
   db:

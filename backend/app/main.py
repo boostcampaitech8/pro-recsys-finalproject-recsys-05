@@ -13,6 +13,7 @@ from pathlib import Path
 from app.routers.health import router as health_router
 from app.domains.recommendation.router import router as recommend_router
 from app.domains.steam.router import router as steam_router
+from app.domains.chat.chatbot import get_chatbot, reset_chatbot
 from app.core.database import get_db, engine, Base, SessionLocal
 from app.domains.user.router import router as user_router
 from app.domains.game.router import router as game_router
@@ -125,8 +126,17 @@ async def lifespan(app: FastAPI):
     """
     # 시작
     await init_db_and_load_data()
+    chatbot = get_chatbot()
+    await chatbot.initialize(
+        engine=engine,
+        clova_api_key=os.getenv("CLOVA_API_KEY"),
+        model_name="HCX-DASH-001",
+    )
+    
     yield
     # 종료
+    chatbot.cleanup()
+    reset_chatbot()
     await engine.dispose()
 
 
