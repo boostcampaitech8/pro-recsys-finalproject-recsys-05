@@ -210,4 +210,5 @@ jobs:
           
           # Deploy Script 실행
           cd ~/pro-recsys-finalproject-recsys-05
+          chmod +x deploy.sh
           ./deploy.sh
