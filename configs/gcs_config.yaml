@@ -20,7 +20,7 @@ local:
       upload_path: "ml_rec/item_similarity.pkl"
       download_path: "ml_rec/item_similarity.pkl"
 
-# Week 4: BentoML 모델 및 후보 데이터 백업
+# BentoML 모델 및 후보 데이터 백업
 ml_rec:
   data_root: "ml_rec"
   files:
