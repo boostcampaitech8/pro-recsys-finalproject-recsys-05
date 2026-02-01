@@ -61,8 +61,21 @@ def backup_ml_rec(config, category=None):
 
     for filename, paths in files.items():
         # 카테고리 필터 (models, candidates, dataset)
+        # upload_path에서 카테고리 판단
         if category:
-            file_category = filename.split('_')[0].lower()
+            upload_path = paths.get('upload_path', '')
+            # ml_rec/models/* → models
+            # ml_rec/candidates/* → candidates
+            # ml_rec/dataset/* → dataset
+            if 'models' in upload_path:
+                file_category = 'models'
+            elif 'candidates' in upload_path:
+                file_category = 'candidates'
+            elif 'dataset' in upload_path:
+                file_category = 'dataset'
+            else:
+                file_category = 'other'
+
             if file_category not in category.lower():
                 continue
 
