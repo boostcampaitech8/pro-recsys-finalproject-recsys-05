@@ -200,23 +200,24 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Backend Image (Compose)
+        if: github.event_name != 'pull_request'
         run: |
           docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend
 
       - name: Push Backend Image (latest on main)
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:latest
 
       - name: Tag and Push Backend Image (release tag)
-        if: github.ref_type == 'tag'
+        if: github.event_name != 'pull_request' && github.ref_type == 'tag'
         run: |
           docker tag ${{ secrets.DOCKER_USERNAME }}/rec-server:latest ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
           docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
 
-      # ---------------------------------------------------
-      # [서버 배포: SSH]
-      # ---------------------------------------------------
+    # ---------------------------------------------------
+    # [서버 배포: SSH]
+    # ---------------------------------------------------
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
@@ -225,6 +226,7 @@ jobs:
           tags: tag:ci
 
       - name: Copy files to Server
+        if: github.event_name != 'pull_request'
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
