@@ -3,6 +3,7 @@
 on:
   push:
     branches: [ "main", "dev" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main", "dev" ]
 
@@ -57,7 +58,7 @@ jobs:
           enable-cache: true
           working-directory: backend
 
-      #venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
+      # venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
       - name: Cache backend .venv
         uses: actions/cache@v4
         with:
@@ -83,132 +84,169 @@ jobs:
           uv run pytest test/
 
   # ---------------------------------------------------
+  # [PR 통합 테스트: Docker Compose (override)]
+  # PR일 때만 로컬 개발용 override로 통합 테스트합니다.
+  # ---------------------------------------------------
+  compose_pr:
+    needs: test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create env file from secrets
+        run: |
+          cat > .env << EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+          GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          EOF
+
+      - name: Build and Run with Docker Compose (override)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.yml build
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+          echo "Waiting for services to start..."
+          sleep 20
+
+      - name: Check Health (Integration Test)
+        run: |
+          for i in {1..5}; do
+            if curl -f http://localhost:8000/health/db; then
+              echo "Health Check Passed!"
+              exit 0
+            fi
+            echo "Retrying... ($i/5)"
+            sleep 10
+          done
+          echo "Health Check Failed!"
+          docker compose logs
+          exit 1
+
+      - name: Tear Down
+        if: always()
+        run: docker compose down
+
+  # ---------------------------------------------------
   # [배포: Build & Deploy]
   # 테스트가 성공했을 때만 실행됩니다.
   # ---------------------------------------------------
   pipeline:
-    needs: test  # 테스트가 통과해야만 실행
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # ---------------------------------------------------
-    # [환경 변수 설정]
-    # .env 파일을 생성하여 Docker Compose 빌드/실행 시 사용
-    # ---------------------------------------------------
-    - name: Create env file from secrets
-      run: |
-        cat > .env << EOF
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        REDIS_URL=${{ secrets.REDIS_URL }}
-        ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
-        STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
-        GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
-        EOF
+      # ---------------------------------------------------
+      # [환경 변수 설정]
+      # .env 파일을 생성하여 Docker Compose 빌드/실행 시 사용
+      # ---------------------------------------------------
+      - name: Create env file from secrets
+        run: |
+          cat > .env << EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+          GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          EOF
 
-    # ---------------------------------------------------
-    # [통합 테스트: Docker Compose]
-    # 실제 컨테이너들이 잘 뜨는지(Health Check) 확인
-    # ---------------------------------------------------
-    - name: Build and Run with Docker Compose
-      run: |
-        # Use Base + Prod override
-        docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
-        echo "Waiting for services to start..."
-        sleep 20  # DB 초기화 및 서버 구동 대기
+      # ---------------------------------------------------
+      # [통합 테스트: Docker Compose]
+      # 실제 컨테이너들이 잘 뜨는지(Health Check) 확인
+      # ---------------------------------------------------
+      - name: Build and Run with Docker Compose
+        run: |
+          # Use Base + Prod override
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+          echo "Waiting for services to start..."
+          sleep 20  # DB 초기화 및 서버 구동 대기
 
-    - name: Check Health (Integration Test)
-      run: |
-        # 5번 재시도 (총 50초 대기)
-        for i in {1..5}; do
-          if curl -f http://localhost:80/health/db; then
-            echo "Health Check Passed!"
-            exit 0
-          fi
-          echo "Retrying... ($i/5)"
-          sleep 10
-        done
-        echo "Health Check Failed!"
-        # 실패 시 로그 출력 (디버깅용)
-        docker compose logs
-        exit 1
+      - name: Check Health (Integration Test)
+        run: |
+          # 5번 재시도 (총 50초 대기)
+          for i in {1..5}; do
+            if curl -f http://localhost:80/health/db; then
+              echo "Health Check Passed!"
+              exit 0
+            fi
+            echo "Retrying... ($i/5)"
+            sleep 10
+          done
+          echo "Health Check Failed!"
+          # 실패 시 로그 출력 (디버깅용)
+          docker compose logs
+          exit 1
 
-    - name: Tear Down
-      if: always()
-      run: docker compose down
+      - name: Tear Down
+        if: always()
+        run: docker compose down
 
-    # ---------------------------------------------------
-    # [태그 이름 추출]
-    # ---------------------------------------------------
-    - name: Docker Meta
-      id: meta
-      uses: docker/metadata-action@v4
-      with:
-        images: ${{ secrets.DOCKER_USERNAME }}/rec-server
-        tags: |
-          type=ref,event=tag
-          type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-          type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
-          type=sha,format=short
+      # ---------------------------------------------------
+      # [빌드 및 푸시]
+      # ---------------------------------------------------
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # ---------------------------------------------------
-    # [빌드 및 푸시]
-    # ---------------------------------------------------
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build Backend Image (Compose)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Push Backend Image (latest on main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:latest
 
-    - name: Build and Push
-      # PR이 아닐 때만 Push
-      if: github.event_name != 'pull_request'
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+      - name: Tag and Push Backend Image (release tag)
+        if: github.ref_type == 'tag'
+        run: |
+          docker tag ${{ secrets.DOCKER_USERNAME }}/rec-server:latest ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
 
-    # ---------------------------------------------------
-    # [서버 배포: SSH]
-    # ---------------------------------------------------
-    - name: Connect to Tailscale
-      uses: tailscale/github-action@v2
-      with:
-        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-        tags: tag:ci
+      # ---------------------------------------------------
+      # [서버 배포: SSH]
+      # ---------------------------------------------------
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
 
-    - name: Copy files to Server
-      if: github.event_name != 'pull_request'
-      uses: appleboy/scp-action@master
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_KEY }}
-        port: 22
-        source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh"
-        target: "pro-recsys-finalproject-recsys-05"
+      - name: Copy files to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx"
+          target: "pro-recsys-finalproject-recsys-05"
 
-    - name: Deploy to Server
-      if: github.event_name != 'pull_request'
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_KEY }}
-        port: 22
-        script: |
-          export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-          export GCS_KEY_BASE64='${{ secrets.GCS_KEY_BASE64 }}'
-          export STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
-          
-          # Deploy Script 실행
-          cd ~/pro-recsys-finalproject-recsys-05
-          chmod +x deploy.sh
-          ./deploy.sh
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            export GCS_KEY_BASE64='${{ secrets.GCS_KEY_BASE64 }}'
+            export STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+
+            # Deploy Script 실행
+            cd ~/pro-recsys-finalproject-recsys-05
+            chmod +x deploy.sh
+            ./deploy.sh
