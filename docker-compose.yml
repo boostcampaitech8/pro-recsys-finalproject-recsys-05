@@ -23,7 +23,7 @@ services:
     image: pgvector/pgvector:pg15
     volumes:
       # [DB] PostgreSQL 공통 설정
-      postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-myuser}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mypassword}
