@@ -103,6 +103,8 @@ jobs:
           ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+          CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
           EOF
 
       - name: Build and Run with Docker Compose (override)
@@ -156,6 +158,8 @@ jobs:
           ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+          CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
           EOF
 
       # ---------------------------------------------------
@@ -247,8 +251,10 @@ jobs:
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
             export GCS_KEY_BASE64='${{ secrets.GCS_KEY_BASE64 }}'
             export STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+            export CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
 
             # Deploy Script 실행
             cd ~/pro-recsys-finalproject-recsys-05
+            sed -i 's/\r$//' deploy.sh
             chmod +x deploy.sh
             ./deploy.sh
