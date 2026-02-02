@@ -6,7 +6,7 @@ services:
       context: .
       target: dev
     env_file:
-      - ./.env
+      - ./configs/backend/.env
     environment:
       - PYTHONPATH=/app/backend:/app
       - PYTHONUNBUFFERED=1
