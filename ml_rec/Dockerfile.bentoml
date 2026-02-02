@@ -10,12 +10,12 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ml_rec 디렉토리 복사
-COPY ml_rec/ /app/ml_rec/
+# 현재 디렉토리 (ml_rec) 복사
+COPY . /app/ml_rec/
 WORKDIR /app/ml_rec
 
 # 의존성 설치
-RUN pip install --no-cache-dir -r scripts/stage4_serving/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 포트 노출
 EXPOSE 3000

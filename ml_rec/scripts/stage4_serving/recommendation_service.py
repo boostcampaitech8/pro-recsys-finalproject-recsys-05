@@ -45,6 +45,9 @@ class GameRecommendationService:
 
     def __init__(self):
         """모델 및 데이터 로드"""
+        print("=" * 60, flush=True)
+        print("[DEBUG] __init__ 메서드 시작됨!", flush=True)
+        print("=" * 60, flush=True)
         logger.info("=" * 60)
         logger.info("GameRecommendationService 초기화 시작...")
         logger.info("=" * 60)
@@ -56,6 +59,7 @@ class GameRecommendationService:
             self.ease_model = models['ease_model']  # 새 사용자 처리용
             self.ease_candidates = models['ease_candidates']
             self.lightgcn_candidates = models['lightgcn_candidates']
+            self.item_metadata = models['item_metadata']  # 아이템 메타데이터 (popularity 등)
             self.lightgcn_embeddings = models['lightgcn_embeddings']
             self.dcn_v2_model = models['dcn_v2_model']
             self.xgb_model = models['xgb_model']
@@ -69,6 +73,10 @@ class GameRecommendationService:
             logger.info("=" * 60)
 
         except Exception as e:
+            print(f"[DEBUG] ❌ 초기화 실패: {e}", flush=True)
+            print(f"[DEBUG] Exception type: {type(e)}", flush=True)
+            import traceback
+            print(f"[DEBUG] Traceback:\n{traceback.format_exc()}", flush=True)
             logger.error(f"❌ 초기화 실패: {e}")
             raise
 
@@ -191,16 +199,18 @@ class GameRecommendationService:
             # DCN v2 점수 계산
             with torch.no_grad():
                 dcn_input = self.feature_builder.build_dcn_input(ranking_features)
-                dcn_input = dcn_input.to(self.device)
+                dcn_input = dcn_input.to(self.device).double()
                 dcn_scores = self.dcn_v2_model(dcn_input).cpu().numpy().flatten()
             logger.info(f"✓ DCN v2 스코어 계산 완료: {dcn_scores.shape}")
 
             # 상위 TOP_K_RANKING 선택
             ranking_indices = np.argsort(-dcn_scores)[:TOP_K_RANKING]
+            # ranking_candidates에 popularity 정보 추가
             ranking_candidates = [
                 {
                     **retrieval_candidates[i],
-                    'dcn_score': float(dcn_scores[i])
+                    'dcn_score': float(dcn_scores[i]),
+                    'popularity': self.item_metadata.get(int(retrieval_candidates[i]['item_id']), {}).get('popularity', 0.0)
                 }
                 for i in ranking_indices
             ]
@@ -211,25 +221,57 @@ class GameRecommendationService:
             # =========================================================================
             logger.info("\n[Stage 3] Scoring 시작...")
 
-            # XGBoost 입력 피처 구성
-            xgb_features = np.array([
-                [
-                    c['dcn_score'],  # DCN 점수
-                    c['ease_score'],  # EASE 점수
-                    c['lightgcn_score'],  # LightGCN 점수
-                    np.exp(-ranking_indices.tolist().index(idx) / len(ranking_candidates)),  # 순위 가중
-                    (c['ease_score'] + c['lightgcn_score']) / 2.0  # 평균 점수
-                ]
-                for idx, c in enumerate(ranking_candidates)
-            ], dtype=np.float32)
+            # XGBoost 입력 피처 구성 (Week 3 학습과 동일)
+            # 원본: [dcn_score, discount_proxy, concurrent_proxy, review_stability]
+            xgb_features_list = []
+            for c in ranking_candidates:
+                popularity = c.get('popularity', 0.0)
+                
+                # discount_proxy: popularity 기반 할인 확률
+                if popularity <= 10:
+                    discount_proxy = 0.9
+                elif popularity <= 20:
+                    discount_proxy = 0.7
+                elif popularity <= 40:
+                    discount_proxy = 0.5
+                elif popularity <= 60:
+                    discount_proxy = 0.3
+                else:
+                    discount_proxy = 0.1
+                
+                # concurrent_proxy: popularity 정규화
+                concurrent_proxy = min(popularity / 10000.0, 1.0)
+                
+                # review_stability: 상수값 (release_year 정보 없음)
+                review_stability = 0.7
+                
+                xgb_features_list.append([
+                    c['dcn_score'],
+                    discount_proxy,
+                    concurrent_proxy,
+                    review_stability
+                ])
+            
+            xgb_features = np.array(xgb_features_list, dtype=np.float32)
 
             # XGBoost 점수
-            xgb_scores = self.xgb_model.predict_proba(xgb_features)[:, 1]
+            import xgboost as xgb
+            feature_names = ['dcn_score', 'discount_proxy', 'concurrent_proxy', 'review_stability']
+            dmatrix = xgb.DMatrix(xgb_features, feature_names=feature_names)
+            xgb_scores = self.xgb_model.predict(dmatrix)
             logger.info(f"✓ XGBoost 점수 계산 완료: {xgb_scores.shape}")
 
-            # 상위 top_k 선택
+            # 상위 top_k 선택 (DCN + XGBoost 조합)
             final_k = min(top_k, len(ranking_candidates))
-            final_indices = np.argsort(-xgb_scores)[:final_k]
+
+            # DCN 점수와 XGBoost 점수 조합
+            # DCN이 신뢰도 높음(실제 데이터) → 0.7 가중치
+            # XGB가 대체 데이터 기반 → 0.3 가중치
+            dcn_scores_for_final = np.array([c['dcn_score'] for c in ranking_candidates])
+            combined_scores = dcn_scores_for_final * 0.7 + xgb_scores * 0.3
+            final_indices = np.argsort(-combined_scores)[:final_k]
+
+            logger.info(f"✓ 최종 점수 조합 완료 (DCN 0.7 + XGB 0.3)")
 
             final_recommendations = []
             for rank, idx in enumerate(final_indices, 1):
@@ -240,8 +282,8 @@ class GameRecommendationService:
                     'game_id': int(candidate['item_id']),  # 호환성
                     'dcn_score': float(candidate['dcn_score']),
                     'xgb_score': float(xgb_scores[idx]),
-                    'combined_score': float((candidate['dcn_score'] + xgb_scores[idx]) / 2.0),
-                    'source': 'dcn_v2+xgb'
+                    'combined_score': float(combined_scores[idx]),
+                    'source': 'dcn_v2(70%) + xgb(30%)'
                 })
 
             logger.info(f"✓ Scoring 완료: {len(final_recommendations)} 최종 추천")

@@ -10,6 +10,7 @@ BASE_PATH = Path.cwd()
 # 모델 경로
 SAVED_MODELS_DIR = BASE_PATH / 'saved_models'
 CANDIDATES_DIR = BASE_PATH / 'candidates'
+DATASET_DIR = BASE_PATH / 'dataset' / 'steam_optimal'
 
 # 모델 파일명
 EASE_MODEL_FILE = 'item_similarity.pkl'
@@ -23,6 +24,9 @@ EASE_CANDIDATES_FILE = CANDIDATES_DIR / 'ease_candidates.json'
 LIGHTGCN_CANDIDATES_FILE = CANDIDATES_DIR / 'lightgcn_candidates.json'
 LIGHTGCN_EMBEDDINGS_FILE = CANDIDATES_DIR / 'lightgcn_embeddings.npz'
 RANKING_TRAIN_FILE = CANDIDATES_DIR / 'ranking_train.pkl'
+
+# 데이터셋 파일명
+ITEM_METADATA_FILE = DATASET_DIR / 'steam_optimal.item'
 
 # 하이퍼파라미터
 TOP_K_RETRIEVAL = 200

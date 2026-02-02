@@ -62,8 +62,7 @@ class FeatureBuilder:
 
         각 후보에 대해:
         - LightGCN 임베딩 (64차원)
-        - EASE 스코어 기반 임베딩 (64차원)
-        - Proxy 변수들 (3차원): discount_proxy, concurrent_proxy, review_stability
+        - EASE/LightGCN 스코어 (2차원)
 
         Args:
             user_ease_candidates: EASE 후보 리스트
@@ -71,10 +70,9 @@ class FeatureBuilder:
             merged_candidates: 병합된 후보 (top 200)
 
         Returns:
-            shape (len(merged_candidates), 131) 피처 배열
+            shape (len(merged_candidates), 66) 피처 배열
                 - 64: LightGCN 임베딩
-                - 64: EASE 임베딩
-                - 3: 대리변수
+                - 2: EASE/LightGCN 스코어
         """
         n_candidates = len(merged_candidates)
 
@@ -90,41 +88,26 @@ class FeatureBuilder:
             # 1. LightGCN 임베딩
             lightgcn_emb = self.get_item_embedding(item_id)
 
-            # 2. EASE 스코어 기반 임베딩
+            # 2. EASE/LightGCN 스코어 (간단한 피처)
             ease_score = ease_score_map.get(item_id, 0.0)
-            ease_emb = self.get_ease_embedding(ease_score)
+            lightgcn_score = lightgcn_score_map.get(item_id, 0.0)
 
-            # 3. 대리변수 (proxy variables)
-            # - discount_proxy: 상위 랭크에 높은 점수 부여 (감소함수)
-            discount_proxy = np.exp(-rank / len(merged_candidates))
+            simple_features = np.array([ease_score, lightgcn_score], dtype=np.float32)
 
-            # - concurrent_proxy: EASE와 LightGCN 모두 상위에 있으면 높음
-            ease_in_top_100 = 1.0 if ease_score_map.get(item_id, 0) > 0.5 else 0.0
-            lightgcn_in_top_100 = 1.0 if lightgcn_score_map.get(item_id, 0) > 0.5 else 0.0
-            concurrent_proxy = (ease_in_top_100 + lightgcn_in_top_100) / 2.0
-
-            # - review_stability: 임베딩의 norm (안정성)
-            review_stability = np.linalg.norm(lightgcn_emb) / (64 ** 0.5)
-
-            proxy_vars = np.array(
-                [discount_proxy, concurrent_proxy, review_stability],
-                dtype=np.float32
-            )
-
-            # 피처 결합
-            feature_vec = np.concatenate([lightgcn_emb, ease_emb, proxy_vars])
+            # 피처 결합 (LightGCN 임베딩 + 스코어)
+            feature_vec = np.concatenate([lightgcn_emb, simple_features])
             features.append(feature_vec)
 
-        return np.array(features, dtype=np.float32)  # shape: (n_candidates, 131)
+        return np.array(features, dtype=np.float32)  # shape: (n_candidates, 66)
 
     def build_dcn_input(self, ranking_features: np.ndarray) -> torch.Tensor:
         """
         Ranking 피처를 DCN v2 입력으로 변환
 
         Args:
-            ranking_features: shape (n_candidates, 131)
+            ranking_features: shape (n_candidates, 66)
 
         Returns:
-            torch.Tensor shape (n_candidates, 131)
+            torch.Tensor shape (n_candidates, 66)
         """
         return torch.from_numpy(ranking_features).float()
