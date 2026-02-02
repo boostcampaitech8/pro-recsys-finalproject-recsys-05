@@ -3,6 +3,7 @@
 on:
   push:
     branches: [ "main", "dev" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main", "dev" ]
 
@@ -89,6 +90,8 @@ jobs:
   pipeline:
     needs: test  # 테스트가 통과해야만 실행
     runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -114,7 +117,8 @@ jobs:
     - name: Build and Run with Docker Compose
       run: |
         # Use Base + Prod override
-        docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
         echo "Waiting for services to start..."
         sleep 20  # DB 초기화 및 서버 구동 대기
 
@@ -139,20 +143,6 @@ jobs:
       run: docker compose down
 
     # ---------------------------------------------------
-    # [태그 이름 추출]
-    # ---------------------------------------------------
-    - name: Docker Meta
-      id: meta
-      uses: docker/metadata-action@v4
-      with:
-        images: ${{ secrets.DOCKER_USERNAME }}/rec-server
-        tags: |
-          type=ref,event=tag
-          type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-          type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
-          type=sha,format=short
-
-    # ---------------------------------------------------
     # [빌드 및 푸시]
     # ---------------------------------------------------
     - name: Login to Docker Hub
@@ -161,18 +151,21 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-
-    - name: Build and Push
-      # PR이 아닐 때만 Push
+    - name: Build Backend Image (Compose)
       if: github.event_name != 'pull_request'
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+      run: |
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend
+
+    - name: Push Backend Image (latest on main)
+      if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      run: |
+        docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:latest
+
+    - name: Tag and Push Backend Image (release tag)
+      if: github.event_name != 'pull_request' && github.ref_type == 'tag'
+      run: |
+        docker tag ${{ secrets.DOCKER_USERNAME }}/rec-server:latest ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
+        docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
 
     # ---------------------------------------------------
     # [서버 배포: SSH]
@@ -192,7 +185,7 @@ jobs:
         username: ${{ secrets.SSH_USERNAME }}
         key: ${{ secrets.SSH_KEY }}
         port: 22
-        source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh"
+        source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx"
         target: "pro-recsys-finalproject-recsys-05"
 
     - name: Deploy to Server
