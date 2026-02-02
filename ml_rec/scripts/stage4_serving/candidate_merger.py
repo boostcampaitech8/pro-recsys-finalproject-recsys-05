@@ -156,6 +156,7 @@ class CandidateMerger:
     def generate_lightgcn_candidates(
         lightgcn_embeddings: np.ndarray,
         user_games: List[int],
+        item_ids: np.ndarray,
         top_k: int = 200
     ) -> List[Dict]:
         """
@@ -163,20 +164,28 @@ class CandidateMerger:
 
         Args:
             lightgcn_embeddings: Item 임베딩 (num_items x embedding_dim)
-            user_games: 사용자가 플레이한 게임 ID 리스트
+            user_games: 사용자가 플레이한 게임 ID 리스트 (external Steam IDs)
+            item_ids: 임베딩 배열과 매칭되는 external item IDs (np.ndarray)
             top_k: 반환할 후보 개수
 
         Returns:
             [{"item_id": 1, "score": 0.8}, ...] 형태의 후보 리스트
         """
-        if lightgcn_embeddings is None or not user_games:
+        if lightgcn_embeddings is None or item_ids is None or not user_games:
             return []
 
         try:
-            user_games = [int(g) for g in user_games]
+            user_games = set(int(g) for g in user_games)
+
+            # External ID → internal index 매핑
+            item_id_to_index = {int(item_id): idx for idx, item_id in enumerate(item_ids)}
 
             # 사용자 임베딩 = 플레이한 게임들의 임베딩 평균
-            valid_indices = [g for g in user_games if g < len(lightgcn_embeddings)]
+            valid_indices = [
+                item_id_to_index[game_id]
+                for game_id in user_games
+                if game_id in item_id_to_index
+            ]
             if not valid_indices:
                 return []
 
@@ -184,14 +193,15 @@ class CandidateMerger:
 
             # 모든 아이템과의 코사인 유사도 계산
             item_scores = {}
-            for item_id in range(len(lightgcn_embeddings)):
-                if item_id not in user_games:
+            for idx, external_item_id in enumerate(item_ids):
+                external_item_id = int(external_item_id)
+                if external_item_id not in user_games:
                     # 코사인 유사도
-                    item_emb = lightgcn_embeddings[item_id]
+                    item_emb = lightgcn_embeddings[idx]
                     similarity = np.dot(user_embedding, item_emb) / (
                         np.linalg.norm(user_embedding) * np.linalg.norm(item_emb) + 1e-8
                     )
-                    item_scores[item_id] = float(similarity)
+                    item_scores[external_item_id] = float(similarity)
 
             # 상위 top_k 선택
             sorted_items = sorted(

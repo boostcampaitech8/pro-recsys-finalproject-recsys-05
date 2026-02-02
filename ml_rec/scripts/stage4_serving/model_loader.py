@@ -125,9 +125,11 @@ def load_lightgcn_embeddings():
 
     data = np.load(LIGHTGCN_EMBEDDINGS_FILE)
     embeddings = data['embeddings']
+    item_ids = data['item_ids']  # External item IDs
 
     logger.info(f"✓ LightGCN 임베딩 로드: {embeddings.shape}")
-    return embeddings
+    logger.info(f"✓ Item IDs 로드: {len(item_ids)} 아이템")
+    return embeddings, item_ids
 
 
 def load_item_metadata():
@@ -303,7 +305,7 @@ def load_all_models():
         item_metadata = load_item_metadata()
         
         print("[DEBUG] LightGCN 임베딩 로드 중...", flush=True)
-        lightgcn_embeddings = load_lightgcn_embeddings()
+        lightgcn_embeddings, item_ids = load_lightgcn_embeddings()
 
         # 모델 로드
         print("[DEBUG] DCN v2 모델 로드 중...", flush=True)
@@ -322,6 +324,7 @@ def load_all_models():
             'lightgcn_candidates': lightgcn_candidates,
             'item_metadata': item_metadata,
             'lightgcn_embeddings': lightgcn_embeddings,
+            'item_ids': item_ids,
             'dcn_v2_model': dcn_v2_model,
             'xgb_model': xgb_model,
             'device': device

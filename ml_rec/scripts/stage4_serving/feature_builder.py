@@ -13,29 +13,43 @@ logger = logging.getLogger(__name__)
 class FeatureBuilder:
     """피처 빌더 클래스"""
 
-    def __init__(self, lightgcn_embeddings):
+    def __init__(self, lightgcn_embeddings, item_ids=None):
         """
         Args:
             lightgcn_embeddings: shape (n_items, 64)
+            item_ids: external item IDs (np.ndarray) - external ID → internal index 매핑용
         """
         self.lightgcn_embeddings = lightgcn_embeddings
         self.n_items = lightgcn_embeddings.shape[0]
+        self.item_ids = item_ids
+
+        # External ID → internal index 매핑 생성
+        if item_ids is not None:
+            self.item_id_to_index = {int(item_id): idx for idx, item_id in enumerate(item_ids)}
+        else:
+            self.item_id_to_index = {}
 
     def get_item_embedding(self, item_id: int) -> np.ndarray:
         """
         아이템의 LightGCN 임베딩 반환
 
         Args:
-            item_id: 아이템 ID (0 ~ n_items-1)
+            item_id: 아이템 ID (external Steam ID)
 
         Returns:
             shape (64,) 임베딩
         """
-        if item_id < 0 or item_id >= self.n_items:
-            # 범위 벗어남 - 0 벡터 반환
-            return np.zeros(64, dtype=np.float32)
-
-        return self.lightgcn_embeddings[item_id].astype(np.float32)
+        # External ID를 internal index로 변환
+        if self.item_id_to_index:
+            index = self.item_id_to_index.get(int(item_id), -1)
+            if index < 0 or index >= self.n_items:
+                return np.zeros(64, dtype=np.float32)
+            return self.lightgcn_embeddings[index].astype(np.float32)
+        else:
+            # Fallback: item_ids가 없으면 item_id를 직접 인덱스로 사용 (호환성)
+            if item_id < 0 or item_id >= self.n_items:
+                return np.zeros(64, dtype=np.float32)
+            return self.lightgcn_embeddings[item_id].astype(np.float32)
 
     def get_ease_embedding(self, candidate_score: float) -> np.ndarray:
         """

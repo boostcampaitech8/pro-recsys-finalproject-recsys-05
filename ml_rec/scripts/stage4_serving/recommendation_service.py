@@ -61,12 +61,13 @@ class GameRecommendationService:
             self.lightgcn_candidates = models['lightgcn_candidates']
             self.item_metadata = models['item_metadata']  # 아이템 메타데이터 (popularity 등)
             self.lightgcn_embeddings = models['lightgcn_embeddings']
+            self.item_ids = models['item_ids']  # External item IDs (ID→index 매핑용)
             self.dcn_v2_model = models['dcn_v2_model']
             self.xgb_model = models['xgb_model']
             self.device = models['device']
 
             # Helper 초기화
-            self.feature_builder = FeatureBuilder(self.lightgcn_embeddings)
+            self.feature_builder = FeatureBuilder(self.lightgcn_embeddings, self.item_ids)
             self.candidate_merger = CandidateMerger()
 
             logger.info("✅ GameRecommendationService 초기화 완료!")
@@ -153,6 +154,7 @@ class GameRecommendationService:
                 user_lightgcn_candidates = self.candidate_merger.generate_lightgcn_candidates(
                     self.lightgcn_embeddings,
                     user_games,
+                    self.item_ids,
                     top_k=TOP_K_RETRIEVAL
                 )
                 is_new_user = True
