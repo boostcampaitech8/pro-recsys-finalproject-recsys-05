@@ -1,7 +1,6 @@
 from pydantic import BaseModel, ConfigDict, field_validator, Field
 from datetime import datetime
 from typing import List, Optional, Any
-from datetime import datetime
 from enum import Enum
 
 class EchoRequest(BaseModel):
@@ -21,57 +20,43 @@ class EchoResponse(BaseModel):
 
 class MessageRole(str, Enum):
     USER = "user"
-    AI = "ai"
+    AI = "assistant"
     SYSTEM = "system"
+    TOOL = "tool"
 
 
 class MessageCreate(BaseModel):
     content : str
-    pass
-
+    
+class ToolCall(BaseModel):
+    id: str
+    type: str = "function"
+    function: dict
 
 class MessageResponse(BaseModel):
     message_id : int 
-    role : MessageRole
-    content : str
+    role : str 
+    content : Optional[str] = None
+    tool_calls: Optional[List[dict]] = None
     created_at : datetime
-
     
     model_config = ConfigDict(from_attributes=True)
+
+class ConversationCreate(BaseModel):
+    title: Optional[str] = None
 
 class ConversationResponse(BaseModel):
     conversation_id : int
     user_id : int
+    title: Optional[str] = None
     created_at : datetime
+    updated_at : Optional[datetime] = None
     messages: List[MessageResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
     
-class GameInfo(BaseModel):
-    """
-    개별 게임 정보
-    """
-    name: str = Field(..., description="게임 이름")
-    description: str = Field(..., description="게임 설명")
-    tags: List[str] = Field(default_factory=list, description="게임 태그 (장르 등)")
-    image_url: Optional[str] = Field(None, description="게임 이미지 URL")
-    price: float = Field(..., ge=0, description="가격 (USD)")
-    similarity_score: Optional[float] = Field(None, ge=0, le=1, description="유사도 점수 (0~1)")
-    release_year: Optional[int] = Field(None, ge=1970, le=2030, description="출시 년도")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "The Witcher 3: Wild Hunt",
-                "description": "오픈 월드 판타지 RPG",
-                "tags": ["RPG", "Open World", "Fantasy"],
-                "image_url": "https://cdn.cloudflare.steamstatic.com/steam/apps/292030/header.jpg",
-                "price": 39.99,
-                "similarity_score": 0.92,
-                "release_year": 2015
-            }
-        }
-    
+from app.domains.game.schemas import GameInfo
+
 class ChatRequest(BaseModel):
     """
     챗봇 요청 Body
