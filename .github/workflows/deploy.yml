@@ -1,4 +1,4 @@
-name: Production CI/CD
+﻿name: Production CI/CD
 
 on:
   push:
@@ -58,7 +58,7 @@ jobs:
           enable-cache: true
           working-directory: backend
 
-      #venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
+      # venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
       - name: Cache backend .venv
         uses: actions/cache@v4
         with:
@@ -84,31 +84,79 @@ jobs:
           uv run pytest test/
 
   # ---------------------------------------------------
+  # [PR 통합 테스트: Docker Compose (override)]
+  # PR일 때만 로컬 개발용 override로 통합 테스트합니다.
+  # ---------------------------------------------------
+  compose_pr:
+    needs: test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create env file from secrets
+        run: |
+          cat > .env << EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+          GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          EOF
+
+      - name: Build and Run with Docker Compose (override)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.yml build
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+          echo "Waiting for services to start..."
+          sleep 20
+
+      - name: Check Health (Integration Test)
+        run: |
+          for i in {1..5}; do
+            if curl -f http://localhost:8000/health/db; then
+              echo "Health Check Passed!"
+              exit 0
+            fi
+            echo "Retrying... ($i/5)"
+            sleep 10
+          done
+          echo "Health Check Failed!"
+          docker compose logs
+          exit 1
+
+      - name: Tear Down
+        if: always()
+        run: docker compose down
+
+  # ---------------------------------------------------
   # [배포: Build & Deploy]
   # 테스트가 성공했을 때만 실행됩니다.
   # ---------------------------------------------------
   pipeline:
-    needs: test  # 테스트가 통과해야만 실행
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # ---------------------------------------------------
-    # [환경 변수 설정]
-    # .env 파일을 생성하여 Docker Compose 빌드/실행 시 사용
-    # ---------------------------------------------------
-    - name: Create env file from secrets
-      run: |
-        cat > .env << EOF
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        REDIS_URL=${{ secrets.REDIS_URL }}
-        ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
-        STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
-        GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
-        EOF
+      # ---------------------------------------------------
+      # [환경 변수 설정]
+      # .env 파일을 생성하여 Docker Compose 빌드/실행 시 사용
+      # ---------------------------------------------------
+      - name: Create env file from secrets
+        run: |
+          cat > .env << EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+          GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          EOF
 
     # ---------------------------------------------------
     # [통합 테스트: Docker Compose]
@@ -122,25 +170,25 @@ jobs:
         echo "Waiting for services to start..."
         sleep 20  # DB 초기화 및 서버 구동 대기
 
-    - name: Check Health (Integration Test)
-      run: |
-        # 5번 재시도 (총 50초 대기)
-        for i in {1..5}; do
-          if curl -f http://localhost:80/health/db; then
-            echo "Health Check Passed!"
-            exit 0
-          fi
-          echo "Retrying... ($i/5)"
-          sleep 10
-        done
-        echo "Health Check Failed!"
-        # 실패 시 로그 출력 (디버깅용)
-        docker compose logs
-        exit 1
+      - name: Check Health (Integration Test)
+        run: |
+          # 5번 재시도 (총 50초 대기)
+          for i in {1..5}; do
+            if curl -f http://localhost:80/health/db; then
+              echo "Health Check Passed!"
+              exit 0
+            fi
+            echo "Retrying... ($i/5)"
+            sleep 10
+          done
+          echo "Health Check Failed!"
+          # 실패 시 로그 출력 (디버깅용)
+          docker compose logs
+          exit 1
 
-    - name: Tear Down
-      if: always()
-      run: docker compose down
+      - name: Tear Down
+        if: always()
+        run: docker compose down
 
     # ---------------------------------------------------
     # [빌드 및 푸시]
@@ -167,15 +215,15 @@ jobs:
         docker tag ${{ secrets.DOCKER_USERNAME }}/rec-server:latest ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
         docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
 
-    # ---------------------------------------------------
-    # [서버 배포: SSH]
-    # ---------------------------------------------------
-    - name: Connect to Tailscale
-      uses: tailscale/github-action@v2
-      with:
-        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-        tags: tag:ci
+      # ---------------------------------------------------
+      # [서버 배포: SSH]
+      # ---------------------------------------------------
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
 
     - name: Copy files to Server
       if: github.event_name != 'pull_request'
@@ -188,20 +236,19 @@ jobs:
         source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx"
         target: "pro-recsys-finalproject-recsys-05"
 
-    - name: Deploy to Server
-      if: github.event_name != 'pull_request'
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_KEY }}
-        port: 22
-        script: |
-          export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-          export GCS_KEY_BASE64='${{ secrets.GCS_KEY_BASE64 }}'
-          export STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
-          
-          # Deploy Script 실행
-          cd ~/pro-recsys-finalproject-recsys-05
-          chmod +x deploy.sh
-          ./deploy.sh
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            export GCS_KEY_BASE64='${{ secrets.GCS_KEY_BASE64 }}'
+            export STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+
+            # Deploy Script 실행
+            cd ~/pro-recsys-finalproject-recsys-05
+            chmod +x deploy.sh
+            ./deploy.sh
