@@ -148,3 +148,6 @@ class ErrorResponse(BaseModel):
                 "timestamp": "2026-02-01T01:53:00Z"
             }
         }
+
+class TestResponse(BaseModel):
+    output: str
