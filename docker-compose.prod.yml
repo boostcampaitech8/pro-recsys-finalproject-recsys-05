@@ -1,8 +1,6 @@
 version: "3.8"
 
 services:
-  # [Nginx] 由щ쾭???꾨줉??諛??묎렐 ?쒖뼱 寃뚯씠?몄썾??
-  # Nginx???댁쁺(Production) ?섍꼍?먯꽌留??ㅽ뻾?⑸땲??
   nginx:
     build: ./backend/nginx
     ports:
@@ -12,29 +10,23 @@ services:
     networks:
       - app_network
 
-  # [Backend] ?댁쁺 ?섍꼍 ?꾩슜 ?ㅼ젙
   backend:
     build:
       context: .
       target: runner
     image: ${DOCKER_USERNAME}/rec-server:latest
     restart: unless-stopped
-    # ?몄뒪???ы듃 ?몄텧 ?놁쓬, ?대? ?ㅽ듃?뚰겕留??ъ슜
-    # 蹂쇰ⅷ 留덉슫???놁쓬 (?대?吏 ?대? 肄붾뱶 ?ъ슜)
 
-    # ?섍꼍 蹂???ㅻ쾭?쇱씠??(?쒕쾭??.env ?뚯씪?먯꽌 二쇱엯??
     env_file:
       - ./.env
     environment:
       - GCS_KEY_BASE64=${GCS_KEY_BASE64}
       - STEAM_API_KEY=${STEAM_API_KEY}
 
-  # [Monitoring] cAdvisor (而⑦뀒?대꼫 由ъ냼???ъ슜??紐⑤땲?곕쭅)
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
     command: ["/usr/bin/cadvisor", "--url_base_prefix=/monitor"]
-    # ?몄뒪???ы듃 ?몄텧 ???? ?ㅼ쭅 ?대? ?ㅽ듃?뚰겕(Nginx)瑜??듯빐?쒕쭔 ?묎렐 媛??
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -46,4 +38,3 @@ services:
     restart: unless-stopped
     networks:
       - app_network
-  # DB? Redis??Base ?ㅼ젙??洹몃?濡??ъ슜 (?몃? ?ы듃 ?몄텧 ?놁쓬)
