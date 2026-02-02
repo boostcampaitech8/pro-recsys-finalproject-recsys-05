@@ -10,6 +10,12 @@ class GameRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_all_games(self, limit: int = 10, offset: int = 0) -> List[Game]:
+        """Fetch games with pagination (used by tests)."""
+        query = select(Game).offset(offset).limit(limit)
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
     async def get_game_by_app_id(self, app_id: int) -> Optional[Game]:
         """Steam ID(App ID)로 게임 상세 조회"""
         query = select(Game).where(Game.app_id == app_id)

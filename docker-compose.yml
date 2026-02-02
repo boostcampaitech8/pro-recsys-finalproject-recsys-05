@@ -1,5 +1,4 @@
 services:
-  # Week 4: BentoML 추론 서비스 (3-Stage 파이프라인)
   bentoml:
     build:
       context: ./ml_rec
@@ -54,39 +53,36 @@ services:
       bentoml:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
     networks:
-      - app-network
+      - app_network
+    environment:
+      - DEBUG_MODE=True # 개발 환경: True, 프로덕션: False
 
-  # PostgreSQL (DB)
   db:
     image: pgvector/pgvector:pg15
     volumes:
+      # [DB] PostgreSQL 공통 설정
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=myuser
-      - POSTGRES_PASSWORD=mypassword
-      - POSTGRES_DB=mydatabase
-    ports:
-      - "127.0.0.1:5432:5432"
+      - POSTGRES_USER=${POSTGRES_USER:-myuser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mypassword}
+      - POSTGRES_DB=${POSTGRES_DB:-mydatabase}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myuser -d mydatabase"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-mydatabase}" ]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - app-network
 
-  # Redis (Cache)
   redis:
     image: redis:alpine
-    ports:
-      - "127.0.0.1:6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
