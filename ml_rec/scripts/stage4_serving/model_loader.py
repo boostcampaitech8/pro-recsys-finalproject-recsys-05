@@ -165,14 +165,27 @@ def load_dcn_v2_model():
 
 def load_xgboost_model():
     """XGBoost 모델 로드"""
+    import xgboost as xgb
+
     model_path = SAVED_MODELS_DIR / XGB_MODEL_FILE
     if not model_path.exists():
         raise FileNotFoundError(f"XGBoost 모델 없음: {model_path}")
 
-    with open(model_path, 'rb') as f:
-        model = pickle.load(f)
+    try:
+        # XGBoost 네이티브 형식 (UBJSON) 로드
+        model = xgb.Booster()
+        model.load_model(str(model_path))
+        logger.info(f"✓ XGBoost 모델 로드 (UBJSON 형식)")
+    except Exception as e:
+        # Pickle 형식 시도 (호환성)
+        try:
+            with open(model_path, 'rb') as f:
+                model = pickle.load(f)
+            logger.info(f"✓ XGBoost 모델 로드 (Pickle 형식)")
+        except:
+            logger.error(f"❌ XGBoost 모델 로드 실패: {e}")
+            raise
 
-    logger.info(f"✓ XGBoost 모델 로드")
     return model
 
 
