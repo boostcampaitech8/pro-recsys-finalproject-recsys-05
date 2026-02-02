@@ -95,15 +95,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Create env file from secrets
+      - name: Create backend env for compose_pr (local-style)
         run: |
-          cat > .env << EOF
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          REDIS_URL=${{ secrets.REDIS_URL }}
-          ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          mkdir -p configs/backend
+          cat > configs/backend/.env << EOF
+          ENV=ci
+          DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
+          REDIS_URL=redis://redis:6379/0
+          ML_REC_ROOT=/app/ml_rec
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
-          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
           CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
           EOF
 
@@ -235,7 +236,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
-          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx"
+          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx,Dockerfile"
           target: "pro-recsys-finalproject-recsys-05"
 
       - name: Deploy to Server
