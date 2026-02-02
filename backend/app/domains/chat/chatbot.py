@@ -35,13 +35,13 @@ class chatbot:
         max_tokens: int = 1024,
         # collection_name: str = "steam_games_bge_m3",
         top_k: int = 3
-    ) -> bool:
+    ):
         """
         리소스를 초기화합니다. NCP 인증 헤더 처리가 포함되어 있습니다.
         """
         if self._initialized:
             logger.info("⚠️ Chatbot service already initialized")
-            return True
+            return
 
         try:
             logger.info(f"🚀 Initializing SteamChatbotService ({model_name})...")
@@ -80,13 +80,13 @@ class chatbot:
 
             self._initialized = True
             logger.info("✅ Chatbot initialization complete!")
-            return True
+            return 
 
         except Exception as e:
             logger.info(f"\n❌ Chatbot initialization failed: {e}")
             traceback.print_exc()
             self.cleanup()
-            return False
+            raise
 
     def _setup_prompt(self):
         """
