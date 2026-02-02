@@ -4,7 +4,8 @@ import os
 import random
 import datetime
 from pathlib import Path
-from typing import List, Set
+from typing import List
+from bs4 import BeautifulSoup
 
 from collect_games import GameCollector
 from collect_reviews import ReviewCollector
@@ -55,7 +56,6 @@ class PipelineManager:
             try:
                 resp = self.api_handler.fetch_raw(url, params={})
                 if resp:
-                    from bs4 import BeautifulSoup
 
                     soup = BeautifulSoup(resp.text, "html.parser")
 

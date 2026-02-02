@@ -2,6 +2,7 @@ from core.api_handler import SteamAPIHandler
 from core.data_manager import DataManager
 import logging
 from typing import List, Dict, Any, Optional
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,6 @@ class UserCollector:
 
 
 if __name__ == "__main__":
-    import os
 
     key = os.getenv("STEAM_API_KEY")
     if key:
