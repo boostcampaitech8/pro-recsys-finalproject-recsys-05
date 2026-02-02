@@ -18,8 +18,8 @@ export function LLMAnswerBox({ searchQuery, games }: LLMAnwerBoxProps) {
   return (
     <div className="flex flex-col text-start w-full gap-2 animate-fade-in-up">
       {/* LLM 답변 말풍선 */}
-      <div className="flex justify-start">
-        <div className="max-w-xs bg-slate-700 text-slate-100 p-3 rounded-lg rounded-tl-none border border-emerald-400/50 text-sm">
+      <div className="flex justify-start w-full">
+        <div className="max-w-md bg-slate-700 text-slate-100 p-3 rounded-lg rounded-tl-none border border-emerald-400/50 text-sm">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-lg">🤖</span>
             <span className="text-xs text-emerald-300 font-semibold">
