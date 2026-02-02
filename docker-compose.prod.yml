@@ -22,11 +22,12 @@ services:
     environment:
       - GCS_KEY_BASE64=${GCS_KEY_BASE64}
       - STEAM_API_KEY=${STEAM_API_KEY}
+      - CLOVA_API_KEY=${CLOVA_API_KEY}
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
-    command: ["/usr/bin/cadvisor", "--url_base_prefix=/monitor"]
+    command: [ "/usr/bin/cadvisor", "--url_base_prefix=/monitor" ]
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
