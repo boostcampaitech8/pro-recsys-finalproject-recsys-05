@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  # [Backend] 개발 환경 전용 설정 (Override)
+  # [Backend] 媛쒕컻 ?섍꼍 ?꾩슜 ?ㅼ젙 (Override)
   backend:
     build:
       context: .
@@ -16,17 +16,17 @@ services:
       - ./ml_rec:/app/ml_rec
       - ./configs:/app/configs
     ports:
-      - "8000:8000" # API 포트
-      - "5678:5678" # 디버깅용 포트
+      - "8000:8000" # API ?ы듃
+      - "5678:5678" # ?붾쾭源낆슜 ?ы듃
     command: >
       python -m debugpy --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # [DB] 개발 환경 설정 (로컬 호스트 접근 허용)
+  # [DB] 媛쒕컻 ?섍꼍 ?ㅼ젙 (濡쒖뺄 ?몄뒪???묎렐 ?덉슜)
   db:
     ports:
       - "127.0.0.1:5432:5432"
 
-  # [Redis] 개발 환경 설정 (로컬 호스트 접근 허용)
+  # [Redis] 媛쒕컻 ?섍꼍 ?ㅼ젙 (濡쒖뺄 ?몄뒪???묎렐 ?덉슜)
   redis:
     ports:
       - "127.0.0.1:6379:6379"

@@ -1,9 +1,9 @@
 version: "3.8"
 
 services:
-  # [Backend] 백엔드 공통 설정
+  # [Backend] 諛깆뿏??怨듯넻 ?ㅼ젙
   backend:
-    image: rec-server # 임시 이미지 이름, prod/dev에서 오버라이드 됨
+    image: rec-server # ?꾩떆 ?대?吏 ?대쫫, prod/dev?먯꽌 ?ㅻ쾭?쇱씠????
     depends_on:
       db:
         condition: service_healthy
@@ -17,9 +17,9 @@ services:
     networks:
       - app_network
     environment:
-      - DEBUG_MODE=True  # ← 개발 환경: True, 프로덕션: False
+      - DEBUG_MODE=True  # ??媛쒕컻 ?섍꼍: True, ?꾨줈?뺤뀡: False
 
-  # [DB] PostgreSQL 공통 설정
+  # [DB] PostgreSQL 怨듯넻 ?ㅼ젙
   db:
     image: pgvector/pgvector:pg15
     volumes:
@@ -36,7 +36,7 @@ services:
     networks:
       - app_network
 
-  # [Redis] Redis 캐시 공통 설정
+  # [Redis] Redis 罹먯떆 怨듯넻 ?ㅼ젙
   redis:
     image: redis:alpine
     healthcheck:
