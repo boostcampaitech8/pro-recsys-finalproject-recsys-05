@@ -132,7 +132,7 @@ jobs:
 
       - name: Tear Down
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml down
 
   # ---------------------------------------------------
   # [배포: Build & Deploy]
@@ -211,7 +211,7 @@ jobs:
 
       - name: Tear Down
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
       # ---------------------------------------------------
       # [빌드 및 푸시]
