@@ -218,7 +218,7 @@ class IntegratedRecommendationService:
                 result_games.append({
                     "app_id": game.app_id,
                     "name": game.name,                      # 게임 이름
-                    "score": round(rec.get("score", 0), 4),  # 추천 점수 (4자리 반올림)
+                    "score": round(rec.get("combined_score", 0), 4),  # 추천 점수 (4자리 반올림)
                     "header_image": game.header_image,      # 썸네일 이미지
                     "short_description_kr": game.short_description_kr,  # 한국어 설명
                     "genres_kr": game.genres_kr,            # 한국어 장르들
@@ -230,7 +230,7 @@ class IntegratedRecommendationService:
                 result_games.append({
                     "app_id": app_id,
                     "name": "Unknown Game",
-                    "score": round(rec.get("score", 0), 4),
+                    "score": round(rec.get("combined_score", 0), 4),
                     "header_image": None,
                 })
 

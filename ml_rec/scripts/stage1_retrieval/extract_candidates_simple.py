@@ -244,6 +244,15 @@ def main():
         with open(output_dir / 'ease_candidates.json', 'w') as f:
             json.dump(ease_candidates, f, indent=2)
         print(f"✓ EASE 후보 저장: {output_dir / 'ease_candidates.json'}")
+
+        # EASE item_similarity 저장 (BentoML 서빙용)
+        if 'other_parameter' in ease_checkpoint and 'item_similarity' in ease_checkpoint['other_parameter']:
+            item_similarity = ease_checkpoint['other_parameter']['item_similarity']
+            saved_models_dir = Path('saved_models')
+            saved_models_dir.mkdir(parents=True, exist_ok=True)
+            with open(saved_models_dir / 'item_similarity.pkl', 'wb') as f:
+                pickle.dump(item_similarity, f)
+            print(f"✓ EASE item_similarity 저장: {saved_models_dir / 'item_similarity.pkl'}")
     except Exception as e:
         print(f"⚠ EASE 추출 중 오류: {e}")
 
