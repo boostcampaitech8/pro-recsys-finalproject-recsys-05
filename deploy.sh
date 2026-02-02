@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 # 0. 시스템 패키지 리스트 업데이트 (사용자 요청)
 sudo apt-get update
@@ -28,8 +28,7 @@ fi
 # 1. (생략) 배포 파일은 SCP 등으로 업로드되었다고 가정
 # git pull origin main (삭제됨)
 
-# 2. 최신 이미지 당겨오기 (Base + Prod)
-# sudo는 상황에 따라 필요할 수도 있고 아닐 수도 있으나, 기존 스크립트 문맥상 유지
+# 2. 최신 이미지 받기 (Base + Prod)
 sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.yml -f docker-compose.prod.yml pull
 
 # 3. 서비스 재시작 (변경된 이미지만 새로 띄움)
