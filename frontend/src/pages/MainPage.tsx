@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { Header } from "@/pages/components/Header";
 import { ChatHistory, type ChatMessage } from "@/pages/components/ChatHistory";
 import { InputGameSearch } from "@/pages/components/InputGameSearch";
+import { FloatingGameButton } from "@/components/game/FloatingGameButton";
+import { GameModal } from "@/components/game/GameModal";
+import { GameFlapperGame } from "@/components/game/GameFlapperGame";
 
 const loadChatHistory = (): ChatMessage[] => {
   const savedMessages = localStorage.getItem("chatMessages");
@@ -23,6 +26,7 @@ const loadChatHistory = (): ChatMessage[] => {
 export default function MainPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(loadChatHistory);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGameOpen, setIsGameOpen] = useState(false);
 
   // messages 상태 변경 시 localStorage에 저장
   useEffect(() => {
@@ -61,6 +65,12 @@ export default function MainPage() {
 
   return (
     <div className="w-full min-h-screen flex flex-col bg-slate-900 text-slate-100">
+      {/* Game Easter Egg */}
+      <FloatingGameButton onClick={() => setIsGameOpen(true)} />
+      <GameModal isOpen={isGameOpen} onClose={() => setIsGameOpen(false)}>
+        <GameFlapperGame />
+      </GameModal>
+
       {/* Header */}
       <div className="w-full border-b border-slate-700/50 py-3 px-6 bg-slate-800/50">
         <div className="max-w-360 mx-auto flex items-center justify-between">
@@ -71,6 +81,7 @@ export default function MainPage() {
             style={{
               background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08))',
               border: '1px solid rgba(16, 185, 129, 0.4)',
+              animation: 'none',
             }}
           >
             {/* 배경 글로우 */}
