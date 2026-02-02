@@ -106,6 +106,7 @@ jobs:
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
           CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+          CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
           EOF
 
       - name: Build and Run with Docker Compose (override)
@@ -139,13 +140,25 @@ jobs:
   # ---------------------------------------------------
   pipeline:
     needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Set image tag
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
+            echo "IMAGE_TAG=dev" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          else
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          fi
 
       # ---------------------------------------------------
       # [환경 변수 설정]
@@ -161,11 +174,13 @@ jobs:
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
           DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
           CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+          CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
+          IMAGE_TAG=${IMAGE_TAG}
           EOF
 
       - name: Build Backend Image (runner)
         run: |
-          docker build --target runner -t ${{ secrets.DOCKER_USERNAME }}/rec-server:latest .
+          docker build --target runner -t ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG} .
 
       # ---------------------------------------------------
       # [통합 테스트: Docker Compose]
@@ -207,16 +222,9 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push Backend Image (latest on main)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      - name: Push Backend Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:latest
-
-      - name: Tag and Push Backend Image (release tag)
-        if: github.event_name != 'pull_request' && github.ref_type == 'tag'
-        run: |
-          docker tag ${{ secrets.DOCKER_USERNAME }}/rec-server:latest ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG}
 
     # ---------------------------------------------------
     # [서버 배포: SSH]
