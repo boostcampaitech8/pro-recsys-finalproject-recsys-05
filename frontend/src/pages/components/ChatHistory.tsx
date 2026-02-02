@@ -19,18 +19,21 @@ interface ChatHistoryProps {
 }
 
 export function ChatHistory({ messages, isLoading = false }: ChatHistoryProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 0);
+    // 스크롤을 항상 아래로 유지
+    if (containerRef.current) {
+      setTimeout(() => {
+        containerRef.current!.scrollTop = containerRef.current!.scrollHeight;
+      }, 0);
+    }
   }, [messages, isLoading]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2 pb-24">
+    <div ref={containerRef} className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2 pb-24">
       {messages.length === 0 ? (
-        <div className="m-auto">
+        <div className="w-full flex items-start justify-center pt-8">
           <SearchGuide />
         </div>
       ) : (
@@ -59,7 +62,6 @@ export function ChatHistory({ messages, isLoading = false }: ChatHistoryProps) {
               </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
         </>
       )}
     </div>

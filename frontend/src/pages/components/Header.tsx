@@ -1,37 +1,16 @@
-import budocki from "@/assets/budocki.png";
-
-interface HeaderProps {
-  onClear?: () => void;
-}
-
-export function Header({ onClear }: HeaderProps) {
+export function Header() {
   return (
-    <div className="w-full flex flex-col items-center relative">
-      {/* Clear 버튼 */}
-      {onClear && (
-        <button
-          onClick={onClear}
-          className="absolute top-0 right-12 text-emerald-400 hover:text-emerald-300 transition-colors text-sm font-semibold"
-          title="채팅 초기화"
-        >
-          🗑️ Clear
-        </button>
-      )}
+    <div className="flex items-center gap-3">
+      {/* 로고 */}
+      <div className="flex items-center justify-center w-10 h-10 bg-linear-to-br from-emerald-500 to-emerald-700 rounded-lg">
+        <span className="text-lg font-bold text-white">TP</span>
+      </div>
 
-      <img
-        src={budocki}
-        alt="Logo"
-        className="w-14 h-auto m-auto"
-        loading="lazy"
-      />
-      <p className="text-white mb-2">Budocki</p>
-      <h1 className="text-5xl font-bold text-white mb-2">
-        Welcome to TailorPlay!
-      </h1>
-
-      <p className="text-l text-gray-300 mb-4">
-        A personalized Steam game recommendation chatbot.
-      </p>
+      {/* 텍스트 */}
+      <div>
+        <h1 className="text-lg font-bold text-white">TailorPlay</h1>
+        <p className="text-xs text-slate-400">Game AI Assistant</p>
+      </div>
     </div>
   );
 }

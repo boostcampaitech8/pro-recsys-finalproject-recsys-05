@@ -60,17 +60,30 @@ export default function MainPage() {
   };
 
   return (
-    <div className="w-full max-w-360 mx-auto min-h-screen flex flex-col bg-slate-900 text-emerald-300">
-      {/* 헤더 */}
-      <div className="w-full bg-linear-to-b from-emerald-900/40 to-slate-900/20 py-20 text-center">
-        <Header onClear={handleClearChat} />
+    <div className="w-full min-h-screen flex flex-col bg-slate-900 text-slate-100">
+      {/* Header */}
+      <div className="w-full border-b border-slate-700/50 py-3 px-6 bg-slate-800/50">
+        <div className="max-w-360 mx-auto flex items-center justify-between">
+          <Header />
+          <button
+            onClick={handleClearChat}
+            className="px-3 py-1 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+          >
+            ✨ New Chat
+          </button>
+        </div>
       </div>
 
-      {/* 채팅 히스토리 */}
-      <ChatHistory messages={messages} isLoading={isLoading} />
+      {/* Content */}
+      <div className="w-full flex flex-col flex-1 items-center">
+        <div className="w-full max-w-360 flex flex-col flex-1">
+          {/* 채팅 히스토리 */}
+          <ChatHistory messages={messages} isLoading={isLoading} />
 
-      {/* 채팅 입력 */}
-      <InputGameSearch onSearch={handleSendMessage} isLoading={isLoading} />
+          {/* 채팅 입력 */}
+          <InputGameSearch onSearch={handleSendMessage} isLoading={isLoading} />
+        </div>
+      </div>
     </div>
   );
 }
