@@ -1,8 +1,10 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, Header, Response
 from datetime import datetime, timezone
-from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest
+from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest, TestResponse
 from app.domains.chat.chatbot import get_chatbot, chatbot
+from app.domains.chat.orchestrator import SteamOrchestrator, IntentAnalysis
+
 from app.core.logger import logger
 
 # 환경변수에서 DEBUG_MODE 읽기
@@ -24,7 +26,7 @@ async def echo(request: EchoRequest):
     )
     
 @router.post(
-    "/single_chat",  # ← 엔드포인트 경로
+    "/single_chat",
     response_model=ChatResponse,
     responses={
         200: {"description": "성공"},
@@ -119,3 +121,29 @@ async def single_chat_recommend(
             status_code=500,
             detail=f"챗봇 처리 중 오류가 발생했습니다: {str(e)}"
         )
+        
+@router.post(
+    "/chat",
+    response_model=TestResponse,
+    responses={
+        200: {"description": "성공"},
+        400: {"model": ErrorResponse, "description": "잘못된 요청"},
+        500: {"model": ErrorResponse, "description": "서버 에러"}
+    },
+    summary="챗봇 orchestrator test",
+    description="""
+        챗봇 orchestrator test
+    """
+)
+async def create_chat_response(
+    request: ChatRequest,
+):
+    llm = SteamOrchestrator(
+        api_key=os.getenv("CLOVA_API_KEY"),
+        base_url=os.getenv("CLOVA_BASE_URL"),
+    )
+    intent_analysis = await llm.classify_intent(request.text)
+    
+    return TestResponse(
+        output=intent_analysis.model_dump_json(indent=2)  # JSON 문자열로 변환
+    )
