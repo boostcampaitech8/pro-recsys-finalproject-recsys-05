@@ -67,9 +67,27 @@ export default function MainPage() {
           <Header />
           <button
             onClick={handleClearChat}
-            className="px-3 py-1 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+            className="group relative px-5 py-2.5 text-sm font-semibold text-emerald-200 transition-all duration-400 rounded-lg overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08))',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+            }}
           >
-            ✨ New Chat
+            {/* 배경 글로우 */}
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-400 rounded-lg" style={{
+              background: 'radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.2), transparent)',
+            }}></div>
+
+            {/* 상단 글로우 라인 */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-400" style={{
+              background: 'linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.6), transparent)',
+            }}></div>
+
+            {/* 텍스트 + 아이콘 */}
+            <span className="relative flex items-center gap-2">
+              <span className="inline-block transition-all duration-400 group-hover:scale-110 group-hover:-rotate-12">✦</span>
+              New Chat
+            </span>
           </button>
         </div>
       </div>
