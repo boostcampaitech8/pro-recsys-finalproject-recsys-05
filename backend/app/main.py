@@ -53,8 +53,11 @@ async def init_db_and_load_data():
             data_file = data_dir / "games_metadata.jsonl"
             model_file = data_dir / "item_similarity.pkl"
 
+            # 로컬에 파일이 이미 있으면 GCS 다운로드 스킵
+            if data_file.exists() and model_file.exists():
+                logger.info("✅ Data files already exist locally, skipping GCS download")
             # GCS에서 다운로드 (gcs_key.json이 있으면)
-            if os.path.exists(Path(__file__).parent / "gcs_key.json"):
+            elif os.path.exists(Path(__file__).parent / "gcs_key.json"):
                 logger.info("📥 Attempting to download data and models from GCS...")
                 try:
                     # manage_data.py를 subprocess로 실행 - 게임 데이터
