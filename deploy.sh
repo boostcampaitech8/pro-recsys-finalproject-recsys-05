@@ -3,6 +3,10 @@
 # Use a fixed Compose project name to avoid duplicate stacks.
 export COMPOSE_PROJECT_NAME=recsys
 export DOCKER_USERNAME=${DOCKER_USERNAME:-rlaqudwn}
+export DEPLOY_DIR=${DEPLOY_DIR:-"$HOME/pro-recsys-finalproject-recsys-05"}
+
+# Ensure we run from the deployment root so relative paths resolve.
+cd "$DEPLOY_DIR" || { echo "Deploy dir not found: $DEPLOY_DIR"; exit 1; }
 
 # 0.5. Docker 설치 확인 및 설치
 if ! command -v docker &> /dev/null
@@ -28,5 +32,5 @@ fi
 # 2. 최신 이미지 받기 (Base + Prod)
 sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.yml -f docker-compose.prod.yml pull
 
-# 3. 서비스 재시작 (변경된 이미지로 적용)
-sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate
+# 3. 서비스 재시작 (이미지 pull 기반, 서버에서 빌드하지 않음)
+sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build --force-recreate

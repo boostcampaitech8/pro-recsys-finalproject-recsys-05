@@ -162,14 +162,17 @@ jobs:
           CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
           EOF
 
+      - name: Build Backend Image (runner)
+        run: |
+          docker build --target runner -t ${{ secrets.DOCKER_USERNAME }}/rec-server:latest .
+
       # ---------------------------------------------------
       # [통합 테스트: Docker Compose]
       # 실제 컨테이너들이 잘 뜨는지(Health Check) 확인
       # ---------------------------------------------------
       - name: Build and Run with Docker Compose
         run: |
-          # Use Base + Prod override
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+          # Use Base + Prod override (이미지 pull 기반)
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
           echo "Waiting for services to start..."
           sleep 20  # DB 초기화 및 서버 구동 대기
@@ -202,11 +205,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build Backend Image (Compose)
-        if: github.event_name != 'pull_request'
-        run: |
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend
 
       - name: Push Backend Image (latest on main)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
