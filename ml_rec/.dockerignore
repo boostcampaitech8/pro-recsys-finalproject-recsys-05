@@ -1,0 +1,51 @@
+# ============================================
+# BentoML Docker 빌드 제외 파일
+# ============================================
+
+# 1. 훈련 관련 스크립트 (프로덕션 불필요)
+scripts/preprocessing/
+scripts/stage1_retrieval/
+scripts/stage2_ranking/
+scripts/stage3_scoring/
+scripts/steam_inter_eda.ipynb
+
+# 2. 훈련용 설정 (프로덕션 불필요)
+configs/
+
+# 3. 문서 (프로덕션 불필요)
+docs/
+*.md
+
+# 4. 로그 (런타임에 생성)
+logs/
+
+# 5. 캐시 (빌드 중 재생성)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# 6. 시스템 파일
+.DS_Store
+.git
+.gitignore
+.env
+.env.local
+
+# 7. IDE 파일
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 8. 기타
+*.log
+*.pid
+__pycache__
+.pytest_cache/
+*.egg-info/
+dist/
+build/

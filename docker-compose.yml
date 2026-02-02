@@ -1,13 +1,56 @@
-version: "3.8"
-
 services:
-  # [Backend] 백엔드 공통 설정
+  bentoml:
+    build:
+      context: ./ml_rec
+      dockerfile: Dockerfile.bentoml
+    ports:
+      - "3000:3000"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+      - MKLDNN_VERBOSE=0
+    deploy:
+      resources:
+        limits:
+          memory: 5G
+        reservations:
+          memory: 3G
+    volumes:
+      - ./ml_rec/saved_models:/app/ml_rec/saved_models
+      - ./ml_rec/candidates:/app/ml_rec/candidates
+      - ./ml_rec/logs:/app/ml_rec/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - app-network
+
+  # [Development] FastAPI (현재 소스코드로 빌드)
   backend:
-    image: rec-server # 임시 이미지 이름, prod/dev에서 오버라이드
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
+      - REDIS_URL=redis://redis:6379
+      - ML_REC_ROOT=/app/ml_rec
+      - BENTOML_SERVICE_URL=http://bentoml:3000
+    volumes:
+      - ./backend:/app/backend
+      - ./ml_rec:/app/ml_rec
+      - ./configs:/app/configs
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      bentoml:
         condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
@@ -34,7 +77,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - app_network
+      - app-network
 
   redis:
     image: redis:alpine
@@ -44,12 +87,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - app_network
+      - app-network
 
 volumes:
   postgres_data:
 
-
 networks:
-  app_network:
+  app-network:
     driver: bridge
