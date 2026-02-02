@@ -3,7 +3,7 @@ version: "3.8"
 services:
   # [Backend] 백엔드 공통 설정
   backend:
-    image: rec-server # 임시 이미지 이름, prod/dev에서 오버라이드 됨
+    image: rec-server # 임시 이미지 이름, prod/dev에서 오버라이드
     depends_on:
       db:
         condition: service_healthy
@@ -17,12 +17,12 @@ services:
     networks:
       - app_network
     environment:
-      - DEBUG_MODE=True  # ← 개발 환경: True, 프로덕션: False
+      - DEBUG_MODE=True # 개발 환경: True, 프로덕션: False
 
-  # [DB] PostgreSQL 공통 설정
   db:
     image: pgvector/pgvector:pg15
     volumes:
+      # [DB] PostgreSQL 공통 설정
       - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-myuser}
@@ -36,7 +36,6 @@ services:
     networks:
       - app_network
 
-  # [Redis] Redis 캐시 공통 설정
   redis:
     image: redis:alpine
     healthcheck:
