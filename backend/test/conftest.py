@@ -9,12 +9,6 @@ from app.core.database import Base, SessionLocal, engine
 from app.domains.game import models as _game_models  # noqa: F401
 from app.domains.user import models as _user_models  # noqa: F401
 
-# 윈도우 환경에서 asyncio.get_event_loop 관련 이슈 방지
-@pytest_asyncio.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def prepare_database():

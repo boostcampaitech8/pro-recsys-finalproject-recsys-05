@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+from uuid import UUID
 
 # TODO 1: User 생성 요청 (Request DTO)
 class UserCreate(BaseModel):
@@ -15,7 +16,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     steam_id : str
-    user_id : int
+    user_id : UUID
     created_at : datetime
     
     model_config = ConfigDict(from_attributes=True)

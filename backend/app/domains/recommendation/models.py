@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -7,7 +8,7 @@ class Recommendation(Base):
     __tablename__ = "recommendations"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False, index=True)
     
     # 추천된 게임 목록을 JSON으로 저장 (예: [{"game_id": 1, "score": 0.95}, ...])
     # Denormalization: 빠른 조회를 위해 상세 정보를 일부 포함할 수도 있음

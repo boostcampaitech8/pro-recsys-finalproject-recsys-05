@@ -5,6 +5,7 @@ from app.core.redis import redis_client
 import json
 import logging
 from fastapi import HTTPException
+from uuid import UUID
 
 # Logger 설정
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ class UserService:
         try:
             user_data = {
                 "steam_id": user.steam_id,
-                "user_id": user.user_id,
+                "user_id": str(user.user_id),
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
             await redis_client.set(cache_key, json.dumps(user_data), ex=600)
@@ -53,9 +54,11 @@ class UserService:
             if cached_data:
                 logger.info(f"[Cache Hit] Steam ID: {steam_id}")
                 data_dict = json.loads(cached_data)
+                cached_user_id = data_dict.get("user_id")
+                parsed_user_id = UUID(cached_user_id) if cached_user_id else None
                 return User(
                     steam_id=data_dict.get("steam_id"),
-                    user_id=data_dict.get("user_id"),
+                    user_id=parsed_user_id,
 
                 )
         except Exception as e:
@@ -74,7 +77,7 @@ class UserService:
             # SQLAlchemy Model -> Dict 변환
             user_data = {
                 "steam_id": user.steam_id,
-                "user_id": user.user_id,
+                "user_id": str(user.user_id),
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
             await redis_client.set(cache_key, json.dumps(user_data), ex=600)

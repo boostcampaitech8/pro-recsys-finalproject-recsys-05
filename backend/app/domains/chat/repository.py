@@ -2,6 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
+from uuid import UUID
 from datetime import datetime
 
 from app.domains.chat.models import Conversation, Message
@@ -10,7 +11,7 @@ class ChatRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_conversation(self, user_id: int) -> Conversation:
+    async def create_conversation(self, user_id: UUID) -> Conversation:
         db_conversation = Conversation(user_id=user_id)
         self.db.add(db_conversation)
         await self.db.commit()
@@ -23,7 +24,7 @@ class ChatRepository:
         )
         return result.scalars().first()
 
-    async def get_user_conversations(self, user_id: int, skip: int = 0, limit: int = 100) -> List[Conversation]:
+    async def get_user_conversations(self, user_id: UUID, skip: int = 0, limit: int = 100) -> List[Conversation]:
         result = await self.db.execute(
             select(Conversation)
             .filter(Conversation.user_id == user_id)

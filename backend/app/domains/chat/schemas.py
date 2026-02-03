@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field
 from datetime import datetime
 from typing import List, Optional, Any
 from enum import Enum
+from uuid import UUID
 
 class GameInfo(BaseModel):
     name: str = Field(..., description="게임 이름")
@@ -97,7 +98,7 @@ class MessageResponse(BaseModel):
 
 class ConversationResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 고유 ID")
-    user_id: int = Field(..., description="사용자 ID")
+    user_id: UUID = Field(..., description="사용자 ID")
     created_at: datetime = Field(..., description="대화방 생성 시간")
     updated_at: Optional[datetime] = Field(None, description="마지막 업데이트 시간")
     messages: List[MessageResponse] = Field(default_factory=list, description="대화방 내 메시지 목록 (옵션)")
@@ -122,4 +123,15 @@ class MultiTurnChatResponse(BaseModel):
     text: str = Field(..., description="AI 응답 텍스트")
     game_list: Optional[List[GameInfo]] = Field(None, description="추천 게임 목록")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="응답 생성 시간")
+class ChatTurnRequest(BaseModel):
+    user_id: Optional[UUID] = Field(None, description="사용자 ID (첫 방문 시 null, 재방문 시 LocalStorage 값)")
+    content: str = Field(..., min_length=1, description="사용자 메시지")
+
+class ChatTurnResponse(BaseModel):
+    user_id: UUID = Field(..., description="사용자 ID (Frontend 저장용)")
+    conversation_id: int = Field(..., description="대화방 ID")
+    assistant_message_id: int = Field(..., description="AI 메시지 ID")
+    text: str = Field(..., description="AI 응답 텍스트")
+    game_list: Optional[List[GameInfo]] = Field(None, description="추천 게임 목록")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="응답 시간")
     debug: Optional[dict[str, Any]] = Field(None, description="디버그 정보")
