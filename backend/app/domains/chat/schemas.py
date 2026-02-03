@@ -150,4 +150,8 @@ class ErrorResponse(BaseModel):
         }
 
 class TestResponse(BaseModel):
-    output: str
+    output: str  = Field(..., description="Agent's reply")
+    
+class TestRequest(BaseModel):
+    message: str = Field(..., description="User's input message")
+
