@@ -28,10 +28,39 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
     print("✅ DB Schema Initialized.")
 
+def build_game_data(row) -> dict:
+    """row(dict 또는 pandas Series)에서 DB 적재용 데이터를 구성합니다."""
+    return {
+        "app_id": int(row.get("appid", 0)) if row.get("appid") else None,
+        "name": row.get("name"),
+        "price": int(row.get("price_int", 0)) if row.get("price_int") is not None else 0,
+        "currency": row.get("price_currency", "KRW"),
+        "release_date": str(row.get("release_date", "")),
+        "short_description_kr": row.get("short_description_kr"),
+        "short_description_en": row.get("short_description_en"),
+        "genres_kr": row.get("genres_kr"),
+        "genres_en": row.get("genres_en"),
+        "header_image": row.get("header_image"),
+        "screenshots": row.get("screenshots_thumbnail") or row.get("screenshots_full"),
+        "movies": row.get("movies"),
+        "specs": row.get("specs"),
+        "supported_languages": row.get("supported_languages"),
+        "tags_en": row.get("tags_en"),
+        "categories": row.get("categories_kr") or row.get("categories_en"),
+        "context": row.get("context") or (
+            f"Game Name: {row.get('name')}\n"
+            f"Genres: {', '.join(row.get('genres_en', []) or [])}\n"
+            f"Tags: {', '.join(row.get('tags_en', []) or [])}\n"
+            f"Description: {row.get('short_description_en') or row.get('short_description_kr') or ''}\n"
+        ).strip(),
+        "embedding": row.get("embedding") or row.get("vector"),
+    }
+
+
 async def insert_games(file_path: str, batch_size: int = 1000):
     """
     JSONL 또는 Parquet 파일을 읽어 DB에 적재합니다.
-    데이터 포맷이 다양할 수 있으므로 판다스로 로드 후 dict로 변환하여 처리합니다.
+    JSONL은 메모리 절약을 위해 스트리밍 처리합니다.
     """
     if not os.path.exists(file_path):
         print(f"❌ File not found: {file_path}")
@@ -39,89 +68,60 @@ async def insert_games(file_path: str, batch_size: int = 1000):
 
     print(f"📂 Loading data from {file_path}...")
     
-    # 확장자에 따른 로드
-    if file_path.endswith(".jsonl"):
-        df = pd.read_json(file_path, lines=True)
-    elif file_path.endswith(".parquet"):
-        df = pd.read_parquet(file_path)
-    else:
-        print("❌ Unsupported file format. Use .jsonl or .parquet")
-        return
-
-    # NaN 처리 (None으로 변환)
-    df = df.replace({np.nan: None})
-    
-    print(f"📊 Total records: {len(df)}")
-
     async with SessionLocal() as db:
         objects = []
         total_inserted = 0
-        
-        for idx, row in df.iterrows():
-            # JSON 포맷이 복잡하므로 필요한 필드를 추출하여 매핑
-            # row 접근 시 .get() 사용 불가 (Series 객체임) -> row['field'] 사용하되 예외 처리 필요
-            
-            try:
-                # 1. 기본 정보 매핑
-                game_data = {
-                    "app_id": int(row.get("appid", 0)) if row.get("appid") else None,
-                    "name": row.get("name"),
-                    "price": int(row.get("price_int", 0)) if row.get("price_int") is not None else 0,
-                    "currency": row.get("price_currency", "KRW"),
-                    "release_date": str(row.get("release_date", "")),
-                    
-                    # 2. 로컬라이제이션
-                    "short_description_kr": row.get("short_description_kr"),
-                    "short_description_en": row.get("short_description_en"),
-                    "genres_kr": row.get("genres_kr"), # JSONB - List 그대로 저장
-                    "genres_en": row.get("genres_en"),
-                    
-                    # 3. 미디어 및 메타데이터
-                    "header_image": row.get("header_image"),
-                    "screenshots": row.get("screenshots_thumbnail") or row.get("screenshots_full"), # 썸네일 우선
-                    "movies": row.get("movies"),
-                    "specs": row.get("specs"),
-                    "supported_languages": row.get("supported_languages"),
-                    "tags_en": row.get("tags_en"),
-                    "categories": row.get("categories_kr") or row.get("categories_en"), # 한글 카테고리 우선
-                    
-                    # 4. Context for RAG (종합 텍스트 정보)
-                    # 데이터에 명시적인 context 컬럼이 없으면, 주요 정보를 조합해 생성
-                    "context": row.get("context") or (
-                        f"Game Name: {row.get('name')}\n"
-                        f"Genres: {', '.join(row.get('genres_en', []) or [])}\n"
-                        f"Tags: {', '.join(row.get('tags_en', []) or [])}\n"
-                        f"Description: {row.get('short_description_en') or row.get('short_description_kr') or ''}\n"
-                    ).strip(),
 
-                    # 5. 임베딩 (데이터에 이미 vector가 있다면)
-                    "embedding": row.get("embedding") # 없으면 None
-                }
+        if file_path.endswith(".jsonl"):
+            with open(file_path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f, start=1):
+                    if not line.strip():
+                        continue
+                    try:
+                        row = json.loads(line)
+                        game_data = build_game_data(row)
+                        if not game_data["app_id"]:
+                            continue
+                        objects.append(Game(**game_data))
+                    except Exception as e:
+                        print(f"⚠️ Error parsing row {idx}: {e}")
+                        continue
 
-                # 필수 필드 체크
-                if not game_data["app_id"]:
+                    if len(objects) >= batch_size:
+                        await save_batch(db, objects)
+                        total_inserted += len(objects)
+                        objects = []
+                        print(f"   -> Inserted {total_inserted} records...")
+
+        elif file_path.endswith(".parquet"):
+            df = pd.read_parquet(file_path)
+            df = df.replace({np.nan: None})
+            print(f"📊 Total records: {len(df)}")
+
+            for idx, row in df.iterrows():
+                try:
+                    game_data = build_game_data(row)
+                    if not game_data["app_id"]:
+                        continue
+                    objects.append(Game(**game_data))
+                except Exception as e:
+                    print(f"⚠️ Error parsing row {idx}: {e}")
                     continue
 
-                # Game 객체 생성
-                game = Game(**game_data)
-                objects.append(game)
-                
-            except Exception as e:
-                print(f"⚠️ Error parsing row {idx}: {e}")
-                continue
+                if len(objects) >= batch_size:
+                    await save_batch(db, objects)
+                    total_inserted += len(objects)
+                    objects = []
+                    print(f"   -> Inserted {total_inserted} records...")
 
-            # Batch Insert
-            if len(objects) >= batch_size:
-                await save_batch(db, objects)
-                total_inserted += len(objects)
-                objects = []
-                print(f"   -> Inserted {total_inserted} records...")
-            
-        # 남은 데이터 처리
+        else:
+            print("❌ Unsupported file format. Use .jsonl or .parquet")
+            return
+
         if objects:
             await save_batch(db, objects)
             total_inserted += len(objects)
-        
+
         print(f"✅ Data Load Complete! Total inserted: {total_inserted}")
 
 async def save_batch(db: AsyncSession, objects: list):
