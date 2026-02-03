@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any
+from app.domains.chat.interfaces import UserIntent
 
 
 class Tool(ABC):
@@ -29,6 +30,11 @@ class Tool(ABC):
     def parameters(self) -> dict[str, Any]:
         """JSON Schema for tool parameters."""
         pass
+
+    @property
+    def tags(self) -> list[UserIntent]:
+        """List of intents this tool supports."""
+        return []
     
     @abstractmethod
     async def execute(self, **kwargs: Any) -> str:
