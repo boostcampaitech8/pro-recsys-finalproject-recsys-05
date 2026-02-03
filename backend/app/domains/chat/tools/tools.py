@@ -1,7 +1,6 @@
 from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
 
 from app.core.logger import logger
 from app.domains.recommendation.integrated_service import IntegratedRecommendationService
@@ -13,12 +12,11 @@ from app.domains.user.repository import UserRepository
 from app.domains.chat.tools.tool_recommand import PersonalizedRecommendationTool
 from app.domains.chat.tools.tool_search import SearchByEmbeddingTool, SearchGamesByFilterTool, SearchGamesByFilterTool, GameInfoTool, GameReviewsTool
 from app.domains.chat.tools.base import Tool
+from app.domains.chat.providers.rag_reasoning import RagReasoningProvider
+
 
 def get_game_tools(
-    db_session: AsyncSession,
-    redis_client=None,
-    embeddings_model=None,
-    request=None
+    db_session: AsyncSession, redis_client=None, embeddings_model=None, request=None
 ) -> List[Tool]:
     """
     FastAPI 의존성 주입용 헬퍼 함수
@@ -42,10 +40,12 @@ def get_game_tools(
         logger.warning(f"⚠️ IntegratedRecommendationService 초기화 실패: {e}")
         integrated_service = None
 
+    rag_provider = RagReasoningProvider()
+
     return [
         SearchByEmbeddingTool(db_session, embeddings_model),
         SearchGamesByFilterTool(db_session),
-        PersonalizedRecommendationTool(integrated_service, redis_client),
+        PersonalizedRecommendationTool(integrated_service, rag_provider, redis_client),
         GameInfoTool(db_session),
         GameReviewsTool(db_session)
     ]
