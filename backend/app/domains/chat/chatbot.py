@@ -93,10 +93,13 @@ class chatbot:
         시스템 프롬프트 강화: RAG 기반 추천의 정확도를 높이기 위한 지침 포함
         """
         template = """당신은 Steam 게임 추천 전문가 '스팀 봇'입니다. 
-다음 [게임 데이터]를 바탕으로 사용자 질문에 대해 친절하고 정확하게 답변하세요.
+다음 [게임 데이터]와 [이전 대화]를 바탕으로 사용자 질문에 대해 친절하고 정확하게 답변하세요.
 
 [게임 데이터]
 {context}
+
+[이전 대화]
+{history}
 
 [답변 가이드라인]
 1. 반드시 위 [게임 데이터]에 있는 정보만 사용하여 답변하세요. 없는 게임을 지어내지 마세요.
@@ -109,8 +112,9 @@ class chatbot:
         self.prompt_template = ChatPromptTemplate.from_template(template)
         
     async def generate_response_with_details(
-        self, 
-        user_query: str
+        self,
+        user_query: str,
+        history_text: str = ""
     ) -> Tuple[str, List[Dict[str, Any]], str, Dict[str, float]]:
         """
         RAG 파이프라인 실행 및 상세 정보 반환 (디버깅/모니터링 용)
@@ -168,9 +172,9 @@ class chatbot:
             if not retrieved_games:
                 metrics["total_time"] = time.time() - start_total
                 logger.warning(f"No games retrieved for query: {user_query}")
-                return "검색 결과가 없습니다.", [], "", metrics
+                return "\uac80\uc0c9 \uacb0\uacfc\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.", [], "", metrics
             
-            # 3. 검색 결과를 dict 형태로 변환 (API 응답용)
+            # 3. ?? ??? dict ??? ?? (API ???)
             retrieved_docs = []
             for row in retrieved_games:
                 retrieved_docs.append({
@@ -184,7 +188,13 @@ class chatbot:
 
             # 4. 프롬프트 구성
             context_text = "\n\n".join([row.context for row in retrieved_games])
-            chain_input = {"context": context_text, "question": user_query}
+
+            # History Injection
+            chain_input = {
+                "context": context_text, 
+                "question": user_query,
+                "history": history_text
+            }
             
             formatted_prompt_val = self.prompt_template.invoke(chain_input)
             formatted_prompt = formatted_prompt_val.to_string()
