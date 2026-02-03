@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 
 interface InputGameSearchProps {
-  onSearch?: (query: string) => void;
+  onSearch?: (query: string) => void | Promise<void>;
   isLoading?: boolean;
 }
 
-export function InputGameSearch({ onSearch, isLoading = false }: InputGameSearchProps) {
+export function InputGameSearch({
+  onSearch,
+  isLoading = false,
+}: InputGameSearchProps) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -19,9 +22,9 @@ export function InputGameSearch({ onSearch, isLoading = false }: InputGameSearch
     }
   }, [isLoading]);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (input.trim()) {
-      onSearch?.(input);
+      await onSearch?.(input);
       setInput("");
       inputRef.current?.focus();
     }
@@ -29,7 +32,7 @@ export function InputGameSearch({ onSearch, isLoading = false }: InputGameSearch
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !isLoading) {
-      handleSearch();
+      void handleSearch();
     }
   };
 
@@ -51,7 +54,7 @@ export function InputGameSearch({ onSearch, isLoading = false }: InputGameSearch
         </div>
 
         <button
-          onClick={handleSearch}
+          onClick={() => void handleSearch()}
           disabled={isLoading || !input.trim()}
           className="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer disabled:opacity-50 text-lg"
         >

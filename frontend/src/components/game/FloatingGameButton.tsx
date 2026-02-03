@@ -6,9 +6,9 @@ export function FloatingGameButton({ onClick }: FloatingGameButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="fixed left-0 z-30 h-16 group transition-all duration-500 hover:left-0"
+      className="fixed left-0 z-60 h-16 group transition-all duration-500 hover:left-0"
       style={{
-        top: 'calc(50vh - 120px)',
+        top: 'calc(70px)',
         display: 'flex',
         alignItems: 'center',
         gap: '0',
