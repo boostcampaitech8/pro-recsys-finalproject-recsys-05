@@ -5,6 +5,10 @@ from pydantic import BaseModel, Field
 from openai import AsyncOpenAI # Clova X가 OpenAI 호환이므로 이거 씁니다.
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
+from app.domains.chat.providers.base import LLMProvider
+from app.domains.chat.tools.base import Tool
+from app.domains.chat.agent.engine import AgentEngine
+from app.domains.chat.interfaces import UserIntent
 
 template_system="""
         당신은 Steam 게임 추천 서비스의 최상위 '의도 분류기(Intent Router)'입니다.
@@ -13,12 +17,6 @@ template_system="""
         
         {schema}
         """
-
-# 1. 의도(Intent) 정의: 라우터가 분류할 목적지
-class UserIntent(str, Enum):
-    RECOMMENDATION = "recommendation" # 추천 요청 ("할만한 게임 추천해줘")
-    SEARCH = "search"                 # 단순 정보/검색 ("배그 가격 얼마야?")
-    CHITCHAT = "chitchat"             # 일상 대화 ("안녕", "고마워")
     
 # 2. 출력 스키마(Schema) 정의: LLM이 뱉어야 할 JSON 구조
 class IntentAnalysis(BaseModel):
@@ -126,3 +124,128 @@ class SteamOrchestrator:
     async def _run_chitchat(self, message: str):
         # 단순 대화는 바로 응답 (혹은 가벼운 LLM 호출)
         return "저는 스팀 게임 추천 봇입니다. 게임 추천이 필요하신가요?"
+
+class SteamBotOrchestrator:
+    def __init__(self, provider: LLMProvider, tools: Dict[str, Tool]):
+        """
+        Orchestrator initialized with a Provider and a set of Tools.
+        """
+        self.provider = provider
+        self.tools = tools
+        self.parser = PydanticOutputParser(pydantic_object=IntentAnalysis)
+        
+        # We access the raw client for specific low-level control (JSON mode)
+        # In a purer architecture, we might extend the Provider interface.
+        # self.client = provider.client  <-- REMOVED: Now using provider interface exclusively
+        
+        
+        # 라우팅을 위한 전용 시스템 프롬프트 (Simple string format)
+        self.router_system_prompt = template_system.format(schema=json.dumps(self._get_clova_schema(), indent=2, ensure_ascii=False))
+        
+    async def classify_intent(self, user_message: str) -> IntentAnalysis:
+        """
+        [Phase 2 핵심] 사용자의 의도를 분석하여 구조화된 데이터로 반환
+        """
+        try:
+            # Note: accessing inner client for JSON mode feature -> Use provider.chat
+            response = await self.provider.chat(
+                model=self.provider.default_model,
+                messages=[
+                    {"role": "system", "content": self.router_system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0.1,
+                response_format=self._get_clova_schema()
+            )
+
+            raw_content = response.content
+            return self.parser.parse(raw_content)
+
+        except Exception as e:
+            print(f"Routing Error: {e}")
+            return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
+
+    async def handle_request(self, user_message: str, history: List[Dict[str, Any]]):
+        """
+        메인 진입점: 의도 파악 -> 적절한 함수 실행 -> 결과 반환
+        """
+        # 1. 의도 파악
+        analysis = await self.classify_intent(user_message)
+        print(f"🔎 분석 결과: [{analysis.intent}] 키워드: {analysis.keywords}")
+
+        # 2. Dispatch
+        if analysis.intent == UserIntent.RECOMMENDATION:
+            return await self._run_recommendation_agent(analysis, user_message, history)
+        
+        elif analysis.intent == UserIntent.SEARCH:
+            return await self._run_search_tool(analysis, user_message, history)
+        
+        else: # UserIntent.CHITCHAT
+            return await self._run_chitchat(user_message)
+        
+
+    def _get_clova_schema(self) -> Dict[str, Any]:
+        schema = IntentAnalysis.model_json_schema()
+        if "title" in schema: del schema["title"]
+        for prop in schema.get("properties", {}).values():
+            if "title" in prop: del prop["title"]
+        return schema
+
+
+    def _filter_tools(self, intent: UserIntent) -> Dict[str, Tool]:
+        """Filter tools by intent tag."""
+        filtered = {}
+        for name, tool in self.tools.items():
+            if intent in tool.tags:
+                filtered[name] = tool
+        return filtered
+
+    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]]):
+        """추천 에이전트 실행"""
+        # 추천 태그가 있는 도구만 필터링
+        rec_tools = self._filter_tools(UserIntent.RECOMMENDATION)
+        
+        print(f"🤖 추천 에이전트 전환 (Tools: {list(rec_tools.keys())})")
+        
+        # AgentEngine을 즉석에서 생성하여 실행 (Stateless)
+        agent = AgentEngine(
+            llm_provider=self.provider,
+            tools=rec_tools,
+            max_iterations=3 # 추천은 빠르게
+        )
+        
+        # 키워드를 문맥에 포함시켜줄 수도 있음
+        context_message = f"{user_message}\n(Context: User is interested in keywords: {analysis.keywords})"
+        
+        return await agent.run_turn(
+            user_message=context_message,
+            history=history
+        )
+
+    async def _run_search_tool(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]]):
+        """검색 에이전트 실행"""
+        # 검색 태그가 있는 도구만 필터링
+        search_tools = self._filter_tools(UserIntent.SEARCH)
+        
+        print(f"🕵️ 검색 에이전트 전환 (Tools: {list(search_tools.keys())})")
+        
+        agent = AgentEngine(
+            llm_provider=self.provider,
+            tools=search_tools,
+            max_iterations=3
+        )
+        
+        return await agent.run_turn(
+            user_message=user_message,
+            history=history
+        )
+
+    async def _run_chitchat(self, message: str):
+        """단순 잡담 처리 (가벼운 호출)"""
+        # 도구 없이 LLM만 호출
+        response = await self.provider.chat(
+            messages=[{"role": "user", "content": message}],
+            tools=None,
+            max_tokens=200
+        )
+        return response.content
