@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
 
 from typing import List
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.chat.schemas import (
@@ -17,6 +18,8 @@ from app.domains.chat.schemas import (
     MessageResponse,
     MessageCreate,
     MultiTurnChatResponse,
+    ChatTurnRequest,
+    ChatTurnResponse,
 )
 from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest, TestResponse, TestRequest
 from app.domains.chat.chatbot import get_chatbot, chatbot
@@ -220,6 +223,119 @@ async def agent_endpoint(request: TestRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # -----------------------------------------------------------------------------
+# Unified Chat Endpoint (User ID Based)
+# -----------------------------------------------------------------------------
+
+@router.post(
+    "/chat/messages",
+    response_model=ChatTurnResponse,
+    summary="통합 채팅 (User ID 기반)",
+    description="""
+    User ID를 기반으로 대화를 수행합니다.
+    - `user_id`가 없으면(null) 새로운 Guest User를 생성하고 대화를 시작합니다.
+    - `user_id`가 있으면 기존 대화방을 이어서 진행합니다.
+    - 응답에 포함된 `user_id`를 프론트엔드 LocalStorage에 저장하여 사용하세요.
+    """,
+    responses={
+        200: {"description": "성공"},
+        500: {"model": ErrorResponse, "description": "서버 오류"}
+    }
+)
+async def chat_unified(
+    request: ChatTurnRequest,
+    db: AsyncSession = Depends(get_db),
+    bot: chatbot = Depends(get_chatbot),
+):
+    if not bot.is_ready():
+        raise HTTPException(status_code=500, detail="Chatbot not ready")
+
+    try:
+        ai_msg, retrieved_docs, debug, conv_id, resolved_user_id = await services.process_chat_by_user(
+            db=db,
+            bot=bot,
+            user_id=request.user_id,
+            user_content=request.content
+        )
+        
+        # MVP game list mapping
+        game_list = None
+        if retrieved_docs:
+            game_list = []
+            for d in retrieved_docs:
+                item = {
+                    "name": d.get("name") or d.get("app_name", "Unknown"),
+                    "description": d.get("short_description") or d.get("description", ""),
+                    "price": float(d.get("price") or 0),
+                    "similarity_score": d.get("similarity", 0),
+                    "image_url": d.get("header_image") or d.get("image_url"),
+                    "release_year": None # 필요시 파싱
+                }
+                game_list.append(item)
+
+        return ChatTurnResponse(
+            user_id=resolved_user_id,
+            conversation_id=conv_id,
+            assistant_message_id=ai_msg.message_id,
+            text=ai_msg.content,
+            game_list=game_list,
+            timestamp=datetime.utcnow(),
+            debug=debug if DEBUG_MODE else None
+        )
+
+    except Exception as e:
+        logger.error(f"[UnifiedChat] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -----------------------------------------------------------------------------
+# Unified Chat Endpoint (User ID Based, LLM-only Test)
+# -----------------------------------------------------------------------------
+
+@router.post(
+    "/chat/messages/llm-only",
+    response_model=ChatTurnResponse,
+    summary="통합 챗 (LLM-only 테스트)",
+    description="""
+    User ID를 기반으로 LLM-only 테스트 대화를 수행합니다.
+    - RAG 없이 LLM만 호출
+    - `user_id`가 없으면 Guest User 생성 후 대화 시작
+    - `user_id`가 있으면 기존 최신 대화 이어서 진행
+    """,
+    responses={
+        200: {"description": "성공"},
+        500: {"model": ErrorResponse, "description": "서버 오류"}
+    }
+)
+async def chat_unified_llm_only(
+    request: ChatTurnRequest,
+    db: AsyncSession = Depends(get_db),
+    bot: chatbot = Depends(get_chatbot),
+):
+    if not bot.is_ready():
+        raise HTTPException(status_code=500, detail="Chatbot not ready")
+
+    try:
+        ai_msg, _, debug, conv_id, resolved_user_id = await services.process_chat_by_user_llm_only(
+            db=db,
+            bot=bot,
+            user_id=request.user_id,
+            user_content=request.content,
+        )
+
+        return ChatTurnResponse(
+            user_id=resolved_user_id,
+            conversation_id=conv_id,
+            assistant_message_id=ai_msg.message_id,
+            text=ai_msg.content,
+            game_list=None,
+            timestamp=datetime.utcnow(),
+            debug=debug if DEBUG_MODE else None
+        )
+
+    except Exception as e:
+        logger.error(f"[UnifiedChat][LLM-only] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -----------------------------------------------------------------------------
 # Multi-turn Chat Endpoints
 # -----------------------------------------------------------------------------
 
@@ -235,7 +351,7 @@ async def agent_endpoint(request: TestRequest):
 )
 async def create_conversation(
     db: AsyncSession = Depends(get_db),
-    user_id: int = Header(..., alias="id", description="사용자 ID (정수형)"),
+    user_id: UUID = Header(..., alias="id", description="사용자 ID (정수형)"),
 ):
     """
     대화방 생성 핸들러
@@ -263,7 +379,7 @@ async def get_conversations(
     skip: int = 0,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
-    user_id: int = Header(..., alias="id", description="사용자 ID"),
+    user_id: UUID = Header(..., alias="id", description="사용자 ID"),
 ):
     """
     대화방 목록 조회 핸들러
@@ -296,7 +412,7 @@ async def send_message(
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
-    user_id: int = Header(..., alias="id", description="사용자 ID"),
+    user_id: UUID = Header(..., alias="id", description="사용자 ID"),
 ):
     """
     메시지 전송 핸들러
@@ -357,7 +473,7 @@ async def send_message_llm_only(
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
-    user_id: int = Header(..., alias="id", description="사용자 ID"),
+    user_id: UUID = Header(..., alias="id", description="사용자 ID"),
 ):
     if not bot.is_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
@@ -396,7 +512,7 @@ async def send_message_stream(
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
-    user_id: int = Header(..., alias="id", description="사용자 ID"),
+    user_id: UUID = Header(..., alias="id", description="사용자 ID"),
 ):
     if not bot.is_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")

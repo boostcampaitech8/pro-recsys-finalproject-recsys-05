@@ -7,7 +7,7 @@ interface LLMAnwerBoxProps {
   message?: string;
 }
 
-export function LLMAnswerBox({ searchQuery, games }: LLMAnwerBoxProps) {
+export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) {
   const [selectedGame, setSelectedGame] = useState<RecommendedGame | null>(null);
   // TODO: searchQuery를 백엔드 API 호출에 사용할 예정
   console.log("Search query:", searchQuery);
@@ -27,15 +27,7 @@ export function LLMAnswerBox({ searchQuery, games }: LLMAnwerBoxProps) {
             </span>
           </div>
           <p className="text-xs leading-relaxed">
-            당신의 플레이 스타일을 분석한 결과,{" "}
-            <span className="text-emerald-300 font-semibold">
-              깊이 있는 스토리
-            </span>
-            와{" "}
-            <span className="text-emerald-300 font-semibold">
-              싱글 플레이 경험
-            </span>
-            을 중시하는 것으로 보입니다. 이러한 취향에 맞는 게임들을 추천드립니다.
+            {message || "AI 응답을 기다리는 중입니다..."}
           </p>
         </div>
       </div>

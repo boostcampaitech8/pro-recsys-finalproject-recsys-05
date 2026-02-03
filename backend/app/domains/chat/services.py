@@ -4,16 +4,20 @@ import time
 import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple, Any
+from uuid import UUID
 
 from app.domains.chat.repository import ChatRepository
 from app.domains.chat.models import Conversation, Message
 from app.domains.chat.chatbot import chatbot
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from app.core.logger import logger
+import uuid
+from app.domains.user.repository import UserRepository
+from app.domains.user.schemas import UserCreate
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
-async def create_conversation(db: AsyncSession, user_id: int) -> Conversation:
+async def create_conversation(db: AsyncSession, user_id: UUID) -> Conversation:
     """
     새로운 대화방을 생성합니다.
     
@@ -27,7 +31,7 @@ async def create_conversation(db: AsyncSession, user_id: int) -> Conversation:
     repo = ChatRepository(db)
     return await repo.create_conversation(user_id)
 
-async def get_user_conversations(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Conversation]:
+async def get_user_conversations(db: AsyncSession, user_id: UUID, skip: int = 0, limit: int = 100) -> List[Conversation]:
     """
     사용자의 대화방 목록을 조회합니다.
     
@@ -67,7 +71,7 @@ def format_history(messages: List[Message]) -> str:
 
 async def maybe_save_recommendation(
     db: AsyncSession,
-    user_id: int,
+    user_id: UUID,
     recommended_games_payload: list[dict],
     model_type: str = "rag"
 ) -> None:
@@ -94,7 +98,7 @@ async def process_chat_turn(
     db: AsyncSession,
     bot: chatbot,
     conversation_id: int,
-    user_id: int,
+    user_id: UUID,
     user_content: str
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
     """
@@ -157,6 +161,138 @@ async def process_chat_turn(
     #    (일단 MVP는 router에서 그대로 쓰거나 None 처리 가능)
     return ai_msg, retrieved_docs, ({"metrics": metrics} if metrics else None)
 
+async def process_chat_by_user(
+    db: AsyncSession,
+    bot: chatbot,
+    user_id: Optional[UUID],
+    user_content: str
+) -> Tuple[Message, Optional[list[Any]], Optional[dict], int, UUID]:
+    """
+    User ID 기반으로 챗봇 턴을 처리하는 오케스트레이션 함수.
+    
+    1. user_id 없음 -> Guest User 생성 -> 새 Conversation 생성
+    2. user_id 있음 -> User 검증 -> 최신 Conversation 조회 (없으면 생성)
+    3. process_chat_turn 호출
+    
+    Returns:
+        (ai_msg, retrieved_docs, debug, conversation_id, user_id)
+    """
+    user_repo = UserRepository(db)
+    chat_repo = ChatRepository(db)
+    
+    # 1. User 식별 및 생성
+    current_user_id = user_id
+    if current_user_id is None:
+        # Guest User 생성
+        # 실제 운영에선 UUID 충돌 가능성이 지극히 낮으므로 체크 생략 or retry logic
+        new_steam_id = f"guest_{uuid.uuid4()}"
+        try:
+            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
+            current_user_id = new_user.user_id
+            logger.info(f"[Chat] Created new guest user: {current_user_id} ({new_steam_id})")
+        except Exception as e:
+            logger.error(f"[Chat] Failed to create guest user: {e}")
+            raise e
+        
+        # 새 유저는 무조건 새 대화방
+        conversation = await chat_repo.create_conversation(current_user_id)
+        conversation_id = conversation.conversation_id
+    else:
+        # 기존 유저 확인
+        user = await user_repo.get_user_by_id(current_user_id)
+        if not user:
+            # 유효하지 않은 user_id (DB 초기화 등) -> 새로 생성
+            logger.warning(f"[Chat] User {current_user_id} not found. Creating new guest user.")
+            new_steam_id = f"guest_{uuid.uuid4()}"
+            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
+            current_user_id = new_user.user_id
+            
+            conversation = await chat_repo.create_conversation(current_user_id)
+            conversation_id = conversation.conversation_id
+        else:
+            # 기존 유저의 최근 대화방 찾기
+            convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
+            if convs:
+                conversation_id = convs[0].conversation_id
+            else:
+                conversation = await chat_repo.create_conversation(current_user_id)
+                conversation_id = conversation.conversation_id
+    
+    # 2. Chat Logic 실행
+    ai_msg, retrieved_docs, debug = await process_chat_turn(
+        db=db,
+        bot=bot,
+        conversation_id=conversation_id,
+        user_id=current_user_id,
+        user_content=user_content
+    )
+    
+    return ai_msg, retrieved_docs, debug, conversation_id, current_user_id
+
+async def process_chat_by_user_llm_only(
+    db: AsyncSession,
+    bot: chatbot,
+    user_id: Optional[UUID],
+    user_content: str,
+    history_limit: int = 5,
+) -> Tuple[Message, Optional[list[Any]], Optional[dict], int, UUID]:
+    """
+    User ID 기반 LLM-only 테스트 플로우.
+
+    1. user_id 없으면 Guest User 생성 -> 새 Conversation 생성
+    2. user_id 있으면 유저 확인 -> 최신 Conversation 조회 (없으면 생성)
+    3. process_chat_turn_llm_only 호출
+
+    Returns:
+        (ai_msg, retrieved_docs, debug, conversation_id, user_id)
+    """
+    user_repo = UserRepository(db)
+    chat_repo = ChatRepository(db)
+
+    # 1. User 확인 및 생성
+    current_user_id = user_id
+    if current_user_id is None:
+        new_steam_id = f"guest_{uuid.uuid4()}"
+        try:
+            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
+            current_user_id = new_user.user_id
+            logger.info(f"[Chat][LLM-only] Created new guest user: {current_user_id} ({new_steam_id})")
+        except Exception as e:
+            logger.error(f"[Chat][LLM-only] Failed to create guest user: {e}")
+            raise e
+
+        conversation = await chat_repo.create_conversation(current_user_id)
+        conversation_id = conversation.conversation_id
+    else:
+        user = await user_repo.get_user_by_id(current_user_id)
+        if not user:
+            logger.warning(f"[Chat][LLM-only] User {current_user_id} not found. Creating new guest user.")
+            new_steam_id = f"guest_{uuid.uuid4()}"
+            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
+            current_user_id = new_user.user_id
+
+            conversation = await chat_repo.create_conversation(current_user_id)
+            conversation_id = conversation.conversation_id
+        else:
+            convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
+            if convs:
+                conversation_id = convs[0].conversation_id
+            else:
+                conversation = await chat_repo.create_conversation(current_user_id)
+                conversation_id = conversation.conversation_id
+
+    # 2. LLM-only Chat Logic 실행
+    ai_msg, retrieved_docs, debug = await process_chat_turn_llm_only(
+        db=db,
+        bot=bot,
+        conversation_id=conversation_id,
+        user_id=current_user_id,
+        user_content=user_content,
+        history_limit=history_limit,
+    )
+
+    return ai_msg, retrieved_docs, debug, conversation_id, current_user_id
+
 async def fake_stream_chunks(text: str, chunk_size: int = 30):
     for i in range(0, len(text), chunk_size):
         yield text[i:i + chunk_size]
@@ -167,7 +303,7 @@ async def process_chat_turn_llm_only(
     db: AsyncSession,
     bot: chatbot,
     conversation_id: int,
-    user_id: int,
+    user_id: UUID,
     user_content: str,
     history_limit: int = 5,
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
