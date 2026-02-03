@@ -53,9 +53,6 @@ export default function MainPage() {
     // AI 응답 요청
     setIsLoading(true);
 
-    // API 호출 전 1초 지연
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     try {
       const userId = getUserId();
       const response = await sendChatMessage({
