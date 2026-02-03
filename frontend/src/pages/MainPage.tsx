@@ -56,7 +56,7 @@ export default function MainPage() {
     try {
       const userId = getUserId();
       const response = await sendChatMessage({
-        text: query,
+        content: query,
         user_id: userId,
       });
 
@@ -70,7 +70,7 @@ export default function MainPage() {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: query,
-        message: response.ai_response,
+        message: response.text,
         games: [],
         timestamp: new Date(),
       };

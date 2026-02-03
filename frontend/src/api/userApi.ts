@@ -1,10 +1,10 @@
 interface UserChatRequest {
-  text: string;
+  content: string;
   user_id: string | null;
 }
 
 export interface UserChatResponse {
-  ai_response: string;
+  text: string;
   user_id: string;
 }
 
@@ -13,7 +13,7 @@ export async function sendChatMessage(
 ): Promise<UserChatResponse> {
   const baseUrl = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
 
-  const response = await fetch(`${baseUrl}/api/user`, {
+  const response = await fetch(`${baseUrl}/chat/chat/messages/llm-only`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
