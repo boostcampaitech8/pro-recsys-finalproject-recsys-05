@@ -224,7 +224,7 @@ async def agent_endpoint(request: TestRequest):
             user_message=request.message,
             history=[] # TODO: 테스트에서는 임시로 비워둠. 나중에 DB에서 가져와야 함
         )
-        return TestResponse(response=response_text)
+        return TestResponse(message=response_text)
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -131,12 +131,10 @@ class ErrorResponse(BaseModel):
         }
 
 class TestResponse(BaseModel):
-    output: str  = Field(..., description="Agent's reply")
+    message: str  = Field(..., description="Agent's reply")
     
 class TestRequest(BaseModel):
     message: str = Field(..., description="User's input message")
-
-    detail: str = Field(..., description="에러 상세 메시지")
 
 class MultiTurnChatResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
