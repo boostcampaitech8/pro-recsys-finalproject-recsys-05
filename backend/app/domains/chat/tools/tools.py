@@ -42,10 +42,12 @@ def get_game_tools(
         logger.warning(f"⚠️ IntegratedRecommendationService 초기화 실패: {e}")
         integrated_service = None
 
-    return [
+    tools = [
         SearchByEmbeddingTool(db_session, embeddings_model),
         SearchGamesByFilterTool(db_session),
         PersonalizedRecommendationTool(integrated_service, redis_client),
         GameInfoTool(db_session),
         GameReviewsTool(db_session)
     ]
+    
+    return {tool.name: tool for tool in tools}

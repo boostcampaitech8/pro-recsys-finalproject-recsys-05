@@ -32,13 +32,13 @@ class PersonalizedRecommendationTool(Tool):
                 "top_k": {
                     "type": "integer",
                     "description": "추천받을 게임 개수 (기본값: 5)",
-                    "default": 5
                 },
                 "steam_id": {
                     "type": "string",
                     "description": "Steam 사용자 ID (선택사항, 없으면 저장된 세션 사용)"
                 }
-            }
+            },
+            "required": []
         }
 
     @property

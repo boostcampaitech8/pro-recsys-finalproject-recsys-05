@@ -24,7 +24,11 @@ class ToolRegistry:
             SearchByEmbeddingTool,
             SearchGamesByFilterTool,
             GameInfoTool,
-            GameReviewsTool
+            GameReviewsTool,
+        )
+        
+        from app.domains.chat.tools.tool_recommand import (
+            PersonalizedRecommendationTool,
         )
         
         # 1. RAG Search Tool (Requires Embeddings)

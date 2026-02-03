@@ -27,7 +27,6 @@ class SearchByEmbeddingTool(Tool):
     @property
     def parameters(self) -> dict[str, Any]:
         return {
-            "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
@@ -36,7 +35,6 @@ class SearchByEmbeddingTool(Tool):
                 "top_k": {
                     "type": "integer",
                     "description": "반환할 결과 개수 (기본값: 3)",
-                    "default": 3
                 }
             },
             "required": ["query"]
@@ -145,7 +143,8 @@ class SearchGamesByFilterTool(Tool):
                     "type": "integer",
                     "description": "출시 연도 (이후)"
                 }
-            }
+            },
+            "required": []
         }
 
     @property
@@ -252,7 +251,6 @@ class GameInfoTool(Tool):
     @property
     def parameters(self) -> dict[str, Any]:
         return {
-            "type": "object",
             "properties": {
                 "game_name": {
                     "type": "string",
@@ -362,7 +360,6 @@ class GameReviewsTool(Tool):
     @property
     def parameters(self) -> dict[str, Any]:
         return {
-            "type": "object",
             "properties": {
                 "game_name": {
                     "type": "string",
