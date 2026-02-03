@@ -112,7 +112,7 @@ class chatbot:
         self.prompt_template = ChatPromptTemplate.from_template(template)
         
     async def generate_response_with_details(
-        self, 
+        self,
         user_query: str,
         history_text: str = ""
     ) -> Tuple[str, List[Dict[str, Any]], str, Dict[str, float]]:
@@ -172,9 +172,9 @@ class chatbot:
             if not retrieved_games:
                 metrics["total_time"] = time.time() - start_total
                 logger.warning(f"No games retrieved for query: {user_query}")
-                return "검색 결과가 없습니다.", [], "", metrics
+                return "\uac80\uc0c9 \uacb0\uacfc\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.", [], "", metrics
             
-            # 3. 검색 결과를 dict 형태로 변환 (API 응답용)
+            # 3. ?? ??? dict ??? ?? (API ???)
             retrieved_docs = []
             for row in retrieved_games:
                 retrieved_docs.append({
@@ -188,7 +188,7 @@ class chatbot:
 
             # 4. 프롬프트 구성
             context_text = "\n\n".join([row.context for row in retrieved_games])
-            
+
             # History Injection
             chain_input = {
                 "context": context_text, 

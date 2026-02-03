@@ -1,11 +1,17 @@
 # /mnt/data/services.py
 import asyncio
+import time
+import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple, Any
 
 from app.domains.chat.repository import ChatRepository
 from app.domains.chat.models import Conversation, Message
 from app.domains.chat.chatbot import chatbot
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from app.core.logger import logger
+
+DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
 async def create_conversation(db: AsyncSession, user_id: int) -> Conversation:
     repo = ChatRepository(db)
@@ -72,6 +78,13 @@ async def process_chat_turn(
     history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id]
     history_msgs = history_msgs[-5:]
     history_text = format_history(history_msgs)
+    if DEBUG_MODE:
+        logger.info(
+            "[Multi-turn][history] conv=%s user=%s\n%s",
+            conversation_id,
+            user_id,
+            history_text or "(empty)",
+        )
 
     # 3) LLM 호출 (history 텍스트만)
     response_text, retrieved_docs, formatted_prompt, metrics = await bot.generate_response_with_details(
@@ -105,3 +118,54 @@ async def fake_stream_chunks(text: str, chunk_size: int = 30):
     for i in range(0, len(text), chunk_size):
         yield text[i:i + chunk_size]
         await asyncio.sleep(0)
+
+
+async def process_chat_turn_llm_only(
+    db: AsyncSession,
+    bot: chatbot,
+    conversation_id: int,
+    user_id: int,
+    user_content: str,
+    history_limit: int = 5,
+) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
+    """
+    LLM-only path for testing without retrieval.
+    Saves user/assistant messages and returns metrics.
+    """
+    repo = ChatRepository(db)
+
+    user_msg = await repo.add_message(conversation_id, "user", user_content)
+
+    all_recent = await repo.get_recent_messages(conversation_id, limit=history_limit + 1)
+    history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id]
+    history_msgs = history_msgs[-history_limit:]
+    if DEBUG_MODE:
+        logger.info(
+            "[Multi-turn][LLM-only][history] conv=%s user=%s\n%s",
+            conversation_id,
+            user_id,
+            format_history(history_msgs) or "(empty)",
+        )
+
+    messages = []
+    for msg in history_msgs:
+        if msg.role == "user":
+            messages.append(HumanMessage(content=msg.content))
+        elif msg.role == "assistant":
+            messages.append(AIMessage(content=msg.content))
+        elif msg.role == "system":
+            messages.append(SystemMessage(content=msg.content))
+
+    messages.append(HumanMessage(content=user_content))
+
+    start_gen = time.time()
+    response_msg = await bot.llm.ainvoke(messages)
+    response_text = getattr(response_msg, "content", str(response_msg))
+    metrics = {
+        "generation_time": time.time() - start_gen,
+        "total_time": time.time() - start_gen,
+    }
+
+    ai_msg = await repo.add_message(conversation_id, "assistant", response_text)
+
+    return ai_msg, None, {"metrics": metrics}
