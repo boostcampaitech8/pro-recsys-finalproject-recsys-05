@@ -1,6 +1,19 @@
 version: "3.8"
 
 services:
+  # [Production] Frontend (Docker Hub에서 이미지 다운로드)
+  frontend:
+    image: your-registry/rec-frontend:latest
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   nginx:
     image: nginx:alpine
     ports:
