@@ -1,11 +1,17 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, Header, Response
 from datetime import datetime, timezone
-from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest, TestResponse
+from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest, TestResponse, TestRequest
 from app.domains.chat.chatbot import get_chatbot, chatbot
 from app.domains.chat.orchestrator import SteamOrchestrator, IntentAnalysis
+from app.domains.chat.agent.engine import AgentEngine
 
 from app.core.logger import logger
+
+from app.domains.chat.providers.clova import ClovaProvider
+from  app.domains.chat.tools.recommendation import RecommendationTool
+from  app.domains.chat.tools.steam import SteamTool, PopularGamesTool
+from  app.domains.chat.tools.user import UserProfileTool
 
 # 환경변수에서 DEBUG_MODE 읽기
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
@@ -147,3 +153,47 @@ async def create_chat_response(
     return TestResponse(
         output=intent_analysis.model_dump_json(indent=2)  # JSON 문자열로 변환
     )
+    
+    
+@router.post(
+    "/test/agent",
+    response_model=TestRequest,
+)
+async def agent_endpoint(request: TestRequest):
+    
+    provider = ClovaProvider(
+        api_key=os.getenv("CLOVA_API_KEY"),
+        api_base=os.getenv("CLOVA_BASE_URL"),
+        default_model="HCX-007"
+    )
+    tools = {}
+    
+    steam_tool = SteamTool()
+    popular_tool = PopularGamesTool()
+    user_tool = UserProfileTool()
+    recsys_tool = RecommendationTool()
+    
+    # Register tools by their schema name
+    tools[steam_tool.openai_schema['function']['name']] = steam_tool
+    tools[popular_tool.openai_schema['function']['name']] = popular_tool
+    tools[user_tool.openai_schema['function']['name']] = user_tool
+    tools[recsys_tool.openai_schema['function']['name']] = recsys_tool
+    
+    agent_engine = AgentEngine(
+        llm_provider=provider,
+        tools=tools,
+        max_iterations=3
+    )
+    
+    if not agent_engine:
+        raise HTTPException(status_code=500, detail="Agent engine not initialized")
+        
+    try:
+        response_text = await agent_engine.run_turn(
+            user_message=request.message,
+            history=[] # TODO: 테스트에서는 임시로 비워둠. 나중에 DB에서 가져와야 함
+        )
+        return TestResponse(response=response_text)
+    except Exception as e:
+        logger.error(f"Error in chat endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
