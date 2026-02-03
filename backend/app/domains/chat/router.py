@@ -27,13 +27,30 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
 router = APIRouter()
 
-@router.post("/echo", response_model=EchoResponse)
+@router.post(
+    "/echo", 
+    response_model=EchoResponse,
+    summary="통신 상태 확인 (Echo)",
+    description="""
+    서버와의 통신 상태를 확인하기 위한 에코 API입니다.
+    
+    - 입력받은 메시지를 그대로 반환(Echo)합니다.
+    - 서버의 현재 UTC 시간을 포함하여 응답합니다.
+    """,
+    responses={
+        200: {"description": "성공"},
+        422: {"description": "유효성 검사 실패 (공백 메시지 등)"}
+    }
+)
 async def echo(request: EchoRequest):
     """
-    통신 테스트용 Echo API
+    Echo API 핸들러
     
-    - 메시지를 받아 "echo: " 접두사를 붙여 반환
-    - UTC 타임스탬프 포함
+    Args:
+        request (EchoRequest): 에코할 메시지 내용
+    
+    Returns:
+        EchoResponse: 에코된 메시지와 타임스탬프
     """
     return EchoResponse(
         message=f"echo: {request.message}",
@@ -46,16 +63,19 @@ async def echo(request: EchoRequest):
     responses={
         200: {"description": "성공"},
         400: {"model": ErrorResponse, "description": "잘못된 요청"},
-        500: {"model": ErrorResponse, "description": "서버 에러"}
+        422: {"model": ErrorResponse, "description": "입력 데이터 유효성 검사 실패"},
+        500: {"model": ErrorResponse, "description": "서버 내부 오류 (챗봇 준비 안됨 등)"}
     },
     summary="게임 추천 (Single-turn)",
     description="""
-    RAG 기반 Steam 게임 챗봇 API (v1)
+    **[v1] RAG 기반 Steam 게임 추천 챗봇 API**
     
-    **현재 버전 제약:**
-    - Single-turn 대화만 지원 (대화 이력 미저장)
-    - Query routing 미지원 (모든 질문을 RAG 검색으로 처리)
-    - 추천 모델 미사용 (RAG 검색된 문서 기반 LLM 응답만 생성)
+    단건(Single-turn) 질문에 대해 RAG 검색을 수행하고 LLM 답변을 생성합니다.
+    
+    - **제약 사항**:
+        - Single-turn 대화만 지원 (이전 대화 기억 안함)
+        - 모든 질문을 RAG 검색으로 처리
+        - 추천 모델 미사용 (LLM이 검색된 문서 기반으로만 응답)
     """
 )
 async def single_chat_recommend(
@@ -65,11 +85,16 @@ async def single_chat_recommend(
     bot: chatbot = Depends(get_chatbot)
 ):
     """
-    챗봇 게임 답변 API (Single-turn)
+    Single-turn 챗봇 게임 추천 핸들러
     
-    - RAG 검색을 통해 관련 게임 문서를 찾고
-    - LLM이 자연어로 답변을 생성합니다
-    - 추천 모델은 사용하지 않으므로 game_list는 null입니다
+    Args:
+        request (ChatRequest): 사용자 질문
+        response (Response): 헤더 설정을 위한 Response 객체
+        user_id (str): HTTP 헤더 'id'로 전달받는 사용자 ID
+        bot (chatbot): 의존성 주입된 챗봇 인스턴스
+    
+    Raises:
+        HTTPException(500): 챗봇이 준비되지 않았거나 내부 처리 중 오류 발생 시
     """
     
     if not bot.is_ready():
@@ -136,41 +161,90 @@ async def single_chat_recommend(
     "/conversations",
     response_model=ConversationResponse,
     summary="대화방 생성 (Multi-turn)",
-    description="새로운 대화방을 생성합니다. 반환된 conversation_id를 사용하여 메시지를 전송합니다."
+    description="새로운 대화방 세션을 생성합니다. 반환된 `conversation_id`를 사용하여 이후 메시지를 전송합니다.",
+    responses={
+        200: {"description": "대화방 생성 성공"},
+        500: {"model": ErrorResponse, "description": "DB 처리 중 오류 발생"}
+    }
 )
 async def create_conversation(
     db: AsyncSession = Depends(get_db),
-    user_id: int = Header(..., alias="id", description="user id"),
+    user_id: int = Header(..., alias="id", description="사용자 ID (정수형)"),
 ):
+    """
+    대화방 생성 핸들러
+    
+    Args:
+        db (AsyncSession): DB 세션
+        user_id (int): 사용자 ID
+    
+    Returns:
+        ConversationResponse: 생성된 대화방 정보
+    """
     return await services.create_conversation(db, user_id=user_id)
 
 @router.get(
     "/conversations",
     response_model=List[ConversationResponse],
     summary="대화방 목록 조회",
-    description="사용자의 대화방 목록을 조회합니다. updated_at 기준 최신순 정렬."
+    description="사용자의 대화방 목록을 조회합니다 (최신 업데이트순 정렬).",
+    responses={
+        200: {"description": "조회 성공"},
+        500: {"model": ErrorResponse, "description": "DB 조회 실패"}
+    }
 )
 async def get_conversations(
     skip: int = 0,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
-    user_id: int = Header(..., alias="id", description="user id"),
+    user_id: int = Header(..., alias="id", description="사용자 ID"),
 ):
+    """
+    대화방 목록 조회 핸들러
+    
+    Args:
+        skip (int): 건너뛸 개수 (Pagination)
+        limit (int): 조회할 개수 (Pagination, default=20)
+        db (AsyncSession): DB 세션
+        user_id (int): 사용자 ID
+    """
     return await services.get_user_conversations(db, user_id, skip, limit)
 
 @router.post(
     "/conversations/{conversation_id}/messages",
     response_model=MultiTurnChatResponse,
     summary="메시지 전송 (Multi-turn)",
-    description="대화방에 메시지를 전송하고 AI 응답을 받습니다. 최근 5개 대화 히스토리가 LLM에 전달됩니다."
+    description="""
+    대화방에 메시지를 전송하고 AI 응답을 받습니다.
+    
+    - 최근 5개 대화 히스토리를 함께 LLM에 전달하여 문맥을 유지합니다.
+    - 관련된 게임이 검색되면 `game_list`에 포함되어 반환될 수 있습니다.
+    """,
+    responses={
+        200: {"description": "성공"},
+        500: {"model": ErrorResponse, "description": "챗봇 처리 또는 DB 오류"}
+    }
 )
 async def send_message(
     conversation_id: int,
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
-    user_id: int = Header(..., alias="id", description="user id"),
+    user_id: int = Header(..., alias="id", description="사용자 ID"),
 ):
+    """
+    메시지 전송 핸들러
+    
+    Args:
+        conversation_id (int): 대화방 ID (path param)
+        request (MessageCreate): 사용자 메시지 내용
+        db (AsyncSession): DB 세션
+        bot (chatbot): 챗봇 인스턴스
+        user_id (int): 사용자 ID
+    
+    Returns:
+        MultiTurnChatResponse: AI 응답 메시지 및 추천 정보
+    """
     if not bot.is_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
@@ -207,14 +281,17 @@ async def send_message(
     "/conversations/{conversation_id}/messages/llm-only",
     response_model=MultiTurnChatResponse,
     summary="메시지 전송 (LLM-only 테스트)",
-    description="RAG 검색 없이 LLM만 호출하는 테스트용 엔드포인트입니다."
+    description="RAG 검색 없이 LLM만 호출하는 테스트용 엔드포인트입니다.",
+    responses={
+        200: {"description": "성공"}
+    }
 )
 async def send_message_llm_only(
     conversation_id: int,
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
-    user_id: int = Header(..., alias="id", description="user id"),
+    user_id: int = Header(..., alias="id", description="사용자 ID"),
 ):
     if not bot.is_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
@@ -243,14 +320,17 @@ async def send_message_llm_only(
 @router.post(
     "/conversations/{conversation_id}/messages/stream",
     summary="메시지 전송 (SSE 스트리밍)",
-    description="SSE로 AI 응답을 스트리밍합니다. 이벤트: delta(텍스트), recommendation(추천), done(완료), error(오류)"
+    description="SSE로 AI 응답을 스트리밍합니다. 이벤트: delta(텍스트), recommendation(추천), done(완료), error(오류)",
+    responses={
+        200: {"description": "스트리밍 시작 (text/event-stream)"}
+    }
 )
 async def send_message_stream(
     conversation_id: int,
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
-    user_id: int = Header(..., alias="id", description="user id"),
+    user_id: int = Header(..., alias="id", description="사용자 ID"),
 ):
     if not bot.is_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
@@ -293,7 +373,22 @@ async def send_message_stream(
     "/conversations/{conversation_id}/messages",
     response_model=List[MessageResponse],
     summary="대화 내역 조회",
-    description="대화방의 메시지 내역을 조회합니다. created_at 기준 시간순 정렬."
+    description="대화방의 메시지 내역을 조회합니다. created_at 기준 시간순 정렬.",
+    responses={
+        200: {"description": "조회 성공"},
+        500: {"model": ErrorResponse, "description": "DB 조회 실패"}
+    }
 )
 async def get_messages(conversation_id: int, limit: int = 20, db: AsyncSession = Depends(get_db)):
+    """
+    메시지 내역 조회 핸들러
+    
+    Args:
+        conversation_id (int): 대화방 ID
+        limit (int): 조회할 메시지 개수 (default=20)
+        db (AsyncSession): DB 세션
+        
+    Returns:
+        List[MessageResponse]: 메시지 목록
+    """
     return await services.get_recent_messages(db, conversation_id, limit)
