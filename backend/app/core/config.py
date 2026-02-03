@@ -21,6 +21,19 @@ class Settings(BaseSettings):
     # Week 4: BentoML 서비스 (마이크로서비스 추론)
     BENTOML_SERVICE_URL: str = "http://bentoml:3000"
 
+    # Clova API
+    # 1. RAG Reasoning URL (추론용)
+    CLOVA_RAG_REASONING_URL: str = (
+        "https://clovastudio.stream.ntruss.com/v1/api-tools/rag-reasoning"
+    )
+    # 2. Chat Base URL (일반 대화용? agent 부분의 api url가져올것, 현재는 OpenAI Compatible)
+    CLOVA_CHAT_BASE_URL: str = (
+        "https://clovastudio.stream.ntruss.com/v1/openai"
+    )
+    
+    CLOVA_API_KEY: str = ""  # Set via env var
+    CLOVA_API_REQUEST_ID: str = ""  # Set via env var
+
     model_config = SettingsConfigDict(
         env_file=str(resolve_env_path(required_key="DATABASE_URL")),
         env_file_encoding="utf-8",
