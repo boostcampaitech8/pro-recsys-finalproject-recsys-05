@@ -50,7 +50,7 @@ async def init_db_and_load_data():
         try:
             data_dir = Path(__file__).parent / "data"
             data_dir.mkdir(exist_ok=True)
-            data_file = data_dir / "games_metadata.jsonl"
+            data_file = data_dir / "processed/games_metadata.jsonl"
             model_file = data_dir / "item_similarity.pkl"
 
             # 로컬에 파일이 이미 있으면 GCS 다운로드 스킵
