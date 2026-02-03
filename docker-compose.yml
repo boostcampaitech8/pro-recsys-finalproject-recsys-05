@@ -52,6 +52,7 @@ services:
       - ML_REC_ROOT=/app/ml_rec
       - BENTOML_SERVICE_URL=http://bentoml:3000
       - DEBUG_MODE=True # 개발 환경: True, 프로덕션: False
+      - LOG_LEVEL=DEBUG
     volumes:
       - ./backend:/app/backend
       - ./ml_rec:/app/ml_rec

@@ -45,7 +45,7 @@ class AgentEngine:
         Returns:
             The final response from the agent.
         """
-        logger.info(f"Starting agent turn for message: {user_message[:50]}...")
+        logger.info(f"Starting agent turn for message: {user_message[:100]}...")
         
         # Build initial messages
         messages = self.context_builder.build_messages(

@@ -126,34 +126,36 @@ class SteamOrchestrator:
         return "저는 스팀 게임 추천 봇입니다. 게임 추천이 필요하신가요?"
 
 class SteamBotOrchestrator:
-    def __init__(self, provider: LLMProvider, tools: Dict[str, Tool]):
+    def __init__(self, provider: LLMProvider, tool_registry: Any):
         """
-        Orchestrator initialized with a Provider and a set of Tools.
+        Orchestrator initialized with a Provider and ToolRegistry.
         """
         self.provider = provider
-        self.tools = tools
+        self.registry = tool_registry
         self.parser = PydanticOutputParser(pydantic_object=IntentAnalysis)
-        
-        # We access the raw client for specific low-level control (JSON mode)
-        # In a purer architecture, we might extend the Provider interface.
-        # self.client = provider.client  <-- REMOVED: Now using provider interface exclusively
-        
         
         # 라우팅을 위한 전용 시스템 프롬프트 (Simple string format)
         self.router_system_prompt = template_system.format(schema=json.dumps(self._get_clova_schema(), indent=2, ensure_ascii=False))
         
-    async def classify_intent(self, user_message: str) -> IntentAnalysis:
+
+    async def classify_intent(self, user_message: str, history: List[Dict[str, Any]] = None) -> IntentAnalysis:
         """
         [Phase 2 핵심] 사용자의 의도를 분석하여 구조화된 데이터로 반환
         """
         try:
+            # 메시지 구성: System -> History -> User
+            messages = [{"role": "system", "content": self.router_system_prompt}]
+            
+            # History 추가 (System 바로 뒤에 배치하여 문맥 제공)
+            if history:
+                messages.extend(history)
+            
+            messages.append({"role": "user", "content": user_message})
+
             # Note: accessing inner client for JSON mode feature -> Use provider.chat
             response = await self.provider.chat(
                 model=self.provider.default_model,
-                messages=[
-                    {"role": "system", "content": self.router_system_prompt},
-                    {"role": "user", "content": user_message}
-                ],
+                messages=messages,
                 temperature=0.1,
                 response_format=self._get_clova_schema()
             )
@@ -165,20 +167,35 @@ class SteamBotOrchestrator:
             print(f"Routing Error: {e}")
             return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
 
-    async def handle_request(self, user_message: str, history: List[Dict[str, Any]]):
+    async def handle_request(
+        self, 
+        user_message: str, 
+        history: List[Dict[str, Any]],
+        db_session: Any,
+        embedding_model: Any = None
+    ):
         """
         메인 진입점: 의도 파악 -> 적절한 함수 실행 -> 결과 반환
+        
+        Args:
+            user_message: 사용자 메시지
+            history: 대화 이력
+            db_session: DB 세션 (이 요청에 대해 할당된)
+            embedding_model: 임베딩 모델 (선택)
         """
-        # 1. 의도 파악
-        analysis = await self.classify_intent(user_message)
-        print(f"🔎 분석 결과: [{analysis.intent}] 키워드: {analysis.keywords}")
+        # 0. 도구 생성 (Per Request)
+        current_tools = self.registry.create_tools(db_session, embedding_model)
+        
+        # 1. 의도 파악 (History 반영)
+        analysis = await self.classify_intent(user_message, history)
+        logger.info(f"🔎 분석 결과: [{analysis.intent}] 키워드: {analysis.keywords}")
 
         # 2. Dispatch
         if analysis.intent == UserIntent.RECOMMENDATION:
-            return await self._run_recommendation_agent(analysis, user_message, history)
+            return await self._run_recommendation_agent(analysis, user_message, history, current_tools)
         
         elif analysis.intent == UserIntent.SEARCH:
-            return await self._run_search_tool(analysis, user_message, history)
+            return await self._run_search_tool(analysis, user_message, history, current_tools)
         
         else: # UserIntent.CHITCHAT
             return await self._run_chitchat(user_message)
@@ -192,20 +209,20 @@ class SteamBotOrchestrator:
         return schema
 
 
-    def _filter_tools(self, intent: UserIntent) -> Dict[str, Tool]:
+    def _filter_tools(self, intent: UserIntent, tools: Dict[str, Tool]) -> Dict[str, Tool]:
         """Filter tools by intent tag."""
         filtered = {}
-        for name, tool in self.tools.items():
+        for name, tool in tools.items():
             if intent in tool.tags:
                 filtered[name] = tool
         return filtered
 
-    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]]):
+    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool]):
         """추천 에이전트 실행"""
         # 추천 태그가 있는 도구만 필터링
-        rec_tools = self._filter_tools(UserIntent.RECOMMENDATION)
+        rec_tools = self._filter_tools(UserIntent.RECOMMENDATION, tools)
         
-        print(f"🤖 추천 에이전트 전환 (Tools: {list(rec_tools.keys())})")
+        logger.info(f"🤖 추천 에이전트 전환 (Tools: {list(rec_tools.keys())})")
         
         # AgentEngine을 즉석에서 생성하여 실행 (Stateless)
         agent = AgentEngine(
@@ -222,12 +239,12 @@ class SteamBotOrchestrator:
             history=history
         )
 
-    async def _run_search_tool(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]]):
+    async def _run_search_tool(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool]):
         """검색 에이전트 실행"""
         # 검색 태그가 있는 도구만 필터링
-        search_tools = self._filter_tools(UserIntent.SEARCH)
+        search_tools = self._filter_tools(UserIntent.SEARCH, tools)
         
-        print(f"🕵️ 검색 에이전트 전환 (Tools: {list(search_tools.keys())})")
+        logger.info(f"🕵️ 검색 에이전트 전환 (Tools: {list(search_tools.keys())})")
         
         agent = AgentEngine(
             llm_provider=self.provider,

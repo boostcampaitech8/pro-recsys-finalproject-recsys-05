@@ -15,9 +15,40 @@ import uuid
 from app.domains.user.repository import UserRepository
 from app.domains.user.schemas import UserCreate
 
+
+from app.domains.chat.orchestrator import SteamBotOrchestrator
+from app.domains.chat.tools.registry import ToolRegistry
+from app.domains.chat.providers.clova import ClovaProvider
+
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
+# -----------------------------------------------------------------------------
+# Global Orchestrator Singleton
+# -----------------------------------------------------------------------------
+GLOBAL_ORCHESTRATOR: Optional[SteamBotOrchestrator] = None
+
+def get_orchestrator() -> SteamBotOrchestrator:
+    """
+    Global Orchestrator 싱글톤 반환 (Lazy Loading)
+    """
+    global GLOBAL_ORCHESTRATOR
+    if GLOBAL_ORCHESTRATOR is None:
+        # TODO: API Key 등은 환경변수에서 로드
+        provider = ClovaProvider(
+            api_key=os.getenv("CLOVA_API_KEY"),
+            api_base=os.getenv("CLOVA_BASE_URL"),
+            default_model="HCX-007"
+        )
+        registry = ToolRegistry() # Factory pattern
+        
+        GLOBAL_ORCHESTRATOR = SteamBotOrchestrator(
+            provider=provider,
+            tool_registry=registry
+        )
+    return GLOBAL_ORCHESTRATOR
+
 async def create_conversation(db: AsyncSession, user_id: UUID) -> Conversation:
+
     """
     새로운 대화방을 생성합니다.
     
@@ -160,6 +191,76 @@ async def process_chat_turn(
     #    여기서 변환하고 싶으면 GameInfo import해서 매핑하면 됨.
     #    (일단 MVP는 router에서 그대로 쓰거나 None 처리 가능)
     return ai_msg, retrieved_docs, ({"metrics": metrics} if metrics else None)
+
+async def process_chat_turn_agent(
+    db: AsyncSession,
+    bot: chatbot,
+    conversation_id: int,
+    user_id: UUID,
+    user_content: str
+) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
+    """
+    Multi-turn 대화 한 턴을 처리합니다. (Agent Orchestrator 사용)
+    
+    1. 사용자 메시지 저장
+    2. 최근 대화 히스토리 조회
+    3. Agent Orchestrator 실행 (의도 분류 -> 도구 실행 -> 답변)
+    4. AI 응답 메시지 저장
+    
+    Returns:
+      - ai_msg (Message): 생성된 AI 메시지
+      - retrieved_docs (Optional[list]): (Agent가 검색한 정보가 있다면 매핑 가능하겠지만, 현재는 None)
+      - debug (Optional[dict]): 디버그 메트릭 (Agent 실행 시간 등)
+    """
+    repo = ChatRepository(db)
+    orchestrator = get_orchestrator()
+
+    # 1) user 저장
+    user_msg = await repo.add_message(conversation_id, "user", user_content)
+
+    # 2) history 최근 5개(이번 user 제외)
+    # Orchestrator는 [{"role": "user", "content": ...}, ...] 형태의 list[dict]를 선호함
+    all_recent = await repo.get_recent_messages(conversation_id, limit=6)
+    history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id] # 중복 방지 방어코드
+    
+    # 시간순 정렬 (messages are returned in reverse chrono or depend on repo impl? 
+    # Usually repo returns time desc. We need time asc for context.)
+    # services.get_recent_messages docstring says "시간순" but implementation might need check.
+    # Assuming the list passed to orchestrator should be oldest -> newest.
+    
+    # If repo returns newest first (common), reverse it.
+    history_structured = []
+    for m in reversed(history_msgs):
+        history_structured.append({
+            "role": m.role,
+            "content": m.content
+        })
+
+    if DEBUG_MODE:
+        logger.info(f"[Agent][Turn] User: {user_content}")
+
+    # 3) Agent 실행
+    start_time = time.time()
+    
+    # DB 세션과 임베딩 모델(bot.embeddings)을 주입하여 도구가 사용할 수 있게 함
+    response_text = await orchestrator.handle_request(
+        user_message=user_content,
+        history=history_structured,
+        db_session=db,
+        embedding_model=bot.embeddings
+    )
+    
+    duration = time.time() - start_time
+    metrics = {"total_time": duration}
+
+    # 4) assistant 저장
+    ai_msg = await repo.add_message(conversation_id, "assistant", response_text)
+
+    # 5) 추천 결과 처리 (현재 Agent는 text만 반환하므로 생략)
+    retrieved_docs = None
+
+    return ai_msg, retrieved_docs, ({"metrics": metrics} if metrics else None)
+
 
 async def process_chat_by_user(
     db: AsyncSession,
