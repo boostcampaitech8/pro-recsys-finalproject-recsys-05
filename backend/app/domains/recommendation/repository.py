@@ -3,12 +3,13 @@ from sqlalchemy import select
 from app.domains.recommendation.models import Recommendation
 from app.domains.user.models import User
 from typing import List
+from uuid import UUID
 
 class RecommendationRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def save_recommendation(self, user_id: int, recommended_games: list, model_type: str) -> Recommendation:
+    async def save_recommendation(self, user_id: UUID, recommended_games: list, model_type: str) -> Recommendation:
         """추천 결과를 DB에 저장"""
         rec = Recommendation(
             user_id=user_id,
@@ -20,7 +21,7 @@ class RecommendationRepository:
         await self.db.refresh(rec)
         return rec
     
-    async def get_latest_recommendation(self, user_id: int) -> Recommendation:
+    async def get_latest_recommendation(self, user_id: UUID) -> Recommendation:
         """가장 최근 추천 결과 조회"""
         query = select(Recommendation).where(
             Recommendation.user_id == user_id

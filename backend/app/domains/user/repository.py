@@ -3,6 +3,7 @@ from sqlalchemy import select
 from app.domains.user.models import User
 from app.domains.user.schemas import UserCreate
 from typing import Optional
+from uuid import UUID
 
 class UserRepository:
     def __init__(self, db: AsyncSession):
@@ -28,6 +29,11 @@ class UserRepository:
     async def get_user_by_steam_id(self, steam_id: str) -> Optional[User]:
         query = select(User).where(User.steam_id == steam_id)
         # db가 아니라 self.db!
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
+        query = select(User).where(User.user_id == user_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
