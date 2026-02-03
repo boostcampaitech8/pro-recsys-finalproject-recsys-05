@@ -3,6 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Header, Response
 from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
+
 from typing import List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,11 +21,16 @@ from app.domains.chat.schemas import (
     ChatTurnRequest,
     ChatTurnResponse,
 )
+from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest, TestResponse, TestRequest
 from app.domains.chat.chatbot import get_chatbot, chatbot
+from app.domains.chat.orchestrator import SteamOrchestrator, IntentAnalysis, SteamBotOrchestrator
+from app.domains.chat.agent.engine import AgentEngine
+from app.domains.chat.tools.registry import ToolRegistry
 from app.domains.chat import services
 from app.core.database import get_db
 from app.core.logger import logger
 
+from app.domains.chat.providers.clova import ClovaProvider
 # 환경변수에서 DEBUG_MODE 읽기
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
@@ -61,7 +67,7 @@ async def echo(request: EchoRequest):
     )
     
 @router.post(
-    "/single_chat", 
+    "/single_chat",
     response_model=ChatResponse,
     responses={
         200: {"description": "성공"},
@@ -155,6 +161,66 @@ async def single_chat_recommend(
             status_code=500,
             detail=f"챗봇 처리 중 오류가 발생했습니다: {str(e)}"
         )
+        
+@router.post(
+    "/chat",
+    response_model=TestResponse,
+    responses={
+        200: {"description": "성공"},
+        400: {"model": ErrorResponse, "description": "잘못된 요청"},
+        500: {"model": ErrorResponse, "description": "서버 에러"}
+    },
+    summary="챗봇 orchestrator test",
+    description="""
+        챗봇 orchestrator test
+    """
+)
+async def create_chat_response(
+    request: ChatRequest,
+):
+    llm = SteamOrchestrator(
+        api_key=os.getenv("CLOVA_API_KEY"),
+        base_url=os.getenv("CLOVA_BASE_URL"),
+    )
+    intent_analysis = await llm.classify_intent(request.text)
+    
+    return TestResponse(
+        output=intent_analysis.model_dump_json(indent=2)  # JSON 문자열로 변환
+    )
+    
+    
+@router.post(
+    "/test/agent",
+    response_model=TestRequest,
+)
+async def agent_endpoint(request: TestRequest):
+    
+    provider = ClovaProvider(
+        api_key=os.getenv("CLOVA_API_KEY"),
+        api_base=os.getenv("CLOVA_BASE_URL"),
+        default_model="HCX-007"
+    )
+    
+    registry = ToolRegistry()
+    tools = registry.get_tools()
+    
+    orchestrator = SteamBotOrchestrator(
+        provider=provider,
+        tools=tools
+    )
+    
+    if not orchestrator:
+        raise HTTPException(status_code=500, detail="Orchestrator not initialized")
+    
+    try:
+        response_text = await orchestrator.handle_request(
+            user_message=request.message,
+            history=[]
+        )
+        return TestResponse(message=response_text)
+    except Exception as e:
+        logger.error(f"Error in chat endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # -----------------------------------------------------------------------------
 # Unified Chat Endpoint (User ID Based)

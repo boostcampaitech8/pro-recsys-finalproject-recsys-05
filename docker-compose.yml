@@ -31,11 +31,11 @@ services:
       - ./ml_rec/candidates:/app/ml_rec/candidates
       - ./ml_rec/logs:/app/ml_rec/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 60s
+      start_period: 120s
     networks:
       - app-network
 
@@ -44,14 +44,15 @@ services:
     build: .
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    # env_file:
+    #   - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
       - REDIS_URL=redis://redis:6379
       - ML_REC_ROOT=/app/ml_rec
       - BENTOML_SERVICE_URL=http://bentoml:3000
       - DEBUG_MODE=True # 개발 환경: True, 프로덕션: False
+      - LOG_LEVEL=DEBUG
     volumes:
       - ./backend:/app/backend
       - ./ml_rec:/app/ml_rec

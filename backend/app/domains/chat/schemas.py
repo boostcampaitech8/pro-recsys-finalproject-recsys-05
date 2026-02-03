@@ -115,7 +115,13 @@ class ChatResponse(BaseModel):
     debug: Optional[dict[str, Any]] = Field(None, description="디버그 정보 (실행 시간, 검색 문서 등)")
 
 class ErrorResponse(BaseModel):
-    detail: str = Field(..., description="에러 상세 메시지")
+    error: str = Field(..., description="에러 메시지")
+
+class TestResponse(BaseModel):
+    message: str  = Field(..., description="Agent's reply")
+    
+class TestRequest(BaseModel):
+    message: str = Field(..., description="User's input message")
 
 class MultiTurnChatResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
@@ -123,6 +129,7 @@ class MultiTurnChatResponse(BaseModel):
     text: str = Field(..., description="AI 응답 텍스트")
     game_list: Optional[List[GameInfo]] = Field(None, description="추천 게임 목록")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="응답 생성 시간")
+    
 class ChatTurnRequest(BaseModel):
     user_id: Optional[UUID] = Field(None, description="사용자 ID (첫 방문 시 null, 재방문 시 LocalStorage 값)")
     content: str = Field(..., min_length=1, description="사용자 메시지")
