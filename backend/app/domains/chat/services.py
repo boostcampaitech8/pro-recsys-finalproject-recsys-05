@@ -14,14 +14,47 @@ from app.core.logger import logger
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
 async def create_conversation(db: AsyncSession, user_id: int) -> Conversation:
+    """
+    새로운 대화방을 생성합니다.
+    
+    Args:
+        db (AsyncSession): DB 세션
+        user_id (int): 사용자 ID
+        
+    Returns:
+        Conversation: 생성된 대화방 객체
+    """
     repo = ChatRepository(db)
     return await repo.create_conversation(user_id)
 
 async def get_user_conversations(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Conversation]:
+    """
+    사용자의 대화방 목록을 조회합니다.
+    
+    Args:
+        db (AsyncSession): DB 세션
+        user_id (int): 사용자 ID
+        skip (int): 건너뛸 개수
+        limit (int): 반환할 개수
+        
+    Returns:
+        List[Conversation]: 대화방 목록 (최신 업데이트순)
+    """
     repo = ChatRepository(db)
     return await repo.get_user_conversations(user_id, skip, limit)
 
 async def get_recent_messages(db: AsyncSession, conversation_id: int, limit: int = 20) -> List[Message]:
+    """
+    대화방의 최근 메시지 내역을 조회합니다.
+    
+    Args:
+        db (AsyncSession): DB 세션
+        conversation_id (int): 대화방 ID
+        limit (int): 반환할 메시지 개수
+        
+    Returns:
+        List[Message]: 메시지 객체 리스트 (시간순)
+    """
     repo = ChatRepository(db)
     return await repo.get_recent_messages(conversation_id, limit)
 
@@ -39,8 +72,10 @@ async def maybe_save_recommendation(
     model_type: str = "rag"
 ) -> None:
     """
-    Recommendation은 DB에 저장하되, history엔 안 태운다.
-    - 프로젝트 내 Recommendation 모델/레포 위치가 다를 수 있어서 optional 처리.
+    추천 결과(Recommendation)를 DB에 저장합니다.
+    
+    - Chat History와 별개로 추천 이력을 관리하기 위함입니다.
+    - 프로젝트 내 Recommendation 모델 경로가 다를 수 있어 import 오류 시 skip합니다.
     """
     try:
         from app.domains.recommendation.models import Recommendation  # 너 프로젝트 경로에 맞게 수정
@@ -63,10 +98,18 @@ async def process_chat_turn(
     user_content: str
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
     """
-    반환:
-      - ai_msg (Message)
-      - game_list (Optional[List[GameInfo]])
-      - debug (Optional[dict])
+    Multi-turn 대화 한 턴을 처리합니다.
+    
+    1. 사용자 메시지 저장
+    2. 최근 대화 히스토리 조회 (Context 구성을 위해)
+    3. LLM/RAG 호출로 코멘트 및 추천 결과 생성
+    4. AI 응답 메시지 저장
+    5. 추천 결과가 있다면 별도 테이블에 저장
+    
+    Returns:
+      - ai_msg (Message): 생성된 AI 메시지
+      - retrieved_docs (Optional[list]): 검색된 문서(게임) 리스트
+      - debug (Optional[dict]): 디버그 메트릭
     """
     repo = ChatRepository(db)
 
@@ -129,8 +172,13 @@ async def process_chat_turn_llm_only(
     history_limit: int = 5,
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
     """
-    LLM-only path for testing without retrieval.
-    Saves user/assistant messages and returns metrics.
+    [테스트용] RAG 검색 없이 LLM만 호출하는 파이프라인.
+    
+    Args:
+        history_limit (int): 포함할 대화 내역 개수 (default=5)
+        
+    Returns:
+        Tuple[Message, None, dict]: AI 메시지, None(검색결과 없음), 메트릭
     """
     repo = ChatRepository(db)
 
