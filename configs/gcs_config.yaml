@@ -11,9 +11,9 @@ local:
   data_root: "app/data"      # 로컬 데이터 폴더 (backend/app/data)
   files:
     games_metadata.jsonl:
-      local_path: "games_metadata.jsonl"       # 로컬 파일명 (data_root 기준)
+      local_path: "processed/games_metadata.jsonl"       # 로컬 파일명 (data_root 기준)
       upload_path: "processed/games_metadata.jsonl"
-      download_path: "raw/steam_games_info.jsonl"
+      download_path: "processed/games_metadata.jsonl"
 
     item_similarity.pkl:
       local_path: "item_similarity.pkl"
