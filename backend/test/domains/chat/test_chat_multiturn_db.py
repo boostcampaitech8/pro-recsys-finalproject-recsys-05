@@ -1,6 +1,9 @@
+import uuid
+
 import pytest
 from app.domains.chat.repository import ChatRepository
 from app.domains.chat import services
+from app.domains.user.models import User
 
 @pytest.mark.asyncio
 async def test_multiturn_chat_history_db(db):
@@ -14,9 +17,15 @@ async def test_multiturn_chat_history_db(db):
     """
     repo = ChatRepository(db)
 
+    # Create a user for FK constraint
+    user = User(steam_id=f"test_user_{uuid.uuid4().hex[:8]}")
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
     # 1. Create Conversation
     print("\n[Test] Creating Conversation...")
-    conv = await repo.create_conversation(user_id=1)
+    conv = await repo.create_conversation(user_id=user.user_id)
     assert conv.conversation_id is not None
     print(f"[Test] Conversation Created: {conv.conversation_id}")
 
