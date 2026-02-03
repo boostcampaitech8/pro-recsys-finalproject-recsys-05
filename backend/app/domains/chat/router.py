@@ -9,10 +9,6 @@ from app.domains.chat.agent.engine import AgentEngine
 from app.core.logger import logger
 
 from app.domains.chat.providers.clova import ClovaProvider
-from  app.domains.chat.tools.recommendation import RecommendationTool
-from  app.domains.chat.tools.steam import SteamTool, PopularGamesTool
-from  app.domains.chat.tools.user import UserProfileTool
-
 # 환경변수에서 DEBUG_MODE 읽기
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
@@ -168,16 +164,17 @@ async def agent_endpoint(request: TestRequest):
     )
     tools = {}
     
-    steam_tool = SteamTool()
-    popular_tool = PopularGamesTool()
-    user_tool = UserProfileTool()
-    recsys_tool = RecommendationTool()
+    # TODO: tool 추후 추가예정(예시)
+    # steam_tool = SteamTool()
+    # popular_tool = PopularGamesTool()
+    # user_tool = UserProfileTool()
+    # recsys_tool = RecommendationTool()
     
-    # Register tools by their schema name
-    tools[steam_tool.openai_schema['function']['name']] = steam_tool
-    tools[popular_tool.openai_schema['function']['name']] = popular_tool
-    tools[user_tool.openai_schema['function']['name']] = user_tool
-    tools[recsys_tool.openai_schema['function']['name']] = recsys_tool
+    # # Register tools by their schema name
+    # tools[steam_tool.openai_schema['function']['name']] = steam_tool
+    # tools[popular_tool.openai_schema['function']['name']] = popular_tool
+    # tools[user_tool.openai_schema['function']['name']] = user_tool
+    # tools[recsys_tool.openai_schema['function']['name']] = recsys_tool
     
     agent_engine = AgentEngine(
         llm_provider=provider,
