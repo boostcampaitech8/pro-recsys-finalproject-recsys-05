@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: .
+      target: dev
+    env_file:
+      - ./configs/backend/.env
+    environment:
+      - PYTHONPATH=/app/backend:/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/app/backend
+      - ./ml_rec:/app/ml_rec
+      - ./configs:/app/configs
+    ports:
+      - "8000:8000" # API 포트
+      - "5678:5678" # 디버깅 포트
+    command: >
+      python -m debugpy --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"

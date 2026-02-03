@@ -2,9 +2,30 @@ import asyncio
 import sys
 import os
 import random
+import numpy as np # Added numpy import
+
 
 # Add backend directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app.core.database import SessionLocal # Changed from get_db to SessionLocal
+from app.domains.game.repository import GameRepository
+from app.core.config import settings # Added settings import
+
+# -----------------------------------------------------------------------------
+# Test Vector Search
+# -----------------------------------------------------------------------------
+async def test_vector_search(): # Renamed function
+    print("🚀 Vector Search Test Start")
+    
+    async with SessionLocal() as db: # Changed DB connection method
+        repo = GameRepository(db)
+        
+        # 1. Create a random vector (768 dim)
+        # 실제로는 ML 모델 출력값이 들어옴
+        # Using config dimension to match schema
+        dummy_vector = np.random.rand(settings.EMBEDDING_DIMENSION).tolist() # Modified dummy vector generation
+        print(f"✅ Generated Dummy Vector (Dim: {len(dummy_vector)})")
 
 from app.core.database import get_db
 from app.domains.game.repository import GameRepository
@@ -48,4 +69,5 @@ async def test_search():
 if __name__ == "__main__":
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(test_vector_search())
     asyncio.run(test_search())

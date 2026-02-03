@@ -15,4 +15,3 @@ class GameService:
         
         # Pydantic Model에 맞게 변환 (from_attributes=True 덕분에 객체 바로 반환 가능)
         return GameDetailResponse.model_validate(game)
-

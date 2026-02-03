@@ -1,0 +1,24 @@
+# BentoML 서비스 Dockerfile
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 시스템 의존성 설치
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 현재 디렉토리 (ml_rec) 복사
+COPY . /app/ml_rec/
+WORKDIR /app/ml_rec
+
+# 의존성 설치
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 포트 노출
+EXPOSE 3000
+
+# BentoML 서비스 시작
+CMD ["bentoml", "serve", "scripts.stage4_serving.recommendation_service:GameRecommendationService", "--host", "0.0.0.0", "--port", "3000"]

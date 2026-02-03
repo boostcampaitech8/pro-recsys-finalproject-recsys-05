@@ -10,10 +10,10 @@ import asyncio
 import sys
 from pathlib import Path
 
-from app.routers.test import router as test_router
 from app.routers.health import router as health_router
 from app.domains.recommendation.router import router as recommend_router
 from app.domains.steam.router import router as steam_router
+from app.domains.chat.chatbot import get_chatbot, reset_chatbot
 from app.core.database import get_db, engine, Base, SessionLocal
 from app.domains.user.router import router as user_router
 from app.domains.game.router import router as game_router
@@ -23,7 +23,10 @@ from app.domains.chat import models as chat_models
 from app.domains.game import models as game_models
 from app.domains.recommendation import models as rec_models
 
-logger = logging.getLogger(__name__)
+from app.core.logger import setup_logging
+
+# 전역 로깅 설정 초기화 (앱 시작 시 최초 1회)
+logger = setup_logging()
 
 
 async def init_db_and_load_data():
@@ -50,8 +53,11 @@ async def init_db_and_load_data():
             data_file = data_dir / "games_metadata.jsonl"
             model_file = data_dir / "item_similarity.pkl"
 
+            # 로컬에 파일이 이미 있으면 GCS 다운로드 스킵
+            if data_file.exists() and model_file.exists():
+                logger.info("✅ Data files already exist locally, skipping GCS download")
             # GCS에서 다운로드 (gcs_key.json이 있으면)
-            if os.path.exists(Path(__file__).parent / "gcs_key.json"):
+            elif os.path.exists(Path(__file__).parent / "gcs_key.json"):
                 logger.info("📥 Attempting to download data and models from GCS...")
                 try:
                     # manage_data.py를 subprocess로 실행 - 게임 데이터
@@ -123,8 +129,18 @@ async def lifespan(app: FastAPI):
     """
     # 시작
     await init_db_and_load_data()
+    chatbot = get_chatbot()
+    await chatbot.initialize(
+        engine=engine,
+        clova_api_key=os.getenv("CLOVA_API_KEY"),
+        clova_base_url=os.getenv("CLOVA_BASE_URL") or "https://clovastudio.stream.ntruss.com/v1/openai/",
+        model_name="HCX-DASH-001",
+    )
+    
     yield
     # 종료
+    chatbot.cleanup()
+    reset_chatbot()
     await engine.dispose()
 
 
@@ -141,7 +157,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/health", tags=["health"])
 app.include_router(user_router, prefix="/api/v1/users", tags=["users"])
-app.include_router(test_router, prefix="/test", tags=["test"])
+# Test Router Removed (Migrated to Pytest)
 app.include_router(game_router, prefix="/api/v1/games", tags=["games"])
 app.include_router(steam_router, prefix="/steam")
 app.include_router(recommend_router, prefix="/rec")

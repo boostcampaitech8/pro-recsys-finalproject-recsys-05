@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 from sqlalchemy import select
-from sqlalchemy import or_
 from sqlalchemy.dialects.postgresql import array
 from app.domains.game.models import Game
 from typing import Optional, List
@@ -9,6 +9,12 @@ from typing import Optional, List
 class GameRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def get_all_games(self, limit: int = 10, offset: int = 0) -> List[Game]:
+        """Fetch games with pagination (used by tests)."""
+        query = select(Game).offset(offset).limit(limit)
+        result = await self.db.execute(query)
+        return result.scalars().all()
 
     async def get_game_by_app_id(self, app_id: int) -> Optional[Game]:
         """Steam ID(App ID)로 게임 상세 조회"""
@@ -52,6 +58,39 @@ class GameRepository:
             query = query.where(Game.tags_en.op("?|")(array(tags)))
         if languages:
             query = query.where(Game.supported_languages.op("?|")(array(languages)))
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
+    async def search_by_embedding(
+        self,
+        vector: List[float],
+        top_k: int = 5,
+        min_price: Optional[int] = None,
+        max_price: Optional[int] = None,
+        genres: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
+        languages: Optional[List[str]] = None
+    ) -> List[Game]:
+        """
+        - vector: 1024 dim embedding
+        - genres/tags/languages: OR 조건 (하나라도 포함되면 결과에 포함)
+        """
+        query = select(Game).order_by(Game.embedding.cosine_distance(vector)).limit(top_k)
+
+        if min_price is not None:
+            query = query.where(Game.price >= min_price)
+        if max_price is not None:
+            query = query.where(Game.price<= max_price)
+
+        if genres:
+            conditions = [Game.genres_kr.contains([g])for g in genres]
+            query = query.where(or_(*conditions))
+        if tags:
+            conditions = [Game.tags_en.contains([t])for t in tags]
+            query = query.where(or_(*conditions))
+        if languages:
+            conditions = [Game.supported_languages.contains([l])for l in languages]
+            query = query.where(or_(*conditions))
         result = await self.db.execute(query)
         return result.scalars().all()
 

@@ -17,3 +17,7 @@ class User(Base):
     
     recommendations = relationship("Recommendation", back_populates="user", cascade="all, delete-orphan")
     pass
+
+# Ensure related models are registered for relationship resolution.
+from app.domains.chat import models as _chat_models  # noqa: F401
+from app.domains.recommendation import models as _rec_models  # noqa: F401
