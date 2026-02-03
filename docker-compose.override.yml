@@ -10,6 +10,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend:/app/backend
+      - ./backend/test:/app/test
       - ./ml_rec:/app/ml_rec
       - ./configs:/app/configs
     ports:
