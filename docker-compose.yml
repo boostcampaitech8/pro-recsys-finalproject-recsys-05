@@ -1,6 +1,18 @@
 version: "3.8"
 
 services:
+  # [Development] Frontend (React + Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://backend:8000
+
   # [Development] FastAPI (현재 소스코드로 빌드)
   backend:
     build: .
