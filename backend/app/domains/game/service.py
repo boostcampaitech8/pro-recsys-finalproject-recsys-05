@@ -1,5 +1,5 @@
 from app.domains.game.repository import GameRepository
-from app.domains.game.schemas import GameSimpleResponse, GameDetailResponse
+from app.domains.game.schemas import GameDetailResponse
 from app.domains.game.models import Game
 from typing import List
 import random

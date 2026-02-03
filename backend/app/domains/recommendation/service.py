@@ -1,5 +1,5 @@
 from app.domains.recommendation.repository import RecommendationRepository
-from app.domains.game.schemas import GameSimpleResponse
+from app.domains.game.schemas import GameInfo
 from app.domains.steam.service import LATEST_GAMES_FILE
 from typing import List
 import json
@@ -37,7 +37,7 @@ class RecommendationService:
     async def save_history(
         self,
         user_id: int,
-        recommended_games: List[GameSimpleResponse],
+        recommended_games: List[GameInfo],
         model_type: str = "cold_start",
     ):
         """

@@ -1,8 +1,25 @@
 import os
+import json
 from fastapi import APIRouter, Depends, HTTPException, Header, Response
+from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
-from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest
+from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.domains.chat.schemas import (
+    EchoRequest,
+    EchoResponse,
+    ChatResponse,
+    ErrorResponse,
+    ChatRequest,
+    ConversationResponse,
+    ConversationCreate,
+    MessageResponse,
+    MessageCreate,
+)
 from app.domains.chat.chatbot import get_chatbot, chatbot
+from app.domains.chat import services
+from app.core.database import get_db
 from app.core.logger import logger
 
 # 환경변수에서 DEBUG_MODE 읽기
@@ -24,7 +41,7 @@ async def echo(request: EchoRequest):
     )
     
 @router.post(
-    "/single_chat",  # ← 엔드포인트 경로
+    "/single_chat", 
     response_model=ChatResponse,
     responses={
         200: {"description": "성공"},
@@ -39,15 +56,6 @@ async def echo(request: EchoRequest):
     - Single-turn 대화만 지원 (대화 이력 미저장)
     - Query routing 미지원 (모든 질문을 RAG 검색으로 처리)
     - 추천 모델 미사용 (RAG 검색된 문서 기반 LLM 응답만 생성)
-    
-    **Response:**
-    - `text`: LLM이 생성한 답변
-    - `game_list`: null (추천 모델 미사용)
-    - `timestamp`: 응답 생성 시각
-    
-    **사용 예시:**
-    - "1만원 이하 RPG 추천해줘" ✅ (RAG 검색 + LLM 답변)
-    - "방금 추천한 게임 중 두 번째꺼 설명해줘" ❌ (대화 이력 없음)
     """
 )
 async def single_chat_recommend(
@@ -74,7 +82,7 @@ async def single_chat_recommend(
     try:
         logger.info(f"[v1][{user_id}] Single-turn request: {request.text[:50]}...")
         
-        # 챗봇 응답 생성
+        # 챗봇 응답 생성 (History 없이 호출)
         response_text, retrieved_docs, formatted_prompt, metrics = await bot.generate_response_with_details(
             request.text
         )
@@ -119,3 +127,106 @@ async def single_chat_recommend(
             status_code=500,
             detail=f"챗봇 처리 중 오류가 발생했습니다: {str(e)}"
         )
+
+# -----------------------------------------------------------------------------
+# Multi-turn Chat Endpoints
+# -----------------------------------------------------------------------------
+
+@router.post("/conversations", response_model=ConversationResponse, summary="대화방 생성 (Multi-turn)")
+async def create_conversation(db: AsyncSession = Depends(get_db)):
+    user_id = 1  # TODO: Auth
+    return await services.create_conversation(db, user_id=user_id)
+
+@router.get("/conversations", response_model=List[ConversationResponse], summary="대화방 목록 조회")
+async def get_conversations(skip: int = 0, limit: int = 20, db: AsyncSession = Depends(get_db)):
+    user_id = 1
+    return await services.get_user_conversations(db, user_id, skip, limit)
+
+@router.post("/conversations/{conversation_id}/messages", response_model=MultiTurnChatResponse, summary="메시지 전송 (대화 + optional 추천)")
+async def send_message(
+    conversation_id: int,
+    request: MessageCreate,
+    db: AsyncSession = Depends(get_db),
+    bot: chatbot = Depends(get_chatbot)
+):
+    if not bot.is_ready():
+        raise HTTPException(status_code=500, detail="Chatbot not ready")
+
+    user_id = 1  # TODO: Auth
+
+    try:
+        ai_msg, retrieved_docs, debug = await services.process_chat_turn(
+            db=db,
+            bot=bot,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            user_content=request.content
+        )
+
+        # MVP: retrieved_docs -> game_list 변환은 너 bot/doc 포맷에 맞춰서 구현
+        # 일단 None 처리하거나, doc에 필요한 필드가 있으면 매핑
+        game_list = None
+        # 예시(필드 존재할 때만):
+        # from app.domains.game.schemas import GameInfo
+        # game_list = [GameInfo(...매핑...) for d in retrieved_docs] if retrieved_docs else None
+
+        return MultiTurnChatResponse(
+            conversation_id=conversation_id,
+            assistant_message_id=ai_msg.message_id,
+            text=ai_msg.content,
+            game_list=game_list,
+            timestamp=datetime.utcnow(),
+            debug=debug if DEBUG_MODE else None
+        )
+    except Exception as e:
+        logger.error(f"[Multi-turn] Chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/conversations/{conversation_id}/messages/stream", summary="메시지 전송 (SSE 스트리밍)")
+async def send_message_stream(
+    conversation_id: int,
+    request: MessageCreate,
+    db: AsyncSession = Depends(get_db),
+    bot: chatbot = Depends(get_chatbot)
+):
+    if not bot.is_ready():
+        raise HTTPException(status_code=500, detail="Chatbot not ready")
+
+    user_id = 1
+
+    async def event_gen():
+        try:
+            # process_chat_turn는 “완성본”을 만든다.
+            # MVP는 완성본을 받아서 청크로 쪼개 스트리밍(가짜 스트림)한다.
+            ai_msg, retrieved_docs, debug = await services.process_chat_turn(
+                db=db,
+                bot=bot,
+                conversation_id=conversation_id,
+                user_id=user_id,
+                user_content=request.content
+            )
+
+            # delta 스트리밍
+            async for chunk in services.fake_stream_chunks(ai_msg.content, chunk_size=30):
+                yield f"data: {json.dumps({'type':'delta','delta':chunk}, ensure_ascii=False)}\n\n"
+
+            # 추천 이벤트(있으면)
+            if retrieved_docs:
+                payload = []
+                for d in retrieved_docs:
+                    payload.append({
+                        "app_id": d.get("app_id") or d.get("appid") or d.get("id"),
+                        "name": d.get("name"),
+                        "score": d.get("similarity"),
+                    })
+                yield f"data: {json.dumps({'type':'recommendation','recommendation': payload}, ensure_ascii=False)}\n\n"
+
+            yield f"data: {json.dumps({'type':'done','assistant_message_id': ai_msg.message_id}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type':'error','error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+@router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse], summary="대화 내역 조회")
+async def get_messages(conversation_id: int, limit: int = 20, db: AsyncSession = Depends(get_db)):
+    return await services.get_recent_messages(db, conversation_id, limit)
