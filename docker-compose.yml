@@ -31,11 +31,11 @@ services:
       - ./ml_rec/candidates:/app/ml_rec/candidates
       - ./ml_rec/logs:/app/ml_rec/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 60s
+      start_period: 120s
     networks:
       - app-network
 
