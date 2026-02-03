@@ -432,7 +432,7 @@ async def send_message(
 
 
     try:
-        ai_msg, retrieved_docs, debug = await services.process_chat_turn_agent(
+        ai_msg, retrieved_docs, debug = await services.process_chat_turn(
             db=db,
             bot=bot,
             conversation_id=conversation_id,
