@@ -110,14 +110,9 @@ class AgentEngine:
                             tool_func = self.tools[function_name]
                             args = arguments_dict
                             
-                            # Execute
-                            if hasattr(tool_func, 'run'): # If it's a class-based tool
-                                result = await tool_func.run(**args)
-                            else: # If it's a raw function
-                                if  getattr(tool_func, "__code__", None) and tool_func.__code__.co_flags & 0x80: # Check if async
-                                     result = await tool_func(**args)
-                                else:
-                                     result = tool_func(**args)
+                            # Execute (Strict Tool Interface)
+                            # All tools must inherit from Tool(ABC) and implement execute()
+                            result = await tool_func.execute(**args)
                                 
                             logger.info(f"Tool Result: {str(result)[:50]}...")
                         except Exception as e:
@@ -147,11 +142,12 @@ class AgentEngine:
         """Convert registered tools to OpenAI function definitions."""
         definitions = []
         for name, tool in self.tools.items():
-            # If tool is a class with 'get_definition' method
-            if hasattr(tool, 'get_definition'):
-                definitions.append(tool.get_definition())
-            # If tool has 'openai_schema' attribute (standard in some libraries)
-            elif hasattr(tool, 'openai_schema'):
-                definitions.append(tool.openai_schema)
-            # Fallback handling would go here
+            try:
+                # All tools must inherit from Tool(ABC) and implement to_schema()
+                if hasattr(tool, 'to_schema'):
+                    definitions.append(tool.to_schema())
+                else:
+                    logger.warning(f"Tool {name} does not have 'to_schema' method. Skipping.")
+            except Exception as e:
+                logger.error(f"Failed to get schema for tool {name}: {e}")
         return definitions
