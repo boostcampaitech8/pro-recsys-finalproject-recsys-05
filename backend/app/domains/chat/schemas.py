@@ -104,14 +104,81 @@ class ConversationResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# Restored Classes
+
+class CitedDocument(BaseModel):
+    """
+    Reranker가 인용한 문서
+    """
+    id: str = Field(..., description="문서 ID (app_id)")
+    doc: str = Field(..., description="문서 원본 텍스트")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "730",
+                "doc": "Counter-Strike 2는 무료로 플레이할 수 있는 팀 기반 FPS 게임입니다..."
+            }
+        }
+
+
 class ChatRequest(BaseModel):
     text: str = Field(..., description="사용자 질문 텍스트")
 
 class ChatResponse(BaseModel):
-    text: str = Field(..., description="AI 응답 텍스트")
-    game_list: Optional[List[GameInfo]] = Field(None, description="추천 게임 목록")
-    debug: Optional[dict[str, Any]] = Field(None, description="디버그 정보 (실행 시간, 검색 문서 등)")
+    """
+    챗봇 응답 Body
+
+    Header: id (string) - FastAPI Response.headers로 별도 설정
+    Body: text, game_list, timestamp, citedDocuments, suggestedQueries, (debug)
+    """
+    text: str = Field(..., description="챗봇 응답 텍스트")
+    game_list: Optional[List[GameInfo]] = Field(
+        None,
+        description="추천 게임 리스트 (추천 모델 미사용 시 null)"
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="응답 생성 시각 (UTC)"
+    )
+    # Reranker 응답 필드 (Reranker 사용 시만 포함)
+    citedDocuments: Optional[List[CitedDocument]] = Field(
+        None,
+        description="Reranker가 인용한 문서 리스트 (Reranker 사용 시만)"
+    )
+    suggestedQueries: Optional[List[str]] = Field(
+        None,
+        description="추천 검색어 리스트 (Reranker가 답변을 못 찾은 경우)"
+    )
+    # 디버그 정보 (DEBUG_MODE=True일 때만 포함)
+    debug: dict[str, Any] | None = Field(None, description="디버그 정보 (개발 환경 전용)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "text": "1만원 이하의 RPG 게임을 추천드립니다...",
+                "game_list": None,
+                "timestamp": "2026-02-01T04:18:00Z",
+                "citedDocuments": [
+                    {
+                        "id": "730",
+                        "doc": "Counter-Strike 2는 무료 팀 기반 FPS..."
+                    }
+                ],
+                "suggestedQueries": [],
+                "debug": {
+                    "metrics": {
+                        "total_ms": 1234.5,
+                        "embedding_time_ms": 100.2,
+                        "retrieval_time_ms": 50.3,
+                        "reranking_time_ms": 150.2
+                    },
+                    "retrieved_docs": [
+                        {"name": "The Witcher 3", "similarity": 0.92}
+                    ]
+                }
+            }
+        }
+
 
 class ErrorResponse(BaseModel):
     detail: str = Field(..., description="에러 상세 메시지")

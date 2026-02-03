@@ -135,6 +135,8 @@ async def lifespan(app: FastAPI):
         clova_api_key=os.getenv("CLOVA_API_KEY"),
         clova_base_url=os.getenv("CLOVA_BASE_URL") or "https://clovastudio.stream.ntruss.com/v1/openai/",
         model_name="HCX-DASH-001",
+        use_reranker=os.getenv("USE_RERANKER", "true").lower() in ("true", "1", "yes"),
+        reranker_top_k=int(os.getenv("RERANKER_TOP_K", "10")),
     )
     
     yield

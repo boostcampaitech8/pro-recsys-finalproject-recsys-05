@@ -69,6 +69,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    environment:
+      # Reranker 설정
+      - USE_RERANKER=true # Reranker 사용 여부 (true/false)
+      - RERANKER_TOP_K=10 # Reranker에 전달할 문서 개수
     networks:
       - app-network
 

@@ -106,32 +106,45 @@ async def single_chat_recommend(
     
     try:
         logger.info(f"[v1][{user_id}] Single-turn request: {request.text[:50]}...")
-        
-        # 챗봇 응답 생성 (History 없이 호출)
-        response_text, retrieved_docs, formatted_prompt, metrics = await bot.generate_response_with_details(
+
+        # 챗봇 응답 생성
+        response_text, retrieved_docs, formatted_prompt, metrics, cited_documents, suggested_queries = await bot.generate_response_with_details(
             request.text
         )
-        
+
         logger.info(f"[v1][{user_id}] Response generated in {metrics.get('total_time', 0):.2f}s")
-        
+
         # Response Header 설정
         response.headers["id"] = user_id
-        
+
         # 기본 응답 데이터
         response_data = {
             "text": response_text,
-            "game_list": None
+            "game_list": None,
+            "citedDocuments": cited_documents if cited_documents else None,
+            "suggestedQueries": suggested_queries if suggested_queries else None
         }
-        
+
         # DEBUG_MODE일 때만 디버그 정보 추가
         if DEBUG_MODE:
+            # 메트릭 구성
+            debug_metrics = {
+                "total_ms": metrics.get("total_time", 0) * 1000,
+                "embedding_time_ms": metrics.get("embedding_time", 0) * 1000,
+                "retrieval_time_ms": metrics.get("retrieval_time", 0) * 1000,
+            }
+
+            # Reranker 사용 시 reranking_time, 아니면 generation_time
+            if "reranking_time" in metrics:
+                debug_metrics["reranking_time_ms"] = metrics.get("reranking_time", 0) * 1000
+                debug_metrics["prompt_tokens"] = metrics.get("prompt_tokens", 0)
+                debug_metrics["completion_tokens"] = metrics.get("completion_tokens", 0)
+                debug_metrics["total_tokens"] = metrics.get("total_tokens", 0)
+            else:
+                debug_metrics["llm_api_time_ms"] = metrics.get("generation_time", 0) * 1000
+
             response_data["debug"] = {
-                "metrics": {
-                    "total_ms": metrics.get("total_time", 0) * 1000,
-                    "embedding_time_ms": metrics.get("embedding_time", 0) * 1000,
-                    "retrieval_time_ms": metrics.get("retrieval_time", 0) * 1000,
-                    "llm_api_time_ms": metrics.get("generation_time", 0) * 1000
-                },
+                "metrics": debug_metrics,
                 "retrieved_docs": [
                     {
                         "name": doc.get("name"),
@@ -140,10 +153,11 @@ async def single_chat_recommend(
                         "genres": doc.get("genres")
                     }
                     for doc in retrieved_docs
-                ]
+                ],
+                "use_reranker": bot.use_reranker
             }
             logger.debug(f"[v1][{user_id}] Debug info included in response")
-        
+
         return ChatResponse(**response_data)
     
     except Exception as e:

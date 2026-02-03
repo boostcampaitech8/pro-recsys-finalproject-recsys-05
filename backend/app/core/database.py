@@ -12,7 +12,14 @@ if not DATABASE_URL:
     raise ValueError(f"DATABASE_URL not found in env file at {env_path}")
 
 # TODO: Async Engine 설정이 올바른지 확인해보세요.
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=True,
+    pool_pre_ping=True,  # 연결 사용 전 ping으로 유효성 확인
+    pool_recycle=3600,   # 1시간마다 연결 재생성
+    pool_size=5,         # 연결 풀 크기
+    max_overflow=10      # 추가 연결 가능 수
+)
 
 SessionLocal = sessionmaker(
     autocommit=False,

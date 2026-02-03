@@ -2,6 +2,7 @@ import os
 import time
 import json
 import traceback
+import aiohttp
 from typing import Optional, Tuple, List, Dict, Any
 
 from app.core.logger import logger
@@ -24,6 +25,9 @@ class chatbot:
         self.output_parser = StrOutputParser()
         self.config: Dict[str, Any] = {}
         self._initialized = False
+        self.use_reranker: bool = False
+        self.reranker_url: str = ""
+        self.reranker_api_key: str = ""
 
     async def initialize(
         self,
@@ -34,7 +38,9 @@ class chatbot:
         temperature: float = 0.5,     # 추천 시스템은 할루시네이션 방지를 위해 낮게 설정 권장
         max_tokens: int = 1024,
         # collection_name: str = "steam_games_bge_m3",
-        top_k: int = 3
+        top_k: int = 3,
+        use_reranker: bool = True,   # Reranker 사용 여부
+        reranker_top_k: int = 10     # Reranker에 보낼 문서 개수
     ):
         """
         리소스를 초기화합니다. NCP 인증 헤더 처리가 포함되어 있습니다.
@@ -70,16 +76,23 @@ class chatbot:
             # 5. Prompt Template 설정
             self._setup_prompt()
 
+            # 6. Reranker 설정
+            self.use_reranker = use_reranker
+            self.reranker_api_key = clova_api_key  # 동일한 API Key 사용
+            self.reranker_url = "https://clovastudio.stream.ntruss.com/v1/api-tools/reranker"
+
             # 설정 저장
             self.config = {
                 "model": model_name,
                 "temperature": temperature,
                 "top_k": top_k,
+                "reranker_top_k": reranker_top_k,
+                "use_reranker": use_reranker,
                 "base_url": clova_base_url
             }
 
             self._initialized = True
-            logger.info("✅ Chatbot initialization complete!")
+            logger.info(f"✅ Chatbot initialization complete! (Reranker: {'ON' if use_reranker else 'OFF'})")
             return 
 
         except Exception as e:
@@ -110,30 +123,105 @@ class chatbot:
 사용자 질문: {question}
 답변:"""
         self.prompt_template = ChatPromptTemplate.from_template(template)
-        
+
+    async def call_reranker(
+        self,
+        query: str,
+        documents: List[Dict[str, Any]],
+        max_tokens: int = 1024
+    ) -> Dict[str, Any]:
+        """
+        NCP CLOVA Studio Reranker API 호출
+
+        Args:
+            query: 사용자 쿼리
+            documents: 검색된 문서 리스트 (id, context 포함)
+            max_tokens: 최대 생성 토큰 수 (기본 1024, 최대 4096)
+
+        Returns:
+            Dict containing:
+                - result: 생성된 답변
+                - citedDocuments: 인용된 문서 리스트
+                - suggestedQueries: 추천 검색어 리스트
+                - usage: 토큰 사용량
+        """
+        # 문서 형식 변환
+        reranker_docs = [
+            {
+                "id": str(doc.get("app_id", idx)),  # app_id 또는 인덱스 사용
+                "doc": doc.get("context", "")
+            }
+            for idx, doc in enumerate(documents)
+        ]
+
+        payload = {
+            "documents": reranker_docs,
+            "query": query,
+            "maxTokens": max_tokens
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.reranker_api_key}",
+            "Content-Type": "application/json",
+            "X-NCP-CLOVASTUDIO-REQUEST-ID": f"rerank-{int(time.time() * 1000)}"
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.reranker_url,
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"❌ Reranker API error {response.status}: {error_text}")
+                        raise Exception(f"Reranker API failed: {response.status}")
+
+                    result = await response.json()
+
+                    # 응답 검증
+                    if result.get("status", {}).get("code") != "20000":
+                        logger.error(f"❌ Reranker returned error: {result}")
+                        raise Exception(f"Reranker error: {result.get('status', {}).get('message', 'Unknown')}")
+
+                    return result.get("result", {})
+
+        except Exception as e:
+            logger.error(f"❌ Reranker API call failed: {e}")
+            raise
+
     async def generate_response_with_details(
         self,
-        user_query: str,
-        history_text: str = ""
-    ) -> Tuple[str, List[Dict[str, Any]], str, Dict[str, float]]:
+        user_query: str
+    ) -> Tuple[str, List[Dict[str, Any]], str, Dict[str, float], List[Dict[str, Any]], List[str]]:
         """
         RAG 파이프라인 실행 및 상세 정보 반환 (디버깅/모니터링 용)
-        
+
         Returns:
-            Tuple[str, List[Dict], str, Dict]:
-                - response_text: LLM 생성 응답
+            Tuple[str, List[Dict], str, Dict, List[Dict], List[str]]:
+                - response_text: LLM/Reranker 생성 응답
                 - retrieved_docs: 검색된 문서 리스트 (dict 형태)
-                - formatted_prompt: LLM에 전달된 최종 프롬프트 (DEBUG_MODE용)
+                - formatted_prompt: LLM에 전달된 최종 프롬프트 (DEBUG_MODE용, Reranker 사용 시 빈 문자열)
                 - metrics: 성능 메트릭 딕셔너리
+                - cited_documents: 인용된 문서 리스트 (Reranker 사용 시만)
+                - suggested_queries: 추천 검색어 리스트 (Reranker 사용 시만)
         """
         if not self.is_ready():
-            return "챗봇이 준비되지 않았습니다.", [], "", {}
+            return "챗봇이 준비되지 않았습니다.", [], "", {}, [], []
 
         metrics = {}
         retrieved_games = None
-        
+        cited_documents = []
+        suggested_queries = []
+
+        # Reranker 사용 여부에 따라 top_k 결정
+        search_top_k = self.config.get("reranker_top_k", 10) if self.use_reranker else self.config.get("top_k", 3)
+
         search_sql = text("""
-        SELECT 
+        SELECT
+            app_id,
             name,
             context,
             genres_kr::text as genres,
@@ -147,9 +235,9 @@ class chatbot:
         ORDER BY embedding <=> (:query_embedding)::vector
         LIMIT :top_k
     """)
-        
+
         start_total = time.time()
-        
+
         try:
             # 1. 쿼리 임베딩 생성
             start_embed = time.time()
@@ -162,23 +250,25 @@ class chatbot:
                 result = await conn.execute(
                     search_sql,
                     {
-                        "query_embedding": json.dumps(query_embedding), # 드라이버에 따라 list 그대로 전달 가능 여부 확인 필요
-                        "top_k": self.config.get("top_k", 3)
+                        "query_embedding": json.dumps(query_embedding),
+                        "top_k": search_top_k
                     }
                 )
                 retrieved_games = result.fetchall()
             metrics["retrieval_time"] = time.time() - start_retr
-            
+
             if not retrieved_games:
                 metrics["total_time"] = time.time() - start_total
                 logger.warning(f"No games retrieved for query: {user_query}")
-                return "검색 결과가 없습니다.", [], "", metrics
-            
+                return "검색 결과가 없습니다.", [], "", metrics, [], []
+
             # 3. 검색 결과를 dict 형태로 변환 (API 응답용)
             retrieved_docs = []
             for row in retrieved_games:
                 retrieved_docs.append({
+                    "app_id": row.app_id,
                     "name": row.name,
+                    "context": row.context,
                     "genres": row.genres,
                     "price": float(row.price) if row.price else 0.0,
                     "similarity": float(row.similarity),
@@ -186,36 +276,64 @@ class chatbot:
                     "release_date": str(row.release_date) if row.release_date else None
                 })
 
-            # 4. 프롬프트 구성
-            context_text = "\n\n".join([row.context for row in retrieved_games])
-            
-            # History Injection
-            chain_input = {
-                "context": context_text, 
-                "question": user_query,
-                "history": history_text
-            }
-            
-            formatted_prompt_val = self.prompt_template.invoke(chain_input)
-            formatted_prompt = formatted_prompt_val.to_string()
+            # 4. Reranker 사용 여부에 따라 분기
+            if self.use_reranker:
+                # Reranker API 호출
+                logger.info(f"🔄 Calling Reranker with {len(retrieved_docs)} documents...")
+                start_rerank = time.time()
 
-            # 5. LLM 생성
-            start_gen = time.time()
-            response_msg = await self.llm.ainvoke(formatted_prompt_val)
-            response_text = self.output_parser.invoke(response_msg)
-            metrics["generation_time"] = time.time() - start_gen
+                reranker_result = await self.call_reranker(
+                    query=user_query,
+                    documents=retrieved_docs,
+                    max_tokens=self.config.get("max_tokens", 1024)
+                )
+
+                metrics["reranking_time"] = time.time() - start_rerank
+
+                # Reranker 응답 파싱
+                response_text = reranker_result.get("result", "답변을 생성할 수 없습니다.")
+                cited_documents = reranker_result.get("citedDocuments", [])
+                suggested_queries = reranker_result.get("suggestedQueries", [])
+
+                # 토큰 사용량
+                usage = reranker_result.get("usage", {})
+                metrics["prompt_tokens"] = usage.get("promptTokens", 0)
+                metrics["completion_tokens"] = usage.get("completionTokens", 0)
+                metrics["total_tokens"] = usage.get("totalTokens", 0)
+
+                formatted_prompt = ""  # Reranker 사용 시 프롬프트 미사용
+
+                logger.info(f"✅ Reranker cited {len(cited_documents)} documents")
+
+            else:
+                # 기존 LLM 파이프라인
+                logger.info(f"🤖 Using traditional LLM pipeline with {len(retrieved_docs)} documents...")
+
+                # 프롬프트 구성
+                context_text = "\n\n".join([row.context for row in retrieved_games])
+                chain_input = {"context": context_text, "question": user_query, "history": ""}
+
+                formatted_prompt_val = self.prompt_template.invoke(chain_input)
+                formatted_prompt = formatted_prompt_val.to_string()
+
+                # LLM 생성
+                start_gen = time.time()
+                response_msg = await self.llm.ainvoke(formatted_prompt_val)
+                response_text = self.output_parser.invoke(response_msg)
+                metrics["generation_time"] = time.time() - start_gen
 
             metrics["total_time"] = time.time() - start_total
-            
-            return response_text, retrieved_docs, formatted_prompt, metrics
+
+            return response_text, retrieved_docs, formatted_prompt, metrics, cited_documents, suggested_queries
 
         except Exception as e:
             logger.error(f"❌ Generation error: {e}")
+            traceback.print_exc()
             metrics["total_time"] = time.time() - start_total
-            return f"오류가 발생했습니다: {str(e)}", [], "", metrics
+            return f"오류가 발생했습니다: {str(e)}", [], "", metrics, [], []
 
     async def generate_response(self, user_query: str) -> str:
-        resp, _, _, _ = await self.generate_response_with_details(user_query)
+        resp, _, _, _, _, _ = await self.generate_response_with_details(user_query)
         return resp
     
     def cleanup(self):
