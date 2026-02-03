@@ -38,10 +38,11 @@ class ClovaProvider(LLMProvider):
     async def chat(
         self,
         messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None = None,
         model: str | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.5,
+        tools: list[dict[str, Any]] | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> LLMResponse:
         """
         Send a chat completion request to Clova X.
@@ -61,6 +62,15 @@ class ClovaProvider(LLMProvider):
         if tools:
             extra_params['tools'] = tools
             extra_params['toolChoice'] = "auto"
+        
+        if response_format:
+            # Clova Studio (via OpenAI Compatible) generally expects JSON schema in extra_body or response_format
+            # Here we map it to extra_body as used in previous orchestrator implementation
+            extra_params['type'] = "json"
+            extra_params['schema'] = {
+                    "type": "object",
+                    "responseFormat": response_format
+                }
             
         try:
             logger.debug(f"Sending request to Clova X ({model})...")
