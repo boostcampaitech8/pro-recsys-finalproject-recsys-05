@@ -97,6 +97,16 @@ jobs:
 
       - name: Create backend env for compose_pr (local-style)
         run: |
+          # 1. 루트 .env (Docker Compose 변수 치환용)
+          cat > .env << EOF
+          POSTGRES_USER=myuser
+          POSTGRES_PASSWORD=mypassword
+          POSTGRES_DB=mydatabase
+          DOCKER_USERNAME=local
+          IMAGE_TAG=dev
+          EOF
+
+          # 2. configs/backend/.env (백엔드 애플리케이션용)
           mkdir -p configs/backend
           cat > configs/backend/.env << EOF
           ENV=ci
@@ -170,6 +180,9 @@ jobs:
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           REDIS_URL=${{ secrets.REDIS_URL }}
           ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
           DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}

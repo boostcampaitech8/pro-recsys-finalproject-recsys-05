@@ -3,6 +3,7 @@ import sys
 import os
 import random
 import numpy as np # Added numpy import
+import pytest
 
 
 # Add backend directory to path
@@ -15,6 +16,7 @@ from app.core.config import settings # Added settings import
 # -----------------------------------------------------------------------------
 # Test Vector Search
 # -----------------------------------------------------------------------------
+@pytest.mark.asyncio
 async def test_vector_search(): # Renamed function
     print("🚀 Vector Search Test Start")
     
@@ -30,6 +32,7 @@ async def test_vector_search(): # Renamed function
 from app.core.database import get_db
 from app.domains.game.repository import GameRepository
 
+@pytest.mark.asyncio
 async def test_search():
     print("🚀 Vector Search Test Start")
     
