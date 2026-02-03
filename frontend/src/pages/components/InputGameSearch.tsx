@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
 interface InputGameSearchProps {
-  onSearch?: (query: string) => void;
+  onSearch?: (query: string) => void | Promise<void>;
   isLoading?: boolean;
 }
 
