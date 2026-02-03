@@ -133,6 +133,7 @@ async def lifespan(app: FastAPI):
     await chatbot.initialize(
         engine=engine,
         clova_api_key=os.getenv("CLOVA_API_KEY"),
+        clova_base_url=os.getenv("CLOVA_BASE_URL") or "https://clovastudio.stream.ntruss.com/v1/openai/",
         model_name="HCX-DASH-001",
     )
     

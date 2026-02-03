@@ -95,16 +95,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Create env file from secrets
+      - name: Create backend env for compose_pr (local-style)
         run: |
-          cat > .env << EOF
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          REDIS_URL=${{ secrets.REDIS_URL }}
-          ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          mkdir -p configs/backend
+          cat > configs/backend/.env << EOF
+          ENV=ci
+          DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
+          REDIS_URL=redis://redis:6379/0
+          ML_REC_ROOT=/app/ml_rec
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
-          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
           CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+          CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
           EOF
 
       - name: Build and Run with Docker Compose (override)
@@ -130,7 +132,7 @@ jobs:
 
       - name: Tear Down
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml down
 
   # ---------------------------------------------------
   # [배포: Build & Deploy]
@@ -138,13 +140,25 @@ jobs:
   # ---------------------------------------------------
   pipeline:
     needs: test
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Set image tag
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
+            echo "IMAGE_TAG=dev" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          else
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          fi
 
       # ---------------------------------------------------
       # [환경 변수 설정]
@@ -160,7 +174,13 @@ jobs:
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
           DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
           CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+          CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
+          IMAGE_TAG=${IMAGE_TAG}
           EOF
+
+      - name: Build Backend Image (runner)
+        run: |
+          docker build --target runner -t ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG} .
 
       # ---------------------------------------------------
       # [통합 테스트: Docker Compose]
@@ -168,8 +188,7 @@ jobs:
       # ---------------------------------------------------
       - name: Build and Run with Docker Compose
         run: |
-          # Use Base + Prod override
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+          # Use Base + Prod override (이미지 pull 기반)
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
           echo "Waiting for services to start..."
           sleep 20  # DB 초기화 및 서버 구동 대기
@@ -192,7 +211,7 @@ jobs:
 
       - name: Tear Down
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
       # ---------------------------------------------------
       # [빌드 및 푸시]
@@ -203,21 +222,9 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Backend Image (Compose)
-        if: github.event_name != 'pull_request'
+      - name: Push Backend Image
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend
-
-      - name: Push Backend Image (latest on main)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:latest
-
-      - name: Tag and Push Backend Image (release tag)
-        if: github.event_name != 'pull_request' && github.ref_type == 'tag'
-        run: |
-          docker tag ${{ secrets.DOCKER_USERNAME }}/rec-server:latest ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ github.ref_name }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG}
 
     # ---------------------------------------------------
     # [서버 배포: SSH]
@@ -237,7 +244,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
-          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx"
+          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx,Dockerfile"
           target: "pro-recsys-finalproject-recsys-05"
 
       - name: Deploy to Server

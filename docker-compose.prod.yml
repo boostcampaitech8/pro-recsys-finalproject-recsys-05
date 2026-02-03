@@ -1,20 +1,32 @@
 version: "3.8"
 
 services:
+  # [Production] Frontend (Docker Hub에서 이미지 다운로드)
+  frontend:
+    image: your-registry/rec-frontend:latest
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   nginx:
-    build: ./backend/nginx
+    image: nginx:alpine
     ports:
       - "80:80"
     depends_on:
       - backend
     networks:
       - app_network
+    volumes:
+      - ./backend/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
   backend:
-    build:
-      context: .
-      target: runner
-    image: ${DOCKER_USERNAME}/rec-server:latest
+    image: ${DOCKER_USERNAME}/rec-server:${IMAGE_TAG:-latest}
     restart: unless-stopped
 
     env_file:
