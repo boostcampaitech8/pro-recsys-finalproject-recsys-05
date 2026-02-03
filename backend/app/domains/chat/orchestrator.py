@@ -9,6 +9,8 @@ from app.domains.chat.providers.base import LLMProvider
 from app.domains.chat.tools.base import Tool
 from app.domains.chat.agent.engine import AgentEngine
 from app.domains.chat.interfaces import UserIntent
+from app.domains.chat.tools.tools import get_game_tools
+from app.core.logger import logger
 
 template_system="""
         당신은 Steam 게임 추천 서비스의 최상위 '의도 분류기(Intent Router)'입니다.
@@ -184,7 +186,7 @@ class SteamBotOrchestrator:
             embedding_model: 임베딩 모델 (선택)
         """
         # 0. 도구 생성 (Per Request)
-        current_tools = self.registry.create_tools(db_session, embedding_model)
+        current_tools = get_game_tools(db_session, embedding_model)
         
         # 1. 의도 파악 (History 반영)
         analysis = await self.classify_intent(user_message, history)
