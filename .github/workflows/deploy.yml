@@ -170,6 +170,9 @@ jobs:
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           REDIS_URL=${{ secrets.REDIS_URL }}
           ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
           DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}

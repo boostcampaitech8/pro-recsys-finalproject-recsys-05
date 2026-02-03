@@ -133,13 +133,19 @@ async def single_chat_recommend(
 # -----------------------------------------------------------------------------
 
 @router.post("/conversations", response_model=ConversationResponse, summary="대화방 생성 (Multi-turn)")
-async def create_conversation(db: AsyncSession = Depends(get_db)):
-    user_id = 1  # TODO: Auth
+async def create_conversation(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Header(..., alias="id", description="user id"),
+):
     return await services.create_conversation(db, user_id=user_id)
 
 @router.get("/conversations", response_model=List[ConversationResponse], summary="대화방 목록 조회")
-async def get_conversations(skip: int = 0, limit: int = 20, db: AsyncSession = Depends(get_db)):
-    user_id = 1
+async def get_conversations(
+    skip: int = 0,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Header(..., alias="id", description="user id"),
+):
     return await services.get_user_conversations(db, user_id, skip, limit)
 
 @router.post("/conversations/{conversation_id}/messages", response_model=MultiTurnChatResponse, summary="메시지 전송 (대화 + optional 추천)")
@@ -147,12 +153,12 @@ async def send_message(
     conversation_id: int,
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
-    bot: chatbot = Depends(get_chatbot)
+    bot: chatbot = Depends(get_chatbot),
+    user_id: int = Header(..., alias="id", description="user id"),
 ):
     if not bot.is_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
-    user_id = 1  # TODO: Auth
 
     try:
         ai_msg, retrieved_docs, debug = await services.process_chat_turn(
@@ -187,12 +193,12 @@ async def send_message_stream(
     conversation_id: int,
     request: MessageCreate,
     db: AsyncSession = Depends(get_db),
-    bot: chatbot = Depends(get_chatbot)
+    bot: chatbot = Depends(get_chatbot),
+    user_id: int = Header(..., alias="id", description="user id"),
 ):
     if not bot.is_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
-    user_id = 1
 
     async def event_gen():
         try:
