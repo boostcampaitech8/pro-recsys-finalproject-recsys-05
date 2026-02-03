@@ -20,8 +20,9 @@ from app.domains.chat.schemas import (
 )
 from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest, TestResponse, TestRequest
 from app.domains.chat.chatbot import get_chatbot, chatbot
-from app.domains.chat.orchestrator import SteamOrchestrator, IntentAnalysis
+from app.domains.chat.orchestrator import SteamOrchestrator, IntentAnalysis, SteamBotOrchestrator
 from app.domains.chat.agent.engine import AgentEngine
+from app.domains.chat.tools.registry import ToolRegistry
 from app.domains.chat import services
 from app.core.database import get_db
 from app.core.logger import logger
@@ -196,33 +197,22 @@ async def agent_endpoint(request: TestRequest):
         api_base=os.getenv("CLOVA_BASE_URL"),
         default_model="HCX-007"
     )
-    tools = {}
     
-    # TODO: tool 추후 추가예정(예시)
-    # steam_tool = SteamTool()
-    # popular_tool = PopularGamesTool()
-    # user_tool = UserProfileTool()
-    # recsys_tool = RecommendationTool()
+    registry = ToolRegistry()
+    tools = registry.get_tools()
     
-    # # Register tools by their schema name
-    # tools[steam_tool.openai_schema['function']['name']] = steam_tool
-    # tools[popular_tool.openai_schema['function']['name']] = popular_tool
-    # tools[user_tool.openai_schema['function']['name']] = user_tool
-    # tools[recsys_tool.openai_schema['function']['name']] = recsys_tool
-    
-    agent_engine = AgentEngine(
-        llm_provider=provider,
-        tools=tools,
-        max_iterations=3
+    orchestrator = SteamBotOrchestrator(
+        provider=provider,
+        tools=tools
     )
     
-    if not agent_engine:
-        raise HTTPException(status_code=500, detail="Agent engine not initialized")
-        
+    if not orchestrator:
+        raise HTTPException(status_code=500, detail="Orchestrator not initialized")
+    
     try:
-        response_text = await agent_engine.run_turn(
+        response_text = await orchestrator.handle_request(
             user_message=request.message,
-            history=[] # TODO: 테스트에서는 임시로 비워둠. 나중에 DB에서 가져와야 함
+            history=[]
         )
         return TestResponse(message=response_text)
     except Exception as e:
