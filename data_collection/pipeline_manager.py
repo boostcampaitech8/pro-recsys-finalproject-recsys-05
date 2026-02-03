@@ -1,7 +1,7 @@
 import logging
 import json
 import os
-import random
+
 import datetime
 from pathlib import Path
 from typing import List

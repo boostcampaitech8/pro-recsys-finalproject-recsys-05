@@ -1,11 +1,10 @@
 # 📊 Advanced Data Collection Pipeline
 
-이 디렉토리는 **APScheduler**를 기반으로 작동하는 Steam 데이터 수집 전용 엔진입니다.
+이 디렉토리는 Steam 데이터 수집 전용 엔진입니다.
 추천 시스템에 필요한 양질의 데이터(Top Games, Reviews, User Activities)를 안정적으로 수집하며, **Legacy 데이터 포맷과 완벽하게 호환**되어 기존 데이터셋과 함께 사용할 수 있습니다.
 
 ## 🏗️ 폴더 구조
 
-- `scheduler_aps.py`: **[Main]** 주기적 수집을 담당하는 스케줄러 (진입점)
 - `pipeline_manager.py`: 전체 수집 프로세스(게임->리뷰->유저) 통합 관리자
 - `collect_*.py`: 각 데이터 유형별 수집 모듈 (Games, Reviews, Users)
     - `collect_games.py`: 스마트 필터링(신작 보호) 및 정밀 파싱(Archive Logic) 적용
@@ -25,14 +24,14 @@
 3.  **증분 수집 (Incremental)**:
     -   리뷰 수집 시 스냅샷(덮어쓰기) 방식이 아닌, **개별 리뷰 단위(Recommendation ID) 저장** 방식을 사용합니다.
     -   이미 수집된 리뷰는 API 단계에서 필터링하거나 저장하지 않아 **중복 데이터가 발생하지 않습니다.**
-4.  **APScheduler 도입**: Airflow 없이 파이썬 스크립트 하나로 가볍고 강력한 스케줄링을 지원합니다.
-5.  **증분 저장 (Delta Logging)**: 매 실행 시 `../data/logs/collection_delta_...jsonl` 파일을 생성하여 신규 수집된 데이터만 따로 확인할 수 있습니다.
+4.  **증분 저장 (Delta Logging)**: 매 실행 시 `../data/logs/collection_delta_...jsonl` 파일을 생성하여 신규 수집된 데이터만 따로 확인할 수 있습니다.
 
 ## 🛠️ 실행 방법
 
 이 폴더(`data_collection`)가 아닌 **프로젝트 루트**에서 아래 명령어를 실행하는 것을 권장합니다.
+(현재 스케줄러 파일은 `scheduler_prefect.py`로 대체되었거나 파이프라인 매니저를 직접 호출합니다.)
 
 ```bash
-# 스케줄러 실행 (테스트/운영 모드 설정은 코드 내 args 수정)
-python data_collection/scheduler_aps.py
+# 파이프라인 직접 실행
+python data_collection/pipeline_manager.py
 ```

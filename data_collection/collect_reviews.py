@@ -2,7 +2,7 @@ from core.api_handler import SteamAPIHandler
 from core.data_manager import DataManager
 import logging
 import re
-from datetime import datetime
+
 
 logger = logging.getLogger(__name__)
 
