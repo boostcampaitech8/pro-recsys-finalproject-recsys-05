@@ -27,7 +27,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # 헬스체크용 curl 설치 (개발 환경에서도 헬스체크가 필요한 경우)
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
+# Entrypoint 스크립트 복사 및 실행 권한 부여
+COPY backend/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 8000 5678
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # ==========================================
@@ -55,9 +60,14 @@ COPY configs/ ./configs/
 COPY ml_rec/ ./ml_rec/
 COPY backend/ ./backend/
 
+# Entrypoint 스크립트 복사 및 실행 권한 부여
+COPY backend/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # 실행 경로 설정
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app/backend:/app
 ENV ML_REC_ROOT=/app/ml_rec
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
