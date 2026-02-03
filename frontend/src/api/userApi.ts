@@ -13,7 +13,7 @@ export async function sendChatMessage(
 ): Promise<UserChatResponse> {
   const baseUrl = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
 
-  const response = await fetch(`${baseUrl}/chat/chat/messages/llm-only`, {
+  const response = await fetch(`${baseUrl}/chat/chat/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

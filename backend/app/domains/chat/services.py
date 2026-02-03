@@ -320,7 +320,7 @@ async def process_chat_by_user(
                 conversation_id = conversation.conversation_id
     
     # 2. Chat Logic 실행
-    ai_msg, retrieved_docs, debug = await process_chat_turn(
+    ai_msg, retrieved_docs, debug = await process_chat_turn_agent(
         db=db,
         bot=bot,
         conversation_id=conversation_id,

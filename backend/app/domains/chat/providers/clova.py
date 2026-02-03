@@ -62,6 +62,7 @@ class ClovaProvider(LLMProvider):
         if tools:
             extra_params['tools'] = tools
             extra_params['toolChoice'] = "auto"
+            logger.info(f"Tools payload: {json.dumps(tools, indent=2, ensure_ascii=False)}")
         
         if response_format:
             # Clova Studio (via OpenAI Compatible) generally expects JSON schema in extra_body or response_format
