@@ -170,11 +170,12 @@ class SteamBotOrchestrator:
             return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
 
     async def handle_request(
-        self, 
-        user_message: str, 
+        self,
+        user_message: str,
         history: List[Dict[str, Any]],
         db_session: Any,
-        embedding_model: Any = None
+        embedding_model: Any = None,
+        steam_id: Optional[str] = None
     ):
         """
         메인 진입점: 의도 파악 -> 적절한 함수 실행 -> 결과 반환
@@ -194,7 +195,7 @@ class SteamBotOrchestrator:
 
         # 2. Dispatch
         if analysis.intent == UserIntent.RECOMMENDATION:
-            return await self._run_recommendation_agent(analysis, user_message, history, current_tools)
+            return await self._run_recommendation_agent(analysis, user_message, history, current_tools, steam_id)
         
         elif analysis.intent == UserIntent.SEARCH:
             return await self._run_search_tool(analysis, user_message, history, current_tools)
@@ -219,18 +220,19 @@ class SteamBotOrchestrator:
                 filtered[name] = tool
         return filtered
 
-    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool]):
+    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool], steam_id: Optional[str] = None):
         """추천 에이전트 실행"""
         # 추천 태그가 있는 도구만 필터링
         rec_tools = self._filter_tools(UserIntent.RECOMMENDATION, tools)
-        
+
         logger.info(f"🤖 추천 에이전트 전환 (Tools: {list(rec_tools.keys())})")
-        
+
         # AgentEngine을 즉석에서 생성하여 실행 (Stateless)
         agent = AgentEngine(
             llm_provider=self.provider,
             tools=rec_tools,
-            max_iterations=3 # 추천은 빠르게
+            max_iterations=3,  # 추천은 빠르게
+            steam_id=steam_id
         )
         
         # 키워드를 문맥에 포함시켜줄 수도 있음

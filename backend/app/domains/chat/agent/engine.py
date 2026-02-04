@@ -23,11 +23,13 @@ class AgentEngine:
         self,
         llm_provider: Any, # Typed as Any for now, will be ClovaProvider
         tools: dict[str, Any], # Map of tool_name -> tool_callable
-        max_iterations: int = 5
+        max_iterations: int = 5,
+        steam_id: Optional[str] = None
     ):
         self.llm_provider = llm_provider
         self.tools = tools
         self.max_iterations = max_iterations
+        self.steam_id = steam_id
         self.context_builder = ContextBuilder()
 
     async def run_turn(
@@ -109,7 +111,11 @@ class AgentEngine:
                             # Parse arguments
                             tool_func = self.tools[function_name]
                             args = arguments_dict
-                            
+
+                            # Add steam_id if available
+                            if self.steam_id:
+                                args["steam_id"] = self.steam_id
+
                             # Execute (Strict Tool Interface)
                             # All tools must inherit from Tool(ABC) and implement execute()
                             result = await tool_func.execute(**args)

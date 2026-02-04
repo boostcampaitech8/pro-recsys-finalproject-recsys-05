@@ -133,6 +133,7 @@ class MultiTurnChatResponse(BaseModel):
 class ChatTurnRequest(BaseModel):
     user_id: Optional[UUID] = Field(None, description="사용자 ID (첫 방문 시 null, 재방문 시 LocalStorage 값)")
     content: str = Field(..., min_length=1, description="사용자 메시지")
+    steam_id: Optional[str] = Field(None, description="Steam ID (17자리 숫자)")
 
 class ChatTurnResponse(BaseModel):
     user_id: UUID = Field(..., description="사용자 ID (Frontend 저장용)")

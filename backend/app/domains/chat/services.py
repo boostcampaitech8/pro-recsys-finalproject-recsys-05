@@ -197,7 +197,8 @@ async def process_chat_turn_agent(
     bot: chatbot,
     conversation_id: int,
     user_id: UUID,
-    user_content: str
+    user_content: str,
+    steam_id: Optional[str] = None
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
     """
     Multi-turn 대화 한 턴을 처리합니다. (Agent Orchestrator 사용)
@@ -247,7 +248,8 @@ async def process_chat_turn_agent(
         user_message=user_content,
         history=history_structured,
         db_session=db,
-        embedding_model=bot.embeddings
+        embedding_model=bot.embeddings,
+        steam_id=steam_id
     )
     
     duration = time.time() - start_time
@@ -266,7 +268,8 @@ async def process_chat_by_user(
     db: AsyncSession,
     bot: chatbot,
     user_id: Optional[UUID],
-    user_content: str
+    user_content: str,
+    steam_id: Optional[str] = None
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict], int, UUID]:
     """
     User ID 기반으로 챗봇 턴을 처리하는 오케스트레이션 함수.
@@ -325,7 +328,8 @@ async def process_chat_by_user(
         bot=bot,
         conversation_id=conversation_id,
         user_id=current_user_id,
-        user_content=user_content
+        user_content=user_content,
+        steam_id=steam_id
     )
     
     return ai_msg, retrieved_docs, debug, conversation_id, current_user_id
