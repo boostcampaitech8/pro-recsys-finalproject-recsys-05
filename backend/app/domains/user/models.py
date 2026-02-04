@@ -10,7 +10,7 @@ import uuid
 class User(Base):
     __tablename__ = "users"
     
-    steam_id = Column(String(64), unique=True, index=False)
+    steam_id = Column(String(64), unique=True, index=False, nullable=True)
     user_id = Column(PGUUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     
