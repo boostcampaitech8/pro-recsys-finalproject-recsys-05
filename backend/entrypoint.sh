@@ -8,16 +8,25 @@ echo "🔍 Checking GCS key files..."
 echo "  - /app/configs/gcs/gcs_key.json: $([ -f /app/configs/gcs/gcs_key.json ] && echo 'EXISTS' || echo 'NOT FOUND')"
 echo "  - /app/backend/app/gcs_key.json: $([ -f /app/backend/app/gcs_key.json ] && echo 'EXISTS' || echo 'NOT FOUND')"
 
-# 데이터 디렉토리 확인 및 생성
+# 데이터 디렉토리 및 파일 경로 설정
 DATA_DIR="/app/backend/app/data"
-mkdir -p "$DATA_DIR"
+GAMES_DATA_FILE="$DATA_DIR/processed/games_metadata.jsonl"
 
-# games_metadata.jsonl 파일 경로 확인
-GAMES_DATA_FILE="$DATA_DIR/games_metadata.jsonl"
+# 디버그: 파일 상태 확인
+echo "🔍 Checking data file: $GAMES_DATA_FILE"
+if [ -f "$GAMES_DATA_FILE" ]; then
+    echo "   ✅ File exists: $(ls -lh "$GAMES_DATA_FILE" | awk '{print $5}')"
+else
+    echo "   ❌ File does not exist"
+fi
 
 # 데이터 파일이 없으면 다운로드
 if [ ! -f "$GAMES_DATA_FILE" ]; then
     echo "📥 Data file not found. Downloading from GCS..."
+
+    # 다운로드를 위한 디렉토리 생성
+    mkdir -p "$DATA_DIR/processed"
+
     cd /app/backend
 
     # GCS 키 파일이 없으면 경고
