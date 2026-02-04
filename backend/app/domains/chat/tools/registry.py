@@ -26,14 +26,30 @@ class ToolRegistry:
             GameInfoTool,
             GameReviewsTool,
         )
-        
+
         from app.domains.chat.tools.tool_recommand import (
             PersonalizedRecommendationTool,
         )
-        
+
+        from app.domains.chat.reranker import ClovaReranker
+        from app.core.logger import logger
+
+        # Initialize ClovaReranker
+        try:
+            reranker = ClovaReranker()
+            if not reranker.is_available():
+                logger.info("ℹ️ CLOVA Reranker 미설정 (벡터 검색만 사용)")
+        except Exception as e:
+            logger.warning(f"⚠️ ClovaReranker 초기화 실패: {e}")
+            reranker = None
+
         # 1. RAG Search Tool (Requires Embeddings)
         if embedding_model:
-            rag_tool = SearchByEmbeddingTool(db_session=db_session, embeddings_model=embedding_model)
+            rag_tool = SearchByEmbeddingTool(
+                db_session=db_session,
+                embeddings_model=embedding_model,
+                reranker=reranker
+            )
             tools[rag_tool.name] = rag_tool
             
         # 2. Filter Search Tool
