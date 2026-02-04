@@ -48,11 +48,16 @@ class chatbot:
             
             # 1. Embeddings (CPU 모드 명시, 비용 절감 및 호환성)
             logger.info("📦 Loading embeddings model (BAAI/bge-m3)...")
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="BAAI/bge-m3",
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
-            )
+            try:
+                self.embeddings = HuggingFaceEmbeddings(
+                    model_name="BAAI/bge-m3",
+                    model_kwargs={'device': 'cpu'},
+                    encode_kwargs={'normalize_embeddings': True}
+                )
+                logger.info("✅ Embeddings model loaded successfully")
+            except Exception as emb_err:
+                logger.error(f"❌ Embeddings model loading failed: {type(emb_err).__name__}: {emb_err}")
+                self.embeddings = None
 
             self.engine = engine
             

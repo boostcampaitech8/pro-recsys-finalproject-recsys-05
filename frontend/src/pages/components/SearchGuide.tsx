@@ -10,7 +10,12 @@ export function SearchGuide() {
             </span>
           </div>
           <p className="text-xs leading-relaxed">
-            안녕하세요! 👋 저는 당신의 게임 취향을 분석해주는 AI입니다. 찾고 싶은 게임의 장르, 특징, 플레이 스타일 등을 자유롭게 입력해보세요. 당신의 취향에 맞는 게임들을 추천해드리겠습니다.
+            안녕하세요! 👋 저는 당신의 게임 취향을 분석해주는 AI입니다.
+            <br />
+            <br />
+            정밀한 추천을 위해 <span className="font-bold text-emerald-300">steam_id를 입력해주세요.</span> <br /> 찾고 싶은 게임의
+            장르, 특징, 플레이 스타일 등을 자유롭게 입력해보세요. 당신의 취향에
+            맞는 게임들을 추천해드리겠습니다.
           </p>
         </div>
       </div>

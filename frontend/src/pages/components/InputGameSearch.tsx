@@ -11,6 +11,7 @@ export function InputGameSearch({
 }: InputGameSearchProps) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const isComposingRef = useRef(false);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -31,9 +32,19 @@ export function InputGameSearch({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !isLoading) {
+    // IME(한글, 일본어 등) 입력 중에는 Enter 키를 무시
+    if (e.key === "Enter" && !isLoading && !isComposingRef.current) {
+      e.preventDefault();
       void handleSearch();
     }
+  };
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const handleCompositionEnd = () => {
+    isComposingRef.current = false;
   };
 
   return (
@@ -47,6 +58,8 @@ export function InputGameSearch({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             disabled={isLoading}
             className="border-0 border-b-2 p-2 text-center border-emerald-400 outline-none text-emerald-300 placeholder-gray-400 disabled:opacity-50 bg-transparent"
             placeholder="What kind of games are you looking for?"

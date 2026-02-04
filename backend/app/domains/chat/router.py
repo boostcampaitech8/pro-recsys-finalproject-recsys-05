@@ -254,7 +254,8 @@ async def chat_unified(
             db=db,
             bot=bot,
             user_id=request.user_id,
-            user_content=request.content
+            user_content=request.content,
+            steam_id=request.steam_id
         )
         
         # MVP game list mapping
