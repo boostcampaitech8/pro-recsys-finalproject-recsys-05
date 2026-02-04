@@ -6,7 +6,12 @@ import { FloatingGameButton } from "@/components/game/FloatingGameButton";
 import { GameModal } from "@/components/game/GameModal";
 import { GameFlapperGame } from "@/components/game/GameFlapperGame";
 import { sendChatMessage } from "@/api/userApi";
-import { getUserId, setUserId } from "@/utils/userStorage";
+import {
+  getUserId,
+  setUserId,
+  getSteamId,
+  setSteamId,
+} from "@/utils/userStorage";
 
 const loadChatHistory = (): ChatMessage[] => {
   const savedMessages = localStorage.getItem("chatMessages");
@@ -25,19 +30,36 @@ const loadChatHistory = (): ChatMessage[] => {
   return [];
 };
 
+type SteamIdStatus =
+  | "not_collected"
+  | "valid"
+  | "invalid_ask_retry"
+  | "skipped";
+
 export default function MainPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(loadChatHistory);
   const [isLoading, setIsLoading] = useState(false);
   const [isGameOpen, setIsGameOpen] = useState(false);
+  const [steamIdStatus, setSteamIdStatus] = useState<SteamIdStatus>(() => {
+    return getSteamId() ? "valid" : "not_collected";
+  });
 
   // messages 상태 변경 시 localStorage에 저장
   useEffect(() => {
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
+  const validateSteamId = (steamId: string): boolean => {
+    // Steam ID는 17자리 숫자로 구성됨
+    const steamIdRegex = /^\d{17}$/;
+    return steamIdRegex.test(steamId.trim());
+  };
+
   const handleClearChat = () => {
     setMessages([]);
     localStorage.removeItem("chatMessages");
+    localStorage.removeItem("steam_id");
+    setSteamIdStatus("not_collected");
   };
 
   const handleSendMessage = async (query: string) => {
@@ -54,6 +76,82 @@ export default function MainPage() {
     setIsLoading(true);
 
     try {
+      // Case 1: Steam ID 수집 중
+      if (steamIdStatus === "not_collected") {
+        const isValid = validateSteamId(query);
+
+        if (isValid) {
+          setSteamId(query.trim());
+          setSteamIdStatus("valid");
+          const aiMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: query,
+            message: "이 아이디를 통해 user의 게임 리스트와 정보를 불러옵니다.",
+            games: [],
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+        } else {
+          setSteamIdStatus("invalid_ask_retry");
+          const aiMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: query,
+            message:
+              "올바른 Steam ID 형식이 아닙니다. Steam ID는 17자리 숫자입니다. 재입력하시겠습니까? (예/아니오)",
+            games: [],
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Case 2: 재입력 여부 질문 중
+      if (steamIdStatus === "invalid_ask_retry") {
+        const answer = query.trim().toLowerCase();
+        // 긍정 답변 체크 (예, 응, 네, yes, y, ㅇㅇ 등)
+        const isPositive = [
+          "예",
+          "응",
+          "네",
+          "yes",
+          "y",
+          "ㅇㅇ",
+          "ㅇ",
+        ].includes(answer);
+
+        if (isPositive) {
+          setSteamIdStatus("not_collected");
+          const aiMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: query,
+            message: "Steam ID를 다시 입력해주세요.",
+            games: [],
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+        } else {
+          setSteamIdStatus("skipped");
+          const aiMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: query,
+            message:
+              "steamid가 없어도 서비스 이용 가능합니다. 원하시는 게임을 물어보세요.",
+            games: [],
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Case 3: 정상 API 통신 (steamIdStatus === 'valid' 또는 'skipped')
       const userId = getUserId();
       const response = await sendChatMessage({
         content: query,
