@@ -49,18 +49,23 @@ async def init_db_and_load_data():
         # 2단계: 게임 데이터 및 ML 모델 다운로드
         try:
             data_dir = Path(__file__).parent / "data"
-            data_dir.mkdir(exist_ok=True)
-            data_file = data_dir / "processed/games_metadata.jsonl"
-            model_file = data_dir / "item_similarity.pkl"
+            processed_dir = data_dir / "processed"
+            processed_dir.mkdir(parents=True, exist_ok=True)
+            data_file = processed_dir / "games_metadata.jsonl"
 
-            # 로컬에 파일이 이미 있으면 GCS 다운로드 스킵
-            if data_file.exists() and model_file.exists():
-                logger.info("✅ Data files already exist locally, skipping GCS download")
-            # GCS에서 다운로드 (gcs_key.json이 있으면)
-            elif os.path.exists(Path(__file__).parent / "gcs_key.json"):
-                logger.info("📥 Attempting to download data and models from GCS...")
+            # ML 모델은 ml_rec/saved_models에 있음
+            ml_rec_root = Path(os.getenv("ML_REC_ROOT", "/app/ml_rec"))
+            model_file = ml_rec_root / "saved_models" / "item_similarity.pkl"
+
+            # GCS 키 파일 확인
+            has_gcs_key = os.path.exists(Path(__file__).parent / "gcs_key.json")
+
+            # 게임 데이터 다운로드 (없을 때만)
+            if data_file.exists():
+                logger.info("✅ Game data already exists locally, skipping download")
+            elif has_gcs_key:
+                logger.info("📥 Downloading game data from GCS...")
                 try:
-                    # manage_data.py를 subprocess로 실행 - 게임 데이터
                     process = await asyncio.create_subprocess_exec(
                         sys.executable,
                         "scripts/manage_data.py",
@@ -78,8 +83,12 @@ async def init_db_and_load_data():
                 except Exception as e:
                     logger.warning(f"⚠️ Could not download game data from GCS: {e}")
 
+            # ML 모델 다운로드 (없을 때만)
+            if model_file.exists():
+                logger.info("✅ ML model already exists locally, skipping download")
+            elif has_gcs_key:
+                logger.info("📥 Downloading ML model from GCS...")
                 try:
-                    # manage_data.py를 subprocess로 실행 - 아이템 유사도 모델
                     process = await asyncio.create_subprocess_exec(
                         sys.executable,
                         "scripts/manage_data.py",
@@ -97,19 +106,26 @@ async def init_db_and_load_data():
                 except Exception as e:
                     logger.warning(f"⚠️ Could not download ML model from GCS: {e}")
 
-            # 3단계: 데이터 파일이 있으면 로드
-            if data_file.exists():
-                logger.info(f"📊 Loading game data from {data_file}...")
-                # load_games.py의 insert_games 함수 호출
-                parent_dir = Path(__file__).parent.parent
-                if str(parent_dir) not in sys.path:
-                    sys.path.insert(0, str(parent_dir))
+            # 3단계: DB에 데이터가 없으면 로드
+            async with SessionLocal() as db:
+                # DB에 이미 게임 데이터가 있는지 확인
+                result = await db.execute(text("SELECT COUNT(*) FROM games"))
+                game_count = result.scalar()
 
-                from scripts.load_games import insert_games
-                await insert_games(str(data_file))
-                logger.info("✅ Game data loaded successfully")
-            else:
-                logger.info("💡 No game data file found. Starting with empty database.")
+                if game_count > 0:
+                    logger.info(f"✅ Database already has {game_count} games, skipping data load")
+                elif data_file.exists():
+                    logger.info(f"📊 Loading game data from {data_file}...")
+                    # load_games.py의 insert_games 함수 호출
+                    parent_dir = Path(__file__).parent.parent
+                    if str(parent_dir) not in sys.path:
+                        sys.path.insert(0, str(parent_dir))
+
+                    from scripts.load_games import insert_games
+                    await insert_games(str(data_file))
+                    logger.info("✅ Game data loaded successfully")
+                else:
+                    logger.info("💡 No game data file found. Starting with empty database.")
 
         except Exception as e:
             logger.warning(f"⚠️ Data loading skipped: {e}")
