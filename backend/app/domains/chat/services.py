@@ -198,7 +198,8 @@ async def process_chat_turn_agent(
     conversation_id: int,
     user_id: UUID,
     user_content: str,
-    steam_id: Optional[str] = None
+    steam_id: Optional[str] = None,
+    include_reasoning: bool = True
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
     """
     Multi-turn 대화 한 턴을 처리합니다. (Agent Orchestrator 사용)
@@ -250,7 +251,10 @@ async def process_chat_turn_agent(
         history=history_structured,
         db_session=db,
         embedding_model=bot.embeddings,
-        steam_id=steam_id
+        db_session=db,
+        embedding_model=bot.embeddings,
+        steam_id=steam_id,
+        include_reasoning=include_reasoning
     )
     
     duration = time.time() - start_time
@@ -259,9 +263,9 @@ async def process_chat_turn_agent(
     # 4) assistant 저장
     ai_msg = await repo.add_message(conversation_id, "assistant", response_text)
 
-    # 5) 추천 결과 처리 (현재 Agent는 text만 반환하므로 생략)
-    retrieved_docs = None
-
+    # 5) 추천 결과 처리 (Tuple에서 받은 docs 반환)
+    # retrieved_docs is already list of dicts or None
+    
     return ai_msg, retrieved_docs, ({"metrics": metrics} if metrics else None)
 
 
@@ -270,7 +274,8 @@ async def process_chat_by_user(
     bot: chatbot,
     user_id: Optional[UUID],
     user_content: str,
-    steam_id: Optional[str] = None
+    steam_id: Optional[str] = None,
+    include_reasoning: bool = True
 ) -> Tuple[Message, Optional[list[Any]], Optional[dict], int, UUID]:
     """
     User ID 기반으로 챗봇 턴을 처리하는 오케스트레이션 함수.
@@ -330,7 +335,8 @@ async def process_chat_by_user(
         conversation_id=conversation_id,
         user_id=current_user_id,
         user_content=user_content,
-        steam_id=steam_id
+        steam_id=steam_id,
+        include_reasoning=include_reasoning
     )
     
     return ai_msg, retrieved_docs, debug, conversation_id, current_user_id

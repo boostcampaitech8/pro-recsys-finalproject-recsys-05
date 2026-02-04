@@ -25,13 +25,15 @@ class AgentEngine:
         tools: dict[str, Any], # Map of tool_name -> tool_callable
         max_iterations: int = 5,
         steam_id: Optional[str] = None,
-        embedding_model: Optional[Any] = None
+        embedding_model: Optional[Any] = None,
+        include_reasoning: bool = True
     ):
         self.llm_provider = llm_provider
         self.tools = tools
         self.max_iterations = max_iterations
         self.steam_id = steam_id
         self.embedding_model = embedding_model
+        self.include_reasoning = include_reasoning # 추천 사유 생성 여부 제어
         self.context_builder = ContextBuilder()
 
     async def run_turn(
@@ -119,8 +121,13 @@ class AgentEngine:
                                 args["steam_id"] = self.steam_id
 
                             # Add embedding_model if available
+                            # 임베딩 모델이 있으면 주입
                             if self.embedding_model is not None:
                                 args["embedding_model"] = self.embedding_model
+                                
+                            # include_reasoning 주입 (추천 사유 생성 여부 제어)
+                            if "include_reasoning" not in args:
+                                 args["include_reasoning"] = self.include_reasoning
 
                             # Execute (Strict Tool Interface)
                             # All tools must inherit from Tool(ABC) and implement execute()

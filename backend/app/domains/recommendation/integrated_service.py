@@ -106,9 +106,44 @@ class IntegratedRecommendationService:
         Raises:
             ValueError: Steam 데이터 조회 실패 또는 게임이 없을 때
         """
-        start_time = time.time()
+        return await self.recommend_hybrid(steamid, top_k, save_history)
 
-        # ========== 1단계: Redis 온라인 캐시 확인 (Week 4) ==========
+    async def recommend_hybrid(
+        self,
+        steamid: str,
+        top_k: int = 10,
+        save_history: bool = True,
+        search_keywords: Optional[List[str]] = None,
+        constraints: Optional[Dict[str, Any]] = None,
+        embedding_model: Optional[Any] = None
+    ) -> Dict:
+        """
+        [Hybrid Recommendation System Placeholder]
+        
+        Note:
+            실제 구현은 다른 팀(RecSys)의 'Retrieval + Re-ranking' 모듈을 호출해야 합니다.
+            현재는 인터페이스만 정의하고, 기존 recommend_from_steam을 호출하거나 Mock 응답을 반환합니다.
+        
+        Flow (Expected):
+            1. Vector Search: 'search_keywords'로 후보군(Candidates) 검색 (e.g. 100개)
+            2. Re-ranking: 'steamid' 이력을 바탕으로 후보군 재정렬 (Personalization)
+            3. Filtering: 'constraints'(가격 등) 적용
+        """
+        logger.info(f"🔄 Hybrid Rec requested: keywords={search_keywords}, constraints={constraints}")
+
+        # TODO: 실제 외부 검색/리랭킹 모듈 호출 구현 필요
+        # e.g. return await self.external_reranker.search_and_rank(steamid, keywords, constraints)
+        
+        # 현재는 기존 로직(BentoML only)으로 Fallback
+        logger.warning("⚠️ Hybrid logic not implemented yet. Falling back to simple personalized recommendation.")
+        return await self.recommend_from_steam(steamid, top_k, save_history)
+
+    async def recommend_from_steam(
+        self,
+        steamid: str,
+        top_k: int = 10,
+        save_history: bool = True
+    ) -> Dict:
         logger.info(f"[Step 1] Checking Redis cache for {steamid}...")
         cached_result = await self.rec_cache.get_online(steamid, top_k)
         if cached_result:

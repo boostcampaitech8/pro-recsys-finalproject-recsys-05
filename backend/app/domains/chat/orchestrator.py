@@ -13,11 +13,19 @@ from app.domains.chat.interfaces import UserIntent
 from app.domains.chat.tools.tools import get_game_tools
 from app.core.logger import logger
 
-template_system="""
+template_system = """
         당신은 Steam 게임 추천 서비스의 최상위 '의도 분류기(Intent Router)'입니다.
         사용자의 입력을 분석하여 다음 중 하나의 의도로 분류하고, 반드시 JSON 형식으로 응답하세요.
-        아래 schema 속성만 답변해
         
+        [가격 조건 처리 가이드]
+        - "10000원 이하": max_price=10000, min_price=0
+        - "10000원 정도": max_price=15000 (상한선은 가격+5000), min_price=0 (하한선은 보통 잡지 않음)
+        - "무료 게임": max_price=0
+        
+        [태그 매핑 가이드]
+        - 사용자의 모호한 장르 표현(예: "총쏘는거", "농사")을 Steam 공식 태그(FPS, Shooter, Farming, Simulation 등)와 유사한 영어 태그로 변환하여 'search_keywords'에 담으세요.
+
+        아래 schema 속성만 답변해
         {schema}
         """
     
@@ -25,7 +33,17 @@ template_system="""
 class IntentAnalysis(BaseModel):
     """의도 분석 결과 스키마"""
     intent: UserIntent = Field(..., description="사용자의 주 의도")
-    keywords: List[str] = Field(default_factory=list, description="핵심 키워드 추출")
+    match_reason: str = Field(..., description="이 의도로 분류한 이유")
+    user_mood: Optional[str] = Field(None, description="사용자의 감정이나 현재 상황 (예: 퇴근 후, 우울함, 신남)")
+    
+    # [Smart Extraction] 가격은 정수로 파싱 (예: "10000원 이하" -> max: 10000)
+    min_price: Optional[int] = Field(None, description="가격 하한선 (KRW). 무료 제외 시 1, '만원 정도'는 0 또는 범위 설정.")
+    max_price: Optional[int] = Field(None, description="가격 상한선 (KRW). '만원 정도'는 +5000원 여유 있게 설정.")
+    
+    # [Smart Mapping] 키워드는 Steam Tag와 유사한 표준 용어로 변환 (예: "총쏘는거" -> "FPS", "Shooter")
+    search_keywords: List[str] = Field(default_factory=list, description="Vector Search용 태그 (표준 장르/태그 용어 사용)")
+    
+    keywords: List[str] = Field(default_factory=list, description="검색용 원본 키워드")
     model_config = {
         "extra": "forbid"  # additionalProperties: false와 동일
     }
@@ -207,7 +225,8 @@ class SteamBotOrchestrator:
         history: List[Dict[str, Any]],
         db_session: Any,
         embedding_model: Any = None,
-        steam_id: Optional[str] = None
+        steam_id: Optional[str] = None,
+        include_reasoning: bool = True
     ):
         """
         메인 진입점: 의도 파악 -> 적절한 함수 실행 -> 결과 반환
@@ -229,9 +248,9 @@ class SteamBotOrchestrator:
         analysis = await self.classify_intent(user_message, history)
         logger.info(f"🔎 분석 결과: [{analysis.intent}] 키워드: {analysis.keywords}")
 
-        # 3. Dispatch
+        # 3. Dispatch (각 의도에 맞는 처리 함수 호출)
         if analysis.intent == UserIntent.RECOMMENDATION:
-            return await self._run_recommendation_agent(analysis, user_message, history, current_tools, steam_id, final_embedding_model)
+            return await self._run_recommendation_agent(analysis, user_message, history, current_tools, steam_id, final_embedding_model, include_reasoning)
 
         elif analysis.intent == UserIntent.SEARCH:
             return await self._run_search_tool(analysis, user_message, history, current_tools, final_embedding_model)
@@ -256,7 +275,7 @@ class SteamBotOrchestrator:
                 filtered[name] = tool
         return filtered
 
-    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool], steam_id: Optional[str] = None, embedding_model: Optional[Any] = None):
+    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool], steam_id: Optional[str] = None, embedding_model: Optional[Any] = None, include_reasoning: bool = True):
         """추천 에이전트 실행"""
         # 추천 태그가 있는 도구만 필터링
         rec_tools = self._filter_tools(UserIntent.RECOMMENDATION, tools)
@@ -269,11 +288,31 @@ class SteamBotOrchestrator:
             tools=rec_tools,
             max_iterations=3,  # 추천은 빠르게
             steam_id=steam_id,
-            embedding_model=embedding_model
+            embedding_model=embedding_model,
+            include_reasoning=include_reasoning
         )
         
-        # 키워드를 문맥에 포함시켜줄 수도 있음
-        context_message = f"{user_message}\n(Context: User is interested in keywords: {analysis.keywords})"
+        # 키워드와 제약조건을 명시적 Context로 변환
+        constraints_dict = {}
+        if analysis.max_price is not None:
+             constraints_dict["budget_constraint"] = f"{analysis.max_price}원 이하"
+             constraints_dict["max_price"] = analysis.max_price
+        if analysis.min_price is not None:
+             constraints_dict["min_price"] = analysis.min_price
+
+        context_message = f"""{user_message}
+
+[System Context]
+- Detected Intent: {analysis.intent}
+- User Mood: {analysis.user_mood or 'None'}
+- Search Keywords (Tags): {analysis.search_keywords}
+- Constraints: {constraints_dict}
+
+Guide:
+1. Call 'get_personalized_recommendations' tool.
+2. Pass 'search_keywords' (list) and 'constraints' (dict) arguments based on the [System Context] above.
+3. You must respond in Korean. (한국어로 답변하세요)
+"""
         
         return await agent.run_turn(
             user_message=context_message,
@@ -284,8 +323,6 @@ class SteamBotOrchestrator:
         """검색 에이전트 실행"""
         # 검색 태그가 있는 도구만 필터링
         search_tools = self._filter_tools(UserIntent.SEARCH, tools)
-
-        logger.info(f"🕵️ 검색 에이전트 전환 (Tools: {list(search_tools.keys())})")
 
         agent = AgentEngine(
             llm_provider=self.provider,
