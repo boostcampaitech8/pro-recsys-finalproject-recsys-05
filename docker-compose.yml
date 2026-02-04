@@ -29,6 +29,7 @@ services:
     volumes:
       - ./ml_rec/saved_models:/app/ml_rec/saved_models
       - ./ml_rec/candidates:/app/ml_rec/candidates
+      - ./ml_rec/dataset:/app/ml_rec/dataset
       - ./ml_rec/logs:/app/ml_rec/logs
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000/" ]
@@ -63,8 +64,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-        # bentoml:
-        # condition: service_healthy
+      bentoml:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
