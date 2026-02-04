@@ -73,7 +73,7 @@ class SteamOrchestrator:
         except Exception as e:
             # 실패 시 기본값(Chitchat)으로 Fallback 처리
             print(f"Routing Error: {e}")
-            return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
+            return IntentAnalysis(intent=UserIntent.CHITCHAT, keywords=["Error fallback"])
 
     async def handle_request(self, user_message: str, session_id: str):
         """
