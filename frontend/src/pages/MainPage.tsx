@@ -153,9 +153,11 @@ export default function MainPage() {
 
       // Case 3: 정상 API 통신 (steamIdStatus === 'valid' 또는 'skipped')
       const userId = getUserId();
+      const steamId = getSteamId();
       const response = await sendChatMessage({
         content: query,
         user_id: userId,
+        steam_id: steamId,
       });
 
       // user_id가 null이었으면 응답에서 온 user_id 저장

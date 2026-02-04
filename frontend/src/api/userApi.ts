@@ -1,6 +1,7 @@
 interface UserChatRequest {
   content: string;
   user_id: string | null;
+  steam_id?: string | null;
 }
 
 export interface UserChatResponse {
