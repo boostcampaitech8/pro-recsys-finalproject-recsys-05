@@ -42,10 +42,17 @@ def get_game_tools(
         logger.warning(f"⚠️ IntegratedRecommendationService 초기화 실패: {e}")
         integrated_service = None
 
+    rag_provider = None
+    try:
+        from app.domains.chat.providers.rag_reasoning import RagReasoningProvider
+        rag_provider = RagReasoningProvider()
+    except Exception as e:
+        logger.warning(f"RagReasoningProvider Init Failed: {e}")
+
     tools = [
         SearchByEmbeddingTool(db_session, embeddings_model),
         SearchGamesByFilterTool(db_session),
-        PersonalizedRecommendationTool(integrated_service, redis_client),
+        PersonalizedRecommendationTool(integrated_service, redis_client, rag_provider),
         GameInfoTool(db_session),
         GameReviewsTool(db_session)
     ]
