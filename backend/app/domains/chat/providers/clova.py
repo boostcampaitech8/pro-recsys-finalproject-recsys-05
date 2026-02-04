@@ -23,9 +23,11 @@ class ClovaProvider(LLMProvider):
         super().__init__(api_key, api_base)
         self.default_model = default_model
         
+        from app.core.config import settings
+        
         # Use env vars if not provided
         self.api_key = api_key or os.getenv("CLOVA_API_KEY") or os.getenv("OPENAI_API_KEY")
-        self.api_base = api_base or os.getenv("CLOVA_BASE_URL", "https://clovastudio.stream.ntruss.com/v1/openai")
+        self.api_base = api_base or settings.CLOVA_CHAT_BASE_URL
         
         if not self.api_key:
             logger.warning("Clova API Key not found. Please set CLOVA_API_KEY env var.")
