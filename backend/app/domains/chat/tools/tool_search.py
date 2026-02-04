@@ -62,8 +62,9 @@ class SearchByEmbeddingTool(Tool):
             sql = """
             SELECT
                 id, name, short_description_kr, genres_kr, price,
-                header_image, (embedding <=> :query_embedding) AS distance
+                header_image, (embedding <=> CAST(:query_embedding AS vector)) AS distance
             FROM games
+            WHERE embedding IS NOT NULL
             ORDER BY distance ASC
             LIMIT :top_k
             """
@@ -80,12 +81,19 @@ class SearchByEmbeddingTool(Tool):
             # 3. 결과 구성 (distance를 similarity_score로 변환)
             response = []
             for row in rows:
+                # genres_kr은 이미 list일 수 있음 (JSONB 컬럼)
+                genres_kr = row.genres_kr
+                if isinstance(genres_kr, str):
+                    genres_kr = json.loads(genres_kr)
+                elif not isinstance(genres_kr, list):
+                    genres_kr = []
+
                 response.append({
                     "game_id": row.id,
                     "name": row.name,
                     "similarity_score": round(1.0 - row.distance, 3),  # 거리 -> 유사도
                     "short_description_kr": row.short_description_kr or "정보 없음",
-                    "genres_kr": json.loads(row.genres_kr) if row.genres_kr else [],
+                    "genres_kr": genres_kr or [],
                     "price": int(row.price) if row.price else 0,
                     "header_image": row.header_image or ""
                 })
