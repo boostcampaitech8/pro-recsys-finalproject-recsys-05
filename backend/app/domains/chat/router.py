@@ -255,17 +255,20 @@ async def chat_unified(
             bot=bot,
             user_id=request.user_id,
             user_content=request.content,
-            steam_id=request.steam_id
+            steam_id=request.steam_id,
+            include_reasoning=request.include_reasoning
         )
         
-        # MVP game list mapping
+        # MVP 게임 리스트 매핑 (AI 모델로부터 받은 추천 결과가 있을 경우)
         game_list = None
         if retrieved_docs:
             game_list = []
             for d in retrieved_docs:
                 item = {
+                    "app_id": d.get("app_id") or d.get("appid") or d.get("id"),
                     "name": d.get("name") or d.get("app_name", "Unknown"),
                     "description": d.get("short_description") or d.get("description", ""),
+                    "reason": d.get("reason"), # AI 생성 추천 사유
                     "price": float(d.get("price") or 0),
                     "similarity_score": d.get("similarity", 0),
                     "image_url": d.get("header_image") or d.get("image_url"),

@@ -5,8 +5,10 @@ from enum import Enum
 from uuid import UUID
 
 class GameInfo(BaseModel):
+    app_id: int = Field(..., description="Steam 앱 ID")
     name: str = Field(..., description="게임 이름")
     description: str = Field(..., description="게임 설명 (요약)")
+    reason: Optional[str] = Field(None, description="AI 추천 사유")
     tags: List[str] = Field(default_factory=list, description="게임 태그 목록 (예: RPG, Action)")
     image_url: Optional[str] = Field(None, description="게임 대표 이미지 URL")
     price: float = Field(..., ge=0, description="가격 (USD 기준)")
@@ -16,8 +18,10 @@ class GameInfo(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
+                "app_id": 1245620,
                 "name": "Elden Ring",
                 "description": "Tarnished가 되어 Elden Ring을 찾아 떠나는 여정...",
+                "reason": "오픈월드 액션 RPG 추천 1순위입니다.",
                 "tags": ["RPG", "Open World", "Fantasy"],
                 "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg",
                 "price": 59.99,
@@ -134,6 +138,18 @@ class ChatTurnRequest(BaseModel):
     user_id: Optional[UUID] = Field(None, description="사용자 ID (첫 방문 시 null, 재방문 시 LocalStorage 값)")
     content: str = Field(..., min_length=1, description="사용자 메시지")
     steam_id: Optional[str] = Field(None, description="Steam ID (17자리 숫자)")
+    include_reasoning: bool = Field(True, description="AI 추천 사유 생성 여부 (True: 생성함, False: 생성안함)")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "user_id": "123e4567-e89b-12d3-a456-426614174000",
+                "content": "로그라이크 게임 추천해줘",
+                "steam_id": "76561198038038836",
+                "include_reasoning": True
+            }
+        }
+    )
 
 class ChatTurnResponse(BaseModel):
     user_id: UUID = Field(..., description="사용자 ID (Frontend 저장용)")
