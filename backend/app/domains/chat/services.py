@@ -37,7 +37,7 @@ def get_orchestrator() -> SteamBotOrchestrator:
         provider = ClovaProvider(
             api_key=os.getenv("CLOVA_API_KEY"),
             api_base=os.getenv("CLOVA_BASE_URL"),
-            default_model="HCX-007"
+            default_model="HCX-005"
         )
         registry = ToolRegistry() # Factory pattern
         
