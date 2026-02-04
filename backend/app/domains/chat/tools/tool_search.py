@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
@@ -8,13 +8,20 @@ from app.core.logger import logger
 # Tool Base Class import (사용자가 제공한 경로)
 from app.domains.chat.tools.base import Tool
 from app.domains.chat.interfaces import UserIntent
+from app.domains.chat.reranker import ClovaReranker
 
 class SearchByEmbeddingTool(Tool):
-    """의미 유사도 기반 게임 검색 (RAG) 도구"""
+    """의미 유사도 기반 게임 검색 (RAG) 도구 - 2단계 파이프라인 (벡터 검색 → Reranking)"""
 
-    def __init__(self, db_session: AsyncSession, embeddings_model=None):
+    def __init__(
+        self,
+        db_session: AsyncSession,
+        embeddings_model=None,
+        reranker: Optional[ClovaReranker] = None
+    ):
         self.db = db_session
         self.embeddings = embeddings_model
+        self.reranker = reranker
 
     @property
     def name(self) -> str:
@@ -58,11 +65,20 @@ class SearchByEmbeddingTool(Tool):
 
             query_embedding = self.embeddings.embed_query(query)
 
-            # 2. pgvector 코사인 유사도 검색
+            # 2. Reranker 사용 여부 결정
+            use_reranker = self.reranker and self.reranker.is_available()
+
+            # Reranker 사용 시 더 많은 후보를 가져옴 (top_k * 3, 최소 20개)
+            retrieval_limit = max(top_k * 3, 20) if use_reranker else min(top_k, 10)
+
+            logger.info(f"{'🔄 2단계 파이프라인 (벡터 검색 → Reranking)' if use_reranker else '📊 단일 벡터 검색'}")
+
+            # 3. pgvector 코사인 유사도 검색 (1단계: Retrieval)
             sql = """
             SELECT
-                id, name, short_description_kr, genres_kr, price,
-                header_image, (embedding <=> CAST(:query_embedding AS vector)) AS distance
+                id, name, short_description_kr, short_description_en,
+                genres_kr, price, header_image, context,
+                (embedding <=> CAST(:query_embedding AS vector)) AS distance
             FROM games
             WHERE embedding IS NOT NULL
             ORDER BY distance ASC
@@ -73,15 +89,67 @@ class SearchByEmbeddingTool(Tool):
                 text(sql),
                 {
                     "query_embedding": json.dumps(query_embedding),
-                    "top_k": min(top_k, 10)  # 최대 10개
+                    "top_k": retrieval_limit
                 }
             )
             rows = result.fetchall()
 
-            # 3. 결과 구성 (distance를 similarity_score로 변환)
+            logger.info(f"📥 벡터 검색 완료: {len(rows)}개 후보 검색됨")
+
+            # 4. Reranker 적용 (2단계: Reranking)
+            if use_reranker and len(rows) > 0:
+                try:
+                    # 문서 텍스트 구성 (context 우선, 없으면 description 사용)
+                    documents = []
+                    for row in rows:
+                        doc_text = row.context or row.short_description_kr or row.short_description_en or row.name
+                        documents.append(doc_text)
+
+                    # Reranker 호출
+                    reranked_results = await self.reranker.rerank(
+                        query=query,
+                        documents=documents,
+                        top_k=top_k
+                    )
+
+                    # Reranked 결과를 게임 데이터로 매핑
+                    response = []
+                    for reranked_item in reranked_results:
+                        original_index = reranked_item.get("index", 0)
+                        rerank_score = reranked_item.get("score", 0.0)
+
+                        if 0 <= original_index < len(rows):
+                            row = rows[original_index]
+
+                            # genres_kr 파싱
+                            genres_kr = row.genres_kr
+                            if isinstance(genres_kr, str):
+                                genres_kr = json.loads(genres_kr)
+                            elif not isinstance(genres_kr, list):
+                                genres_kr = []
+
+                            response.append({
+                                "game_id": row.id,
+                                "name": row.name,
+                                "similarity_score": round(rerank_score, 3),  # Reranker 점수 사용
+                                "short_description_kr": row.short_description_kr or "정보 없음",
+                                "genres_kr": genres_kr or [],
+                                "price": int(row.price) if row.price else 0,
+                                "header_image": row.header_image or ""
+                            })
+
+                    logger.info(f"✅ Reranking 완료: {len(response)}개 게임 반환")
+                    return json.dumps(response, ensure_ascii=False)
+
+                except Exception as rerank_error:
+                    logger.warning(f"⚠️ Reranker 실패, 벡터 검색 결과 사용: {rerank_error}")
+                    # Reranker 실패 시 벡터 검색 결과로 폴백
+                    use_reranker = False
+
+            # 5. Reranker 미사용 또는 실패 시: 벡터 검색 결과 그대로 사용
             response = []
-            for row in rows:
-                # genres_kr은 이미 list일 수 있음 (JSONB 컬럼)
+            for row in rows[:top_k]:  # top_k만큼만 반환
+                # genres_kr 파싱
                 genres_kr = row.genres_kr
                 if isinstance(genres_kr, str):
                     genres_kr = json.loads(genres_kr)
