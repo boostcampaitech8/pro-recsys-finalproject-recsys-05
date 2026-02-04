@@ -4,7 +4,7 @@ from uuid import UUID
 
 # TODO 1: User 생성 요청 (Request DTO)
 class UserCreate(BaseModel):
-    steam_id : str
+    steam_id : str | None = None
     pass
 
 
@@ -15,7 +15,7 @@ class UserUpdate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    steam_id : str
+    steam_id : str | None
     user_id : UUID
     created_at : datetime
     
