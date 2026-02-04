@@ -160,6 +160,8 @@ class SearchGamesByFilterTool(Tool):
         release_year = kwargs.get("release_year")
 
         logger.info(f"🔎 필터 검색: query={query}, price={min_price}-{max_price}, genres={genres}")
+        logger.info(f"🐛 [DEBUG] genres 타입: {type(genres).__name__}, 값: {repr(genres)}")
+        logger.info(f"🐛 [DEBUG] tags 타입: {type(tags).__name__}, 값: {repr(tags)}")
 
         try:
             # 1. 동적 WHERE 조건 빌더
@@ -185,18 +187,86 @@ class SearchGamesByFilterTool(Tool):
             # 2. 장르 필터링 (JSONB @> 포함 검사)
             genre_conditions = []
             if genres:
+                logger.info(f"🔧 genres 타입: {type(genres)}, 값: {genres}")
+                # genres가 JSON 문자열이면 파싱
+                if isinstance(genres, str):
+                    try:
+                        genres = json.loads(genres)
+                    except Exception as e:
+                        logger.warning(f"⚠️ JSON 파싱 실패: {e}, 문자열 처리")
+                        genres = [genres]
+                # genres가 리스트가 아니면 리스트로 변환
+                if not isinstance(genres, list):
+                    genres = [genres]
+
+                # 재귀적으로 모든 중첩된 리스트 펼치기
+                def flatten_list(lst):
+                    result = []
+                    for item in lst:
+                        if isinstance(item, list):
+                            result.extend(flatten_list(item))
+                        else:
+                            result.append(item)
+                    return result
+
+                genres = flatten_list(genres)
+                logger.info(f"✅ 처리된 genres: {genres}")
+
                 for i, genre in enumerate(genres):
+                    logger.info(f"🐛 [Loop {i}] genre 타입: {type(genre).__name__}, 값: {repr(genre)}")
+                    if not genre or not isinstance(genre, str):
+                        genre = str(genre) if genre else ""
+                    logger.info(f"🐛 [Loop {i}] 변환 후 genre: {repr(genre)}, json.dumps 시도 전")
                     genre_conditions.append(f"genres_kr @> :genre_{i}")
-                    params[f"genre_{i}"] = json.dumps([genre], ensure_ascii=False)
+                    try:
+                        params[f"genre_{i}"] = json.dumps([genre], ensure_ascii=False)
+                        logger.info(f"🐛 [Loop {i}] json.dumps 성공: {params[f'genre_{i}']}")
+                    except Exception as e:
+                        logger.error(f"🐛 [Loop {i}] json.dumps 실패: {type(e).__name__}: {e}, genre={repr(genre)}")
+                        raise
                 if genre_conditions:
                     where_clauses.append(f"({' AND '.join(genre_conditions)})")
 
             # 3. 태그 필터링 (OR 조건)
             tag_conditions = []
             if tags:
+                logger.info(f"🔧 tags 타입: {type(tags)}, 값: {tags}")
+                # tags가 JSON 문자열이면 파싱
+                if isinstance(tags, str):
+                    try:
+                        tags = json.loads(tags)
+                    except Exception as e:
+                        logger.warning(f"⚠️ JSON 파싱 실패: {e}, 문자열 처리")
+                        tags = [tags]
+                # tags가 리스트가 아니면 리스트로 변환
+                if not isinstance(tags, list):
+                    tags = [tags]
+
+                # 재귀적으로 모든 중첩된 리스트 펼치기
+                def flatten_list(lst):
+                    result = []
+                    for item in lst:
+                        if isinstance(item, list):
+                            result.extend(flatten_list(item))
+                        else:
+                            result.append(item)
+                    return result
+
+                tags = flatten_list(tags)
+                logger.info(f"✅ 처리된 tags: {tags}")
+
                 for i, tag in enumerate(tags):
+                    logger.info(f"🐛 [TagLoop {i}] tag 타입: {type(tag).__name__}, 값: {repr(tag)}")
+                    if not tag or not isinstance(tag, str):
+                        tag = str(tag) if tag else ""
+                    logger.info(f"🐛 [TagLoop {i}] 변환 후 tag: {repr(tag)}, json.dumps 시도 전")
                     tag_conditions.append(f"tags_en @> :tag_{i}")
-                    params[f"tag_{i}"] = json.dumps([tag], ensure_ascii=False)
+                    try:
+                        params[f"tag_{i}"] = json.dumps([tag], ensure_ascii=False)
+                        logger.info(f"🐛 [TagLoop {i}] json.dumps 성공: {params[f'tag_{i}']}")
+                    except Exception as e:
+                        logger.error(f"🐛 [TagLoop {i}] json.dumps 실패: {type(e).__name__}: {e}, tag={repr(tag)}")
+                        raise
                 if tag_conditions:
                     where_clauses.append(f"({' OR '.join(tag_conditions)})")
 
@@ -214,21 +284,38 @@ class SearchGamesByFilterTool(Tool):
 
             result = await self.db.execute(text(query_sql), params)
             games = result.fetchall()
+            logger.info(f"🐛 SQL 실행 완료, 조회된 게임 수: {len(games) if games else 0}")
 
             # 5. 결과 구성
             response = []
-            for game in games:
+            for idx, game in enumerate(games):
+                logger.info(f"🐛 [Game {idx}] genres_kr 타입: {type(game.genres_kr).__name__}, 값: {repr(game.genres_kr)}")
+                try:
+                    # genres_kr이 이미 리스트면 그대로 사용, 문자열이면 json.loads
+                    if isinstance(game.genres_kr, list):
+                        genres_kr = game.genres_kr
+                    elif game.genres_kr:
+                        genres_kr = json.loads(game.genres_kr)
+                    else:
+                        genres_kr = []
+                    logger.info(f"🐛 [Game {idx}] genres_kr 처리 완료: {genres_kr}")
+                except Exception as genre_err:
+                    logger.error(f"🐛 [Game {idx}] genres_kr 처리 실패: {type(genre_err).__name__}: {genre_err}")
+                    genres_kr = []
+
                 response.append({
                     "game_id": game.id,
                     "name": game.name,
                     "price": int(game.price) if game.price else 0,
-                    "genres_kr": json.loads(game.genres_kr) if game.genres_kr else [],
+                    "genres_kr": genres_kr,
                     "release_date": game.release_date or "",
                     "header_image": game.header_image or ""
                 })
 
-            logger.info(f"✅ {len(response)}개 게임 찾음")
-            return json.dumps(response, ensure_ascii=False)
+            logger.info(f"✅ {len(response)}개 게임 찾음, 최종 response 생성 중...")
+            final_response = json.dumps(response, ensure_ascii=False)
+            logger.info(f"✅ 최종 응답 생성 완료")
+            return final_response
 
         except Exception as e:
             logger.error(f"❌ 필터 검색 오류: {e}")
