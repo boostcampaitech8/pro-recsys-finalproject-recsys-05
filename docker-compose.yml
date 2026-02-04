@@ -58,6 +58,7 @@ services:
       - ./backend:/app/backend
       - ./ml_rec:/app/ml_rec
       - ./configs:/app/configs
+      - huggingface_cache:/root/.cache/huggingface  # 임베딩 모델 캐시 영구 저장
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       db:
@@ -105,6 +106,7 @@ services:
 
 volumes:
   postgres_data:
+  huggingface_cache:
 
 
 networks:
