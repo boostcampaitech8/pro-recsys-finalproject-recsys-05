@@ -87,7 +87,7 @@ export default function MainPage() {
             id: (Date.now() + 1).toString(),
             role: "assistant",
             content: query,
-            message: "이 아이디를 통해 user의 게임 리스트와 정보를 불러옵니다.",
+            message: `이 아이디를 통해 user의 게임 리스트와 정보를 불러옵니다. 원하시는 게임을 물어보세요!`,
             games: [],
             timestamp: new Date(),
           };
