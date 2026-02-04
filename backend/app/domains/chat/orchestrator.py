@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from openai import AsyncOpenAI # Clova X가 OpenAI 호환이므로 이거 씁니다.
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
+from langchain_huggingface import HuggingFaceEmbeddings
 from app.domains.chat.providers.base import LLMProvider
 from app.domains.chat.tools.base import Tool
 from app.domains.chat.agent.engine import AgentEngine
@@ -128,6 +129,9 @@ class SteamOrchestrator:
         return "저는 스팀 게임 추천 봇입니다. 게임 추천이 필요하신가요?"
 
 class SteamBotOrchestrator:
+    # 클래스 레벨 캐시 - 모든 인스턴스에서 공유
+    _embedding_model_cache: Optional[HuggingFaceEmbeddings] = None
+
     def __init__(self, provider: LLMProvider, tool_registry: Any):
         """
         Orchestrator initialized with a Provider and ToolRegistry.
@@ -135,7 +139,7 @@ class SteamBotOrchestrator:
         self.provider = provider
         self.registry = tool_registry
         self.parser = PydanticOutputParser(pydantic_object=IntentAnalysis)
-        
+
         # 라우팅을 위한 전용 시스템 프롬프트 (Simple string format)
         self.router_system_prompt = template_system.format(schema=json.dumps(self._get_clova_schema(), indent=2, ensure_ascii=False))
         
@@ -169,6 +173,34 @@ class SteamBotOrchestrator:
             print(f"Routing Error: {e}")
             return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
 
+    def _get_or_load_embedding_model(self) -> Optional[HuggingFaceEmbeddings]:
+        """
+        임베딩 모델을 캐시에서 가져오거나, 캐시가 비어있으면 한 번만 로드합니다.
+        Docker 시작 시 로드된 모델을 재사용하는 것이 주 목적이며,
+        모델이 None인 경우 한 번만 로드하여 캐시합니다.
+
+        Returns:
+            Optional[HuggingFaceEmbeddings]: 로드된 임베딩 모델 (또는 None)
+        """
+        # 캐시가 있으면 반환
+        if SteamBotOrchestrator._embedding_model_cache is not None:
+            return SteamBotOrchestrator._embedding_model_cache
+
+        try:
+            logger.info("📦 Loading embeddings model from cache (BAAI/bge-m3)...")
+            model = HuggingFaceEmbeddings(
+                model_name="BAAI/bge-m3",
+                model_kwargs={'device': 'cpu'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
+            # 캐시에 저장
+            SteamBotOrchestrator._embedding_model_cache = model
+            logger.info("✅ Embeddings model cached successfully")
+            return model
+        except Exception as e:
+            logger.error(f"❌ Failed to load embeddings model: {e}")
+            return None
+
     async def handle_request(
         self,
         user_message: str,
@@ -179,27 +211,31 @@ class SteamBotOrchestrator:
     ):
         """
         메인 진입점: 의도 파악 -> 적절한 함수 실행 -> 결과 반환
-        
+
         Args:
             user_message: 사용자 메시지
             history: 대화 이력
             db_session: DB 세션 (이 요청에 대해 할당된)
-            embedding_model: 임베딩 모델 (선택)
+            embedding_model: 임베딩 모델 (Docker 시작 시 로드된 모델, 선택)
+            steam_id: Steam 사용자 ID (추천 도구용, 선택)
         """
-        # 0. 도구 생성 (Per Request)
-        current_tools = get_game_tools(db_session, embedding_model)
-        
-        # 1. 의도 파악 (History 반영)
+        # 0. 임베딩 모델 결정 (우선순위: 전달받은 모델 > 캐시된 모델)
+        final_embedding_model = embedding_model if embedding_model is not None else self._get_or_load_embedding_model()
+
+        # 1. 도구 생성 (Per Request)
+        current_tools = get_game_tools(db_session, redis_client=None, embeddings_model=final_embedding_model)
+
+        # 2. 의도 파악 (History 반영)
         analysis = await self.classify_intent(user_message, history)
         logger.info(f"🔎 분석 결과: [{analysis.intent}] 키워드: {analysis.keywords}")
 
-        # 2. Dispatch
+        # 3. Dispatch
         if analysis.intent == UserIntent.RECOMMENDATION:
-            return await self._run_recommendation_agent(analysis, user_message, history, current_tools, steam_id)
-        
+            return await self._run_recommendation_agent(analysis, user_message, history, current_tools, steam_id, final_embedding_model)
+
         elif analysis.intent == UserIntent.SEARCH:
-            return await self._run_search_tool(analysis, user_message, history, current_tools)
-        
+            return await self._run_search_tool(analysis, user_message, history, current_tools, final_embedding_model)
+
         else: # UserIntent.CHITCHAT
             return await self._run_chitchat(user_message)
         
@@ -220,7 +256,7 @@ class SteamBotOrchestrator:
                 filtered[name] = tool
         return filtered
 
-    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool], steam_id: Optional[str] = None):
+    async def _run_recommendation_agent(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool], steam_id: Optional[str] = None, embedding_model: Optional[Any] = None):
         """추천 에이전트 실행"""
         # 추천 태그가 있는 도구만 필터링
         rec_tools = self._filter_tools(UserIntent.RECOMMENDATION, tools)
@@ -232,7 +268,8 @@ class SteamBotOrchestrator:
             llm_provider=self.provider,
             tools=rec_tools,
             max_iterations=3,  # 추천은 빠르게
-            steam_id=steam_id
+            steam_id=steam_id,
+            embedding_model=embedding_model
         )
         
         # 키워드를 문맥에 포함시켜줄 수도 있음
@@ -243,17 +280,18 @@ class SteamBotOrchestrator:
             history=history
         )
 
-    async def _run_search_tool(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool]):
+    async def _run_search_tool(self, analysis: IntentAnalysis, user_message: str, history: List[Dict[str, Any]], tools: Dict[str, Tool], embedding_model: Optional[Any] = None):
         """검색 에이전트 실행"""
         # 검색 태그가 있는 도구만 필터링
         search_tools = self._filter_tools(UserIntent.SEARCH, tools)
-        
+
         logger.info(f"🕵️ 검색 에이전트 전환 (Tools: {list(search_tools.keys())})")
-        
+
         agent = AgentEngine(
             llm_provider=self.provider,
             tools=search_tools,
-            max_iterations=3
+            max_iterations=3,
+            embedding_model=embedding_model
         )
         
         return await agent.run_turn(

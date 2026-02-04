@@ -71,7 +71,7 @@ class SearchByEmbeddingTool(Tool):
             result = await self.db.execute(
                 text(sql),
                 {
-                    "query_embedding": query_embedding,
+                    "query_embedding": json.dumps(query_embedding),
                     "top_k": min(top_k, 10)  # 최대 10개
                 }
             )
