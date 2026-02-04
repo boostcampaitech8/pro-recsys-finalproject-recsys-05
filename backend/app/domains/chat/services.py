@@ -220,18 +220,14 @@ async def process_chat_turn_agent(
     user_msg = await repo.add_message(conversation_id, "user", user_content)
 
     # 2) history 최근 5개(이번 user 제외)
-    # Orchestrator는 [{"role": "user", "content": ...}, ...] 형태의 list[dict]를 선호함
+    # Orchestrator는 [{"role": "user", "content": ...}, ...] 형태의 list[dict]를 선호합니다.
     all_recent = await repo.get_recent_messages(conversation_id, limit=6)
     history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id] # 중복 방지 방어코드
     
-    # 시간순 정렬 (messages are returned in reverse chrono or depend on repo impl? 
-    # Usually repo returns time desc. We need time asc for context.)
-    # services.get_recent_messages docstring says "시간순" but implementation might need check.
-    # Assuming the list passed to orchestrator should be oldest -> newest.
-    
-    # If repo returns newest first (common), reverse it.
+    # 시간순 정렬 (Repository는 Created At 기준 오름차순(Oldest -> Newest)으로 반환함)
+    # LLM 컨텍스트 유지를 위해 이 순서를 그대로 유지해야 합니다.
     history_structured = []
-    for m in reversed(history_msgs):
+    for m in history_msgs:
         history_structured.append({
             "role": m.role,
             "content": m.content
@@ -239,6 +235,11 @@ async def process_chat_turn_agent(
 
     if DEBUG_MODE:
         logger.info(f"[Agent][Turn] User: {user_content}")
+        logger.info(f"[Agent][Turn] History Context ({len(history_structured)} items):")
+        if not history_structured:
+            logger.info("  (히스토리 없음 - 첫 대화이거나 문맥 초기화)")
+        for idx, msg in enumerate(history_structured):
+            logger.info(f"  [{idx}] {msg['role']}: {msg['content'][:50]}...")
 
     # 3) Agent 실행
     start_time = time.time()
