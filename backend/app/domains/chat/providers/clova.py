@@ -39,7 +39,7 @@ class ClovaProvider(LLMProvider):
         self,
         messages: list[dict[str, Any]],
         model: str | None = None,
-        max_tokens: int = 1024,
+        max_tokens: int = 512,
         temperature: float = 0.5,
         tools: list[dict[str, Any]] | None = None,
         response_format: dict[str, Any] | None = None,
