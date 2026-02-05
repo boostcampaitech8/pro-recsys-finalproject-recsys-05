@@ -59,6 +59,7 @@ export default function MainPage() {
     setMessages([]);
     localStorage.removeItem("chatMessages");
     localStorage.removeItem("steam_id");
+    localStorage.removeItem("user_id"); // User ID도 함께 삭제
     setSteamIdStatus("not_collected");
   };
 
@@ -175,7 +176,15 @@ export default function MainPage() {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
+    } catch (error: any) {
+      // 404 Not Found (User ID 불일치) 처리
+      if (error.message && error.message.includes("User validation failed")) {
+        console.warn("User validation failed. Clearing local storage and reloading.");
+        handleClearChat(); // 로컬 스토리지 및 상태 초기화
+        window.location.reload(); // 페이지 새로고침하여 새로운 Guest ID 발급 유도
+        return;
+      }
+
       // 에러 메시지 추가 (사용자 메시지는 유지)
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -237,7 +246,7 @@ export default function MainPage() {
               <span className="inline-block transition-all duration-400 group-hover:scale-110 group-hover:-rotate-12">
                 ✦
               </span>
-              New Chat
+              대화 초기화
             </span>
           </button>
         </div>

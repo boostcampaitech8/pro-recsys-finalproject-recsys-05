@@ -5,6 +5,7 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple, Any
 from uuid import UUID
+from fastapi import HTTPException
 
 from app.domains.chat.repository import ChatRepository
 from app.domains.chat.models import Conversation, Message
@@ -220,18 +221,14 @@ async def process_chat_turn_agent(
     user_msg = await repo.add_message(conversation_id, "user", user_content)
 
     # 2) history 최근 5개(이번 user 제외)
-    # Orchestrator는 [{"role": "user", "content": ...}, ...] 형태의 list[dict]를 선호함
+    # Orchestrator는 [{"role": "user", "content": ...}, ...] 형태의 list[dict]를 선호합니다.
     all_recent = await repo.get_recent_messages(conversation_id, limit=6)
     history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id] # 중복 방지 방어코드
     
-    # 시간순 정렬 (messages are returned in reverse chrono or depend on repo impl? 
-    # Usually repo returns time desc. We need time asc for context.)
-    # services.get_recent_messages docstring says "시간순" but implementation might need check.
-    # Assuming the list passed to orchestrator should be oldest -> newest.
-    
-    # If repo returns newest first (common), reverse it.
+    # 시간순 정렬 (Repository는 Created At 기준 오름차순(Oldest -> Newest)으로 반환함)
+    # LLM 컨텍스트 유지를 위해 이 순서를 그대로 유지해야 합니다.
     history_structured = []
-    for m in reversed(history_msgs):
+    for m in history_msgs:
         history_structured.append({
             "role": m.role,
             "content": m.content
@@ -239,6 +236,11 @@ async def process_chat_turn_agent(
 
     if DEBUG_MODE:
         logger.info(f"[Agent][Turn] User: {user_content}")
+        logger.info(f"[Agent][Turn] History Context ({len(history_structured)} items):")
+        if not history_structured:
+            logger.info("  (히스토리 없음 - 첫 대화이거나 문맥 초기화)")
+        for idx, msg in enumerate(history_structured):
+            logger.info(f"  [{idx}] {msg['role']}: {msg['content'][:50]}...")
 
     # 3) Agent 실행
     start_time = time.time()
@@ -305,14 +307,12 @@ async def process_chat_by_user(
         # 기존 유저 확인
         user = await user_repo.get_user_by_id(current_user_id)
         if not user:
-            # 유효하지 않은 user_id (DB 초기화 등) -> 새로 생성
-            logger.warning(f"[Chat] User {current_user_id} not found. Creating new guest user.")
-            new_steam_id = f"guest_{uuid.uuid4()}"
-            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
-            current_user_id = new_user.user_id
-            
-            conversation = await chat_repo.create_conversation(current_user_id)
-            conversation_id = conversation.conversation_id
+            # 유효하지 않은 user_id (DB 초기화 등) -> 에러 반환 (Frontend에서 LocalStorage 초기화 유도)
+            logger.warning(f"[Chat] User {current_user_id} not found in DB. Raising 404.")
+            raise HTTPException(
+                status_code=404, 
+                detail="User validation failed: ID mismatch. Please clear local storage."
+            )
         else:
             # 기존 유저의 최근 대화방 찾기
             convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
@@ -371,13 +371,11 @@ async def process_chat_by_user_llm_only(
     else:
         user = await user_repo.get_user_by_id(current_user_id)
         if not user:
-            logger.warning(f"[Chat][LLM-only] User {current_user_id} not found. Creating new guest user.")
-            new_steam_id = f"guest_{uuid.uuid4()}"
-            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
-            current_user_id = new_user.user_id
-
-            conversation = await chat_repo.create_conversation(current_user_id)
-            conversation_id = conversation.conversation_id
+            logger.warning(f"[Chat][LLM-only] User {current_user_id} not found. Raising 404.")
+            raise HTTPException(
+                status_code=404, 
+                detail="User validation failed: ID mismatch. Please clear local storage."
+            )
         else:
             convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
             if convs:

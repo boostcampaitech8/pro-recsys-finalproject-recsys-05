@@ -122,7 +122,7 @@ class SteamOrchestrator:
         except Exception as e:
             # 실패 시 기본값(Chitchat)으로 Fallback 처리
             print(f"Routing Error: {e}")
-            return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
+            return IntentAnalysis(intent=UserIntent.CHITCHAT, keywords=["Error fallback"])
 
     async def handle_request(self, user_message: str, session_id: str):
         """
@@ -220,7 +220,7 @@ class SteamBotOrchestrator:
 
         except Exception as e:
             print(f"Routing Error: {e}")
-            return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
+            return IntentAnalysis(intent=UserIntent.CHITCHAT, keywords=["Error fallback"])
 
     def _get_or_load_embedding_model(self) -> Optional[HuggingFaceEmbeddings]:
         """
@@ -286,7 +286,7 @@ class SteamBotOrchestrator:
             return await self._run_search_tool(analysis, user_message, history, current_tools, final_embedding_model)
 
         else: # UserIntent.CHITCHAT
-            return await self._run_chitchat(user_message)
+            return await self._run_chitchat(user_message, history)
         
 
     def _get_clova_schema(self) -> Dict[str, Any]:
@@ -348,11 +348,17 @@ class SteamBotOrchestrator:
             history=history
         )
 
-    async def _run_chitchat(self, message: str):
+    async def _run_chitchat(self, message: str, history: List[Dict[str, Any]]):
         """단순 잡담 처리 (가벼운 호출)"""
+        # History 반영
+        messages = []
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": message})
+
         # 도구 없이 LLM만 호출
         response = await self.provider.chat(
-            messages=[{"role": "user", "content": message}],
+            messages=messages,
             tools=None,
             max_tokens=200
         )
