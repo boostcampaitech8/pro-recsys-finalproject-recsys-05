@@ -24,6 +24,8 @@ class AgentEngine:
         llm_provider: Any, # Typed as Any for now, will be ClovaProvider
         tools: dict[str, Any], # Map of tool_name -> tool_callable
         max_iterations: int = 5,
+        system_prompt: Optional[str] = None,
+        llm_config: Optional[dict[str, Any]] = None,
         steam_id: Optional[str] = None,
         embedding_model: Optional[Any] = None
     ):
@@ -32,7 +34,8 @@ class AgentEngine:
         self.max_iterations = max_iterations
         self.steam_id = steam_id
         self.embedding_model = embedding_model
-        self.context_builder = ContextBuilder()
+        self.llm_config = llm_config or {}
+        self.context_builder = ContextBuilder(system_prompt=system_prompt)
 
     async def run_turn(
         self,
@@ -71,7 +74,8 @@ class AgentEngine:
             try:
                 response = await self.llm_provider.chat(
                     messages=messages,
-                    tools=tool_definitions
+                    tools=tool_definitions,
+                    **self.llm_config
                 )
             except Exception as e:
                 logger.error(f"LLM Error: {e}")

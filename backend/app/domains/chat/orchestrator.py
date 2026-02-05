@@ -13,6 +13,29 @@ from app.domains.chat.interfaces import UserIntent
 from app.domains.chat.tools.tools import get_game_tools
 from app.core.logger import logger
 
+
+# Prompt Templates
+PROMPT_RECOMMENDATION = """당신은 스팀 게임 전문 큐레이터 '스팀봇'입니다.
+사용자에게 딱 맞는 게임을 찾아 추천해주는 것이 목표입니다.
+
+[지침]
+1. 친근하고 열정적인 톤으로 대화하세요 (이모지 적절히 사용).
+2. 추천할 때는 반드시 **'추천 이유'**와 **'게임의 핵심 매력'**을 강조하세요.
+3. 가격 정보가 있다면 원화(KRW)로 알려주세요.
+4. 사용자가 모호하게 말하면 구체적인 취향(장르, 난이도 등)을 물어보세요.
+5. markdown 포맷으로 출력하지마세요.
+"""
+
+PROMPT_SEARCH = """당신은 게임 정보 검색 요원입니다.
+사용자가 요청한 게임에 대한 사실 정보를 정확하고 간결하게 전달하세요.
+
+[지침]
+1. 건조하고 객관적인 톤을 유지하세요.
+2. 불필요한 미사여구를 빼고 핵심 정보(가격, 출시일, 평가, 사양 등) 위주로 요약하세요.
+3. 정보가 없으면 솔직하게 모른다고 답하세요.
+4. markdown 포맷으로 출력하지마세요.
+"""
+
 template_system="""
         당신은 Steam 게임 추천 서비스의 최상위 '의도 분류기(Intent Router)'입니다.
         사용자의 입력을 분석하여 다음 중 하나의 의도로 분류하고, 반드시 JSON 형식으로 응답하세요.
@@ -268,9 +291,11 @@ class SteamBotOrchestrator:
         agent = AgentEngine(
             llm_provider=self.provider,
             tools=rec_tools,
-            max_iterations=3,  # 추천은 빠르게
+            max_iterations=3, # 추천은 빠르게
             steam_id=steam_id,
-            embedding_model=embedding_model
+            embedding_model=embedding_model,
+            system_prompt=PROMPT_RECOMMENDATION,
+            llm_config={"temperature": 0.7} # 창의적인 추천
         )
         
         # 키워드를 문맥에 포함시켜줄 수도 있음
@@ -292,7 +317,9 @@ class SteamBotOrchestrator:
             llm_provider=self.provider,
             tools=search_tools,
             max_iterations=3,
-            embedding_model=embedding_model
+            embedding_model=embedding_model,
+            system_prompt=PROMPT_SEARCH,
+            llm_config={"temperature": 0.1} # 정확한 정보 전달
         )
         
         return await agent.run_turn(
@@ -312,6 +339,6 @@ class SteamBotOrchestrator:
         response = await self.provider.chat(
             messages=messages,
             tools=None,
-            max_tokens=200
+            max_tokens=100
         )
         return response.content
