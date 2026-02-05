@@ -283,6 +283,8 @@ async def chat_unified(
             debug=debug if DEBUG_MODE else None
         )
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"[UnifiedChat] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -332,6 +334,8 @@ async def chat_unified_llm_only(
             debug=debug if DEBUG_MODE else None
         )
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"[UnifiedChat][LLM-only] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

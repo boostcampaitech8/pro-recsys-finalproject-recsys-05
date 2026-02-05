@@ -5,6 +5,7 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple, Any
 from uuid import UUID
+from fastapi import HTTPException
 
 from app.domains.chat.repository import ChatRepository
 from app.domains.chat.models import Conversation, Message
@@ -306,14 +307,12 @@ async def process_chat_by_user(
         # 기존 유저 확인
         user = await user_repo.get_user_by_id(current_user_id)
         if not user:
-            # 유효하지 않은 user_id (DB 초기화 등) -> 새로 생성
-            logger.warning(f"[Chat] User {current_user_id} not found. Creating new guest user.")
-            new_steam_id = f"guest_{uuid.uuid4()}"
-            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
-            current_user_id = new_user.user_id
-            
-            conversation = await chat_repo.create_conversation(current_user_id)
-            conversation_id = conversation.conversation_id
+            # 유효하지 않은 user_id (DB 초기화 등) -> 에러 반환 (Frontend에서 LocalStorage 초기화 유도)
+            logger.warning(f"[Chat] User {current_user_id} not found in DB. Raising 404.")
+            raise HTTPException(
+                status_code=404, 
+                detail="User validation failed: ID mismatch. Please clear local storage."
+            )
         else:
             # 기존 유저의 최근 대화방 찾기
             convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
@@ -372,13 +371,11 @@ async def process_chat_by_user_llm_only(
     else:
         user = await user_repo.get_user_by_id(current_user_id)
         if not user:
-            logger.warning(f"[Chat][LLM-only] User {current_user_id} not found. Creating new guest user.")
-            new_steam_id = f"guest_{uuid.uuid4()}"
-            new_user = await user_repo.create_user(UserCreate(steam_id=new_steam_id))
-            current_user_id = new_user.user_id
-
-            conversation = await chat_repo.create_conversation(current_user_id)
-            conversation_id = conversation.conversation_id
+            logger.warning(f"[Chat][LLM-only] User {current_user_id} not found. Raising 404.")
+            raise HTTPException(
+                status_code=404, 
+                detail="User validation failed: ID mismatch. Please clear local storage."
+            )
         else:
             convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
             if convs:
