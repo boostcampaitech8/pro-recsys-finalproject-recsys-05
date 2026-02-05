@@ -55,6 +55,12 @@ class RagReasoningProvider:
 
             item_context += f"\n- 장르: {genres}"
             item_context += f"\n- 태그: {tags}"
+            
+            # 게임의 간단 설명(Short Description) 추가
+            short_desc = game_metadata.get("short_description_kr") or game_metadata.get("short_description_en")
+            if short_desc:
+                # 너무 길면 토큰 낭비니까 150자 정도로 자르기
+                item_context += f"\n- 설명: {short_desc[:150]}..."
 
         # 2. Dynamic System Prompt Generation
         system_prompt = "당신은 스팀 게임 추천 전문가입니다. "

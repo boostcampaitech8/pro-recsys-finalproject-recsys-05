@@ -200,7 +200,9 @@ class PersonalizedRecommendationTool(Tool):
             game_meta = {
                 "genres_kr": game.get("genres_kr", []),
                 "genres_en": game.get("genres_en", []), # DB에 있다면
-                "tags_en": game.get("tags_en", [])      # DB에 있다면
+                "tags_en": game.get("tags_en", []),      # DB에 있다면
+                "short_description_kr": game.get("short_description_kr"),
+                "short_description_en": game.get("short_description_en")
             }
 
             reason = await self.rag_provider.get_recommendation_reason(
