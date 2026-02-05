@@ -16,10 +16,11 @@ from app.core.logger import logger
 template_system="""
         당신은 Steam 게임 추천 서비스의 최상위 '의도 분류기(Intent Router)'입니다.
         사용자의 입력을 분석하여 다음 중 하나의 의도로 분류하고, 반드시 JSON 형식으로 응답하세요.
-        아래 schema 속성만 답변해
+        아래 schema 속성만 답변해. 다른 설명이나 텍스트는 절대 출력하지 마세요.
         
         {schema}
         """
+        
     
 # 2. 출력 스키마(Schema) 정의: LLM이 뱉어야 할 JSON 구조
 class IntentAnalysis(BaseModel):
@@ -171,7 +172,7 @@ class SteamBotOrchestrator:
 
         except Exception as e:
             print(f"Routing Error: {e}")
-            return IntentAnalysis(intent=UserIntent.CHITCHAT, reason="Error fallback")
+            return IntentAnalysis(intent=UserIntent.CHITCHAT, keywords=["Error fallback"])
 
     def _get_or_load_embedding_model(self) -> Optional[HuggingFaceEmbeddings]:
         """
@@ -237,7 +238,7 @@ class SteamBotOrchestrator:
             return await self._run_search_tool(analysis, user_message, history, current_tools, final_embedding_model)
 
         else: # UserIntent.CHITCHAT
-            return await self._run_chitchat(user_message)
+            return await self._run_chitchat(user_message, history)
         
 
     def _get_clova_schema(self) -> Dict[str, Any]:
@@ -299,11 +300,17 @@ class SteamBotOrchestrator:
             history=history
         )
 
-    async def _run_chitchat(self, message: str):
+    async def _run_chitchat(self, message: str, history: List[Dict[str, Any]]):
         """단순 잡담 처리 (가벼운 호출)"""
+        # History 반영
+        messages = []
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": message})
+
         # 도구 없이 LLM만 호출
         response = await self.provider.chat(
-            messages=[{"role": "user", "content": message}],
+            messages=messages,
             tools=None,
             max_tokens=200
         )
