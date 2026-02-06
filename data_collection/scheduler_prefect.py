@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 import yaml
 from pathlib import Path
 from typing import List, Set, Dict, Any, Optional
@@ -161,17 +162,19 @@ def collect_game_details(manager: PipelineManager, target_appids: List[str]):
 
 @task(name="Collect Reviews & Find Active Users")
 def collect_reviews_and_users(
-    manager: PipelineManager, target_appids: List[str]
+    manager: PipelineManager, target_appids: List[str], day_range: int = 7
 ) -> List[str]:
     """리뷰를 수집하고, 최근 활동한 유저(Active Users) 목록을 추출합니다."""
     logger = get_run_logger()
-    logger.info(f"💬 리뷰 데이터 수집 및 활성 유저 추출 시작...")
+    logger.info(f"💬 리뷰 데이터 수집 및 활성 유저 추출 시작 (기간: {day_range}일)...")
 
     active_users: Set[str] = set()
     total_reviews = 0
 
     for appid in target_appids:
-        result = manager.review_collector.collect_reviews(appid, limit=100, day_range=7)
+        result = manager.review_collector.collect_reviews(
+            appid, limit=100, day_range=day_range
+        )
         if result:
             users = result["reviewer_ids"]
             active_users.update(users)
@@ -311,52 +314,91 @@ def upload_to_gcs(local_path: str, destination_blob_name: str, config: Dict):
 def trigger_training(parquet_files: Dict[str, str]):
     """데이터 수집 및 변환 완료 후 모델 학습을 트리거합니다."""
     logger = get_run_logger()
-    logger.info("🧠 [Next Step] 학습 스크립트 실행 준비 완료")
+    logger.info("🧠 [Next Step] 학습 스크립트 실행 (Model: EASE)")
     logger.info(f"   사용할 데이터: {parquet_files}")
-    # subprocess.run(...)
+
+    try:
+        # EASE 모델 학습 스크립트 실행
+        # 로컬/서버 환경에 따라 경로가 다를 수 있으므로 상대 경로 사용 권장
+        script_path = os.path.join(BASE_DIR, "..", "ml_rec", "scripts", "training", "run_recbole_ease.py")
+        script_path = os.path.abspath(script_path)
+        
+        if not os.path.exists(script_path):
+            logger.error(f"❌ 학습 스크립트를 찾을 수 없습니다: {script_path}")
+            return
+
+        # 서브프로세스로 실행 (현재 파이썬 인터프리터 사용)
+        logger.info(f"▶️ 실행 중: {script_path}")
+        result = subprocess.run(
+            [sys.executable, script_path], 
+            capture_output=True, 
+            text=True, 
+            check=True
+        )
+        
+        logger.info("✅ 모델 학습 완료!")
+        logger.info(f"📜 학습 로그:\n{result.stdout}")
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ 모델 학습 실패 (Exit Code: {e.returncode})")
+        logger.error(f"📜 에러 로그:\n{e.stderr}")
+    except Exception as e:
+        logger.error(f"❌ 모델 학습 실행 중 예외 발생: {e}")
 
 
 # --- Main Flow ---
 
 
 @flow(name="Weekly Steam Data Pipeline", log_prints=True)
-def weekly_steam_pipeline(test_mode: bool = False):
+def weekly_steam_pipeline(mode: str = "test", catchup: bool = False):
     """
     주간 Steam 데이터 수집 및 전처리 파이프라인
-    Flow: 차트확인 -> 게임정보 -> 리뷰수집 -> 유저정보 -> [변환] -> [업로드] -> 학습
+    Modes:
+    - initial: 로컬 데이터 -> GCS Upload (Seed)
+      (with --catchup: 로컬 데이터 + 신규 수집 -> Upload)
+    - test: GCS Restore -> Small Collect -> GCS Upload (test_raw/)
+    - prod: GCS Restore -> Full Collect -> GCS Upload (raw/)
     """
     logger = get_run_logger()
-    mode_str = "TEST" if test_mode else "PROD"
-    logger.info(f"🚀 파이프라인 시작 (Mode: {mode_str})")
+    logger.info(f"🚀 파이프라인 시작 (Mode: {mode}, Catchup: {catchup})")
 
     # 0. 설정 로드
     config = load_config()
 
-    # 0.5. [Stateless 대응] 데이터 복원
-    # 서버가 재시작되어도 기존 데이터를 GCS에서 가져와 누적 수집 가능하도록 함
-    if not test_mode:
+    # 1. [Restore] 데이터 복원 (Initial 모드는 제외)
+    #    Initial 모드는 로컬에 이미 데이터가 있다고 가정하고 업만 수행
+    if mode != "initial":
         download_and_restore_from_gcs(config)
 
-    # 1. 매니저 인스턴스 생성
-    manager = PipelineManager()
+    # 2. 메인 로직 수행 (Initial 모드는 수집 건너뜀, 단 catchup=True면 수행)
+    #    catchup=True: 마지막 수집 이후의 데이터를 추가 수집
+    if mode == "initial" and not catchup:
+        logger.info("⏩ Initial 모드: 수집 단계 Skip (로컬 데이터 그대로 사용/Catchup False)")
+    else:
+        # 매니저 인스턴스 생성
+        manager = PipelineManager()
 
-    # 2. 수집 대상 게임 식별
-    all_targets = get_target_games(manager)
-    targets = all_targets[:3] if test_mode else all_targets
+        # 수집 대상 식별
+        all_targets = get_target_games(manager)
 
-    # 3. 게임 상세 정보 수집
-    collect_game_details(manager, targets)
+        # Test 모드면 3개만, Prod면 전체
+        is_test = mode == "test"
+        targets = all_targets[:3] if is_test else all_targets
 
-    # 4. 리뷰 수집 -> 활성 유저 추출
-    review_targets = targets if test_mode else all_targets[:150]
-    active_users = collect_reviews_and_users(manager, review_targets)
+        # 게임 상세 정보 수집
+        collect_game_details(manager, targets)
 
-    # 5. 유저 정보 갱신
-    update_user_profiles(manager, active_users)
+        # 리뷰 수집 -> 활성 유저 추출 (Initial/Catchup 모드면 30일, 평소엔 7일)
+        day_range = 30 if mode == "initial" or catchup else 7
+        review_targets = targets if is_test else all_targets[:150]
+        active_users = collect_reviews_and_users(
+            manager, review_targets, day_range=day_range
+        )
 
-    # 6. 데이터 변환 및 업로드 (Parquet -> GCS)
-    #    수집된 JSONL 파일들 목록 (Project Root/data 기준)
+        # 유저 정보 갱신
+        update_user_profiles(manager, active_users)
 
+    # 3. 데이터 변환 및 업로드 (Parquet -> GCS)
     data_files = {
         "games": "data/steam_games_info.jsonl",
         "reviews": "data/steam_reviews.jsonl",
@@ -364,12 +406,13 @@ def weekly_steam_pipeline(test_mode: bool = False):
     }
 
     uploaded_files = {}
-
     timestamp = datetime.now().strftime("%Y%m%d")
 
+    # 업로드 루트 결정 (Test 모드 격리)
+    # Mode 대소문자 문제 방지를 위해 여기서도 확실히 처리
+    upload_root = "test_raw" if mode == "test" else "raw"
+
     for key, rel_path in data_files.items():
-        # 절대 경로 변환 (Project Root 기준)
-        # BASE_DIR is .../data_collection, so parent is Project Root
         project_root = os.path.dirname(BASE_DIR)
         abs_path = os.path.join(project_root, rel_path)
 
@@ -378,16 +421,17 @@ def weekly_steam_pipeline(test_mode: bool = False):
 
         if parquet_path:
             # 2) GCS 업로드
-            # 목적지 예: raw/20260202/steam_games_info.parquet
-            gcs_path = f"raw/{timestamp}/{os.path.basename(parquet_path)}"
+            # ex: raw/20260203/steam_games_info.parquet
+            # ex: test_raw/20260203/steam_games_info.parquet
+            gcs_path = f"{upload_root}/{timestamp}/{os.path.basename(parquet_path)}"
             upload_to_gcs(parquet_path, gcs_path, config)
             uploaded_files[key] = gcs_path
 
-    # 7. (옵션) 학습 트리거
-    if not test_mode and uploaded_files:
+    # 4. (옵션) 학습 트리거 (Prod 모드일 때만)
+    if mode == "prod" and uploaded_files:
         trigger_training(uploaded_files)
 
-    logger.info("🏁 주간 파이프라인 모든 단계 완료")
+    logger.info("🏁 파이프라인 모든 단계 완료")
 
 
 if __name__ == "__main__":
@@ -395,27 +439,33 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--mode", choices=["test", "prod"], default="test", help="Select execution mode"
+        "--mode",
+        choices=["initial", "test", "prod"],
+        default="test",
+        help="Select execution mode: initial(upload only), test(safe run), prod(full run)",
+    )
+    # [New Feature] Initial 모드에서 밀린 수집을 수행할지 여부
+    parser.add_argument(
+        "--catchup",
+        action="store_true",
+        help="If set with --mode initial, runs data collection to catch up from last state.",
     )
     parser.add_argument(
         "--serve", action="store_true", help="Run in server mode with weekly schedule"
     )
     args = parser.parse_args()
 
-    is_test = args.mode == "test"
-
     if args.serve:
         print("🕒 Prefect 스케줄러 서버 모드 시작...")
         print("📅 일정: 매주 월요일 오전 3:00 (KST 기준)")
 
         # Deployment 생성 및 서빙
-        # cron: "0 3 * * 1" -> 매주 월요일 03:00
         weekly_steam_pipeline.serve(
             name="weekly-steam-collection",
             cron="0 3 * * 1",
             tags=["steam", "weekly"],
-            parameters={"test_mode": is_test},
+            parameters={"mode": "prod"},  # 서버는 무조건 Prod 모드
         )
     else:
-        # 1회성 실행
-        weekly_steam_pipeline(test_mode=is_test)
+        # 1회성 실행 (Case check & Catchup 전달)
+        weekly_steam_pipeline(mode=args.mode.lower(), catchup=args.catchup)

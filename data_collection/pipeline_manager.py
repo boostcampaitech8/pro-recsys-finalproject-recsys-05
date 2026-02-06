@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from collect_games import GameCollector
 from collect_reviews import ReviewCollector
 from collect_users import UserCollector
-from core.api_handler import SteamAPIHandler
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,19 +37,17 @@ class PipelineManager:
         self.api_handler = self.game_collector.api  # 공통 핸들러
 
     def fetch_chart_appids(self) -> List[str]:
-        """[Source 1] Steam 차트 (Top Sellers, New, Updated) 통합 크롤링"""
-        logger.info(
             "🔥 Steam 차트 크롤링 중 (Top Sellers, New, Updated, Most Played)..."
         )
 
         chart_ids = set()
-        # [v16] 매출 차트(Topsellers) + 동접 차트(Most Played) 결합
+        # 매출 차트(Topsellers) + 동접 차트(Most Played) 결합
         urls = [
             "https://store.steampowered.com/search/?filter=topsellers",
             "https://store.steampowered.com/search/?filter=popularnew&sort_by=Released_DESC",
             "https://store.steampowered.com/search/?filter=globaltopsellers",  # 업데이트로 인기 급상승한 게임 포함
-            "https://store.steampowered.com/charts/mostplayed",  # [v16] 동접자 기반 (매출 무관 업데이트 포착)
-            "https://store.steampowered.com/updated",  # [v17] 메이저 업데이트 기반 (공식 허브)
+            "https://store.steampowered.com/charts/mostplayed",  # 동접자 기반 (매출 무관 업데이트 포착)
+            "https://store.steampowered.com/updated",  # 메이저 업데이트 기반 (공식 허브)
         ]
 
         for url in urls:
@@ -87,7 +85,7 @@ class PipelineManager:
         return list(chart_ids)
 
     def save_report(self, stats: dict):
-        """[v13] 실행 결과를 JSON 리포트로 저장 (모니터링용)"""
+        """실행 결과를 JSON 리포트로 저장 (모니터링용)"""
         log_dir = Path("data/logs")
         log_dir.mkdir(exist_ok=True)
 
@@ -104,7 +102,7 @@ class PipelineManager:
         매주 실행되는 메인 수집 루틴
         - test_mode: True일 경우 3개 게임만 수집하고 증분(Delta) 로그를 남김
         """
-        logger.info("🚀 [Weekly Pipeline v19] 시작")
+        logger.info("🚀 [Weekly Pipeline] 시작")
 
         stats = {
             "start_time": datetime.datetime.now().isoformat(),
