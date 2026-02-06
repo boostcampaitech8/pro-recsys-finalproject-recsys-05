@@ -1,74 +1,75 @@
-import { useState } from "react";
-import { SearchGuide } from "./SearchGuide";
-import { LLMAnswerBox } from "./LLMAnswerBox";
+import { useState, useRef, useEffect } from "react";
 
 interface InputGameSearchProps {
-  onSearch?: (query: string) => void;
+  onSearch?: (query: string) => void | Promise<void>;
+  isLoading?: boolean;
 }
 
-export function InputGameSearch({ onSearch }: InputGameSearchProps) {
+export function InputGameSearch({
+  onSearch,
+  isLoading = false,
+}: InputGameSearchProps) {
   const [input, setInput] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showAnswerBox, setShowAnswerBox] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isComposingRef = useRef(false);
 
-  const handleSearch = () => {
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      inputRef.current?.focus();
+    }
+  }, [isLoading]);
+
+  const handleSearch = async () => {
     if (input.trim()) {
-      setSearchQuery(input);
-      setShowAnswerBox(true);
-      onSearch?.(input);
+      await onSearch?.(input);
       setInput("");
-      setIsFocused(false);
+      inputRef.current?.focus();
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleSearch();
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // IME(한글, 일본어 등) 입력 중에는 Enter 키를 무시
+    if (e.key === "Enter" && !isLoading && !isComposingRef.current) {
+      e.preventDefault();
+      void handleSearch();
     }
+  };
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const handleCompositionEnd = () => {
+    isComposingRef.current = false;
   };
 
   return (
-    <div className="mt-auto px-12">
-      {(showAnswerBox || isFocused) && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-20" />
-          <div className="fixed bottom-28 left-0 right-0 w-full max-w-360 mx-auto px-12 z-40 flex flex-col gap-2 max-h-[60vh] overflow-y-auto">
-            {showAnswerBox && (
-              <LLMAnswerBox
-                searchQuery={searchQuery}
-              />
-            )}
-            {isFocused && <SearchGuide />}
-          </div>
-        </>
-      )}
-
-      <div
-        className={`fixed bottom-0 left-0 right-0 w-full max-w-360 mx-auto px-12 flex items-end gap-5 justify-center pb-10 z-40 ${showAnswerBox || isFocused ? "bg-transparent" : "bg-slate-900"}`}
-      >
+    <div className="fixed bottom-0 left-0 right-0 w-full bg-slate-900 z-40 px-24">
+      <div className="w-full max-w-360 mx-auto px-6 flex items-end gap-3 justify-center pb-6">
         <div className="flex flex-col w-full">
           <input
+            ref={inputRef}
             id="searchInput"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            onFocus={() => {
-              setIsFocused(true);
-            }}
-            onBlur={() => {
-              setIsFocused(false);
-              setShowAnswerBox(false);
-            }}
-            className="border-0 border-b-2 p-2 text-center border-emerald-400 outline-none text-emerald-300 placeholder-gray-400"
+            onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            disabled={isLoading}
+            className="border-0 border-b-2 p-2 text-center border-emerald-400 outline-none text-emerald-300 placeholder-gray-400 disabled:opacity-50 bg-transparent"
             placeholder="What kind of games are you looking for?"
           />
         </div>
 
         <button
-          onClick={handleSearch}
-          className="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
+          onClick={() => void handleSearch()}
+          disabled={isLoading || !input.trim()}
+          className="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer disabled:opacity-50 text-lg"
         >
           ⮐
         </button>

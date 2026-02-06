@@ -1,108 +1,247 @@
-name: Production CI/CD
+﻿name: Production CI/CD
 
 on:
-  # 1. PR 검증 (기존과 동일)
-  pull_request:
-    branches: [ "dev", "main" ]
-  
-  # 2. 메인 브랜치 푸시 (기존과 동일 - latest 갱신용)
   push:
     branches: [ "main", "dev" ]
-    # ★ 추가된 부분: 'v'로 시작하는 태그가 달리면 갱신 (예: v1.0.0)
-    tags:
-      - 'v*'
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "dev" ]
 
 jobs:
-  pipeline:
+  # ---------------------------------------------------
+  # [테스트: Pytest & Lint]
+  # GitHub Native Service를 사용하여 격리된 DB/Redis 환경에서 테스트합니다.
+  # ---------------------------------------------------
+  test:
     runs-on: ubuntu-latest
+    services:
+      # 1. PostgreSQL (pgvector 지원)
+      db:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: mypassword
+          POSTGRES_DB: mydatabase
+        ports:
+          - 5432:5432
+        # DB가 준비될 때까지 대기
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # 2. Redis
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # ---------------------------------------------------
-    # [검증: Docker Compose로 실행 및 헬스 체크]
-    # PR 및 모든 푸시에서 실행되어, 서버가 정상적으로 DB에 붙는지 테스트합니다.
-    # ---------------------------------------------------
-    - name: Build and Run with Docker Compose
-      run: |
-        docker compose up --build -d
-        echo "Waiting for services to start..."
-        sleep 20  # DB 초기화 및 서버 구동 대기
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Check Health (Integration Test)
-      run: |
-        # 5번 재시도 (총 50초 대기)
-        for i in {1..5}; do
-          if curl -f http://localhost:8000/health/db; then
-            echo "Health Check Passed!"
-            exit 0
-          fi
-          echo "Retrying... ($i/5)"
-          sleep 10
-        done
-        echo "Health Check Failed!"
-        # 실패 시 로그 출력 (디버깅용)
-        docker compose logs
-        exit 1
+      # curl 설치 제거하고 공식 action으로 교체 + uv cache 활성화
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          working-directory: backend
 
-    - name: Tear Down
-      if: always()
-      run: docker compose down
+      # venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
+      - name: Cache backend .venv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: ${{ runner.os }}-py311-venv-${{ hashFiles('backend/uv.lock', 'backend/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-venv-
 
-    # ---------------------------------------------------
-    # [태그 이름 추출]
-    # ---------------------------------------------------
-    - name: Docker Meta
-      id: meta
-      uses: docker/metadata-action@v4
-      with:
-        images: ${{ secrets.DOCKER_USERNAME }}/rec-server
-        # 도커 태그를 자동으로 생성
-        tags: |
-          # 1. 태그가 있으면 그 태그 이름 사용 (예: v1.0.0)
-          type=ref,event=tag
-          # 2. 메인 브랜치면 latest 붙임
-          type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-          # 3. dev 브랜치면 dev 붙임
-          type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
-          # 3. 커밋 해시 (a1b2c3d) - 항상 붙임 (롤백용)
-          type=sha,format=short
+      - name: Install Dependencies
+        run: |
+          cd backend
+          uv sync --frozen
 
-    # ---------------------------------------------------
-    # [빌드 및 푸시]
-    # ------------------------------------------------ㅔ---
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-
-    - name: Build and Push
-      # PR이 아닐 때만 Push (Tag거나 Main Push거나)
-      if: github.event_name != 'pull_request'
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        # 위에서 만든 메타 태그들을 한방에 적용
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+      - name: Run Pytest
+        env:
+          # 서비스 컨테이너(localhost)로 연결
+          DATABASE_URL: postgresql+asyncpg://myuser:mypassword@localhost:5432/mydatabase
+          REDIS_URL: redis://localhost:6379
+          PYTHONPATH: ${{ github.workspace }}/backend
+        run: |
+          cd backend
+          # uv run을 통해 가상환경 내에서 실행
+          uv run pytest test/
 
   # ---------------------------------------------------
-  # [자동 배포: SSH 접속 후 스크립트 실행]
+  # [PR 통합 테스트: Docker Compose (override)]
+  # PR일 때만 로컬 개발용 override로 통합 테스트합니다.
   # ---------------------------------------------------
-  deploy:
-    needs: pipeline  # 빌드가 성공하면 실행
-    if: github.event_name != 'pull_request'  # PR일 때는 배포 안 함 (Push일 때만)
+  compose_pr:
+    needs: test
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 1. Tailscale 네트워크 합류 (VPN 접속)
+      - name: Create backend env for compose_pr (local-style)
+        run: |
+          # 1. 루트 .env (Docker Compose 변수 치환용)
+          cat > .env << EOF
+          POSTGRES_USER=myuser
+          POSTGRES_PASSWORD=mypassword
+          POSTGRES_DB=mydatabase
+          DOCKER_USERNAME=local
+          IMAGE_TAG=dev
+          EOF
+
+          # 2. configs/backend/.env (백엔드 애플리케이션용)
+          mkdir -p configs/backend
+          cat > configs/backend/.env << EOF
+          ENV=ci
+          DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
+          REDIS_URL=redis://redis:6379/0
+          ML_REC_ROOT=/app/ml_rec
+          STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+          GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+          CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
+          EOF
+
+      - name: Build and Run with Docker Compose (override)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.yml build
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+          echo "Waiting for services to start..."
+          sleep 20
+
+      - name: Check Health (Integration Test)
+        run: |
+          for i in {1..5}; do
+            if curl -f http://localhost:8000/health/db; then
+              echo "Health Check Passed!"
+              exit 0
+            fi
+            echo "Retrying... ($i/5)"
+            sleep 10
+          done
+          echo "Health Check Failed!"
+          docker compose logs
+          exit 1
+
+      - name: Tear Down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml down
+
+  # ---------------------------------------------------
+  # [배포: Build & Deploy]
+  # 테스트가 성공했을 때만 실행됩니다.
+  # ---------------------------------------------------
+  pipeline:
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set image tag
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
+            echo "IMAGE_TAG=dev" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          else
+            echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          fi
+
+      # ---------------------------------------------------
+      # [환경 변수 설정]
+      # .env 파일을 생성하여 Docker Compose 빌드/실행 시 사용
+      # ---------------------------------------------------
+      - name: Create env file from secrets
+        run: |
+          cat > .env << EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          ML_REC_ROOT=${{ secrets.ML_REC_ROOT }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+          GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+          CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+          CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
+          IMAGE_TAG=${IMAGE_TAG}
+          EOF
+
+      - name: Build Backend Image (runner)
+        run: |
+          docker build --target runner -t ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG} .
+
+      # ---------------------------------------------------
+      # [통합 테스트: Docker Compose]
+      # 실제 컨테이너들이 잘 뜨는지(Health Check) 확인
+      # ---------------------------------------------------
+      - name: Build and Run with Docker Compose
+        run: |
+          # Use Base + Prod override (이미지 pull 기반)
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+          echo "Waiting for services to start..."
+          sleep 20  # DB 초기화 및 서버 구동 대기
+
+      - name: Check Health (Integration Test)
+        run: |
+          # 5번 재시도 (총 50초 대기)
+          for i in {1..5}; do
+            if curl -f http://localhost:80/health/db; then
+              echo "Health Check Passed!"
+              exit 0
+            fi
+            echo "Retrying... ($i/5)"
+            sleep 10
+          done
+          echo "Health Check Failed!"
+          # 실패 시 로그 출력 (디버깅용)
+          docker compose logs
+          exit 1
+
+      - name: Tear Down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+
+      # ---------------------------------------------------
+      # [빌드 및 푸시]
+      # ---------------------------------------------------
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Backend Image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG}
+
+    # ---------------------------------------------------
+    # [서버 배포: SSH]
+    # ---------------------------------------------------
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
@@ -110,32 +249,32 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      # 2. 설정 파일 전송 (SCP)
-      - name: Copy files via SCP
-        uses: appleboy/scp-action@v0.1.4
+      - name: Copy files to Server
+        if: github.event_name != 'pull_request'
+        uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
-          source: "deploy.sh,docker-compose.prod.yml"
-          target: "/home/${{ secrets.SSH_USERNAME }}/"
+          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx,Dockerfile"
+          target: "pro-recsys-finalproject-recsys-05"
 
-      # 3. SSH 접속 후 스크립트 실행
-      - name: Deploy to Server via SSH
-        uses: appleboy/ssh-action@v0.1.10
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SSH_HOST }} # Tailscale IP or Name
+          host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script: |
-            # .env 파일 생성 (환경변수 주입 - sudo 호환성 위해 파일로 저장)
-            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > .env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-            echo "GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}" >> .env
-            
-            # 배포 스크립트 실행
-            chmod +x ./deploy.sh
+            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            export GCS_KEY_BASE64='${{ secrets.GCS_KEY_BASE64 }}'
+            export STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
+            export CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+
+            # Deploy Script 실행
+            cd ~/pro-recsys-finalproject-recsys-05
+            sed -i 's/\r$//' deploy.sh
+            chmod +x deploy.sh
             ./deploy.sh

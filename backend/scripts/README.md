@@ -38,8 +38,9 @@
 
 ```bash
 # 옵션 1: 데이터 다운로드 (Download)
-# config의 'files' 섹션에 정의된 키를 사용
+# config의 'files' 섹션에 정의된 키(파일명)를 사용해야 함
 uv run python scripts/manage_data.py games_metadata.jsonl --download
+uv run python scripts/manage_data.py item_similarity.pkl --download
 
 # 옵션 2: 데이터 업로드 (Upload)
 uv run python scripts/manage_data.py games_metadata.jsonl --upload
@@ -76,10 +77,12 @@ uv run python scripts/manage_data.py upload-model ./models/rec_v1.pkl game_rec_v
 준비된 게임 데이터(`.jsonl` 또는 `.parquet`)를 DB에 적재합니다.
 
 ```bash
-# 로컬 데이터 파일을 DB에 적재
-uv run python scripts/load_games.py ./data/games_metadata.jsonl
+# 1단계: GCS에서 게임 데이터 다운로드
+uv run python scripts/manage_data.py games_metadata.jsonl --download
 
-# 만약 데이터가 먼저 필요하다면# 옵션 2: config에 정의된 파일 키 (예: games_metadata.jsonl) 사용
-# config 키가 곧 파일명으로 사용됩니다.
-uv run python scripts/manage_data.py download-data games_metadata.jsonl
+# 2단계: 다운로드한 데이터를 DB에 적재
+uv run python scripts/load_games.py app/data/processed/games_metadata.jsonl
+
+# 옵션: DB 테이블을 초기화 후 다시 적재
+uv run python scripts/load_games.py app/data/processed/games_metadata.jsonl --reset
 ```

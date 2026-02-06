@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 from google.cloud import storage
 import logging
 
@@ -12,13 +13,17 @@ def get_gcs_client():
     GCS 클라이언트를 생성하여 반환합니다.
     환경 변수 GOOGLE_APPLICATION_CREDENTIALS가 설정되어 있어야 합니다.
     """
-    # backend/app/gcs_key.json 경로를 기본값으로 사용
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    default_key_path = os.path.join(current_dir, "..", "app", "gcs_key.json")
+    # configs/gcs/gcs_key.json 경로를 기본값으로 사용 (기존 경로는 fallback)
+    repo_root = Path(__file__).resolve().parents[2]
+    default_key_path = repo_root / "configs" / "gcs" / "gcs_key.json"
+    legacy_key_path = repo_root / "backend" / "app" / "gcs_key.json"
     
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and os.path.exists(default_key_path):
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = default_key_path
+    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and default_key_path.exists():
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(default_key_path)
         logger.info(f"Using default GCS key: {default_key_path}")
+    elif not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and legacy_key_path.exists():
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(legacy_key_path)
+        logger.info(f"Using legacy GCS key: {legacy_key_path}")
 
     try:
         return storage.Client()
