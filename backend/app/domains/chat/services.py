@@ -2,8 +2,10 @@
 import asyncio
 import time
 import os
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple, Any
+from types import SimpleNamespace
 from uuid import UUID
 from fastapi import HTTPException
 
@@ -12,6 +14,7 @@ from app.domains.chat.models import Conversation, Message
 from app.domains.chat.chatbot import chatbot
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from app.core.logger import logger
+from app.core.chat_cache import ChatCache
 import uuid
 from app.domains.user.repository import UserRepository
 from app.domains.user.schemas import UserCreate
@@ -22,6 +25,7 @@ from app.domains.chat.tools.registry import ToolRegistry
 from app.domains.chat.providers.clova import ClovaProvider
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
+chat_cache = ChatCache()
 
 # -----------------------------------------------------------------------------
 # Global Orchestrator Singleton
@@ -61,7 +65,9 @@ async def create_conversation(db: AsyncSession, user_id: UUID) -> Conversation:
         Conversation: 생성된 대화방 객체
     """
     repo = ChatRepository(db)
-    return await repo.create_conversation(user_id)
+    conversation = await repo.create_conversation(user_id)
+    await chat_cache.invalidate_user_conversations(user_id)
+    return conversation
 
 async def get_user_conversations(db: AsyncSession, user_id: UUID, skip: int = 0, limit: int = 100) -> List[Conversation]:
     """
@@ -76,8 +82,21 @@ async def get_user_conversations(db: AsyncSession, user_id: UUID, skip: int = 0,
     Returns:
         List[Conversation]: 대화방 목록 (최신 업데이트순)
     """
+    cached = await chat_cache.get_user_conversations(user_id, skip, limit)
+    if cached is not None:
+        return [_deserialize_conversation(item) for item in cached]
+
     repo = ChatRepository(db)
-    return await repo.get_user_conversations(user_id, skip, limit)
+    conversations = await repo.get_user_conversations(user_id, skip, limit)
+    serialized = [_serialize_conversation(item) for item in conversations]
+    await chat_cache.set_user_conversations(
+        user_id,
+        skip,
+        limit,
+        serialized,
+    )
+    # Keep miss-path response shape identical to hit-path.
+    return [_deserialize_conversation(item) for item in serialized]
 
 async def get_recent_messages(db: AsyncSession, conversation_id: int, limit: int = 20) -> List[Message]:
     """
@@ -91,8 +110,65 @@ async def get_recent_messages(db: AsyncSession, conversation_id: int, limit: int
     Returns:
         List[Message]: 메시지 객체 리스트 (시간순)
     """
+    cached = await chat_cache.get_conversation_messages(conversation_id, limit)
+    if cached is not None:
+        return [_deserialize_message(item) for item in cached]
+
     repo = ChatRepository(db)
-    return await repo.get_recent_messages(conversation_id, limit)
+    messages = await repo.get_recent_messages(conversation_id, limit)
+    await chat_cache.set_conversation_messages(
+        conversation_id,
+        limit,
+        [_serialize_message(item) for item in messages],
+    )
+    return messages
+
+
+def _serialize_conversation(conversation: Conversation) -> dict[str, Any]:
+    return {
+        "conversation_id": conversation.conversation_id,
+        "user_id": str(conversation.user_id),
+        "created_at": conversation.created_at.isoformat() if conversation.created_at else None,
+        "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+    }
+
+
+def _deserialize_conversation(payload: dict[str, Any]) -> Any:
+    created_at = payload.get("created_at")
+    updated_at = payload.get("updated_at")
+    return SimpleNamespace(
+        conversation_id=payload.get("conversation_id"),
+        user_id=UUID(payload["user_id"]) if payload.get("user_id") else None,
+        created_at=datetime.fromisoformat(created_at) if created_at else None,
+        updated_at=datetime.fromisoformat(updated_at) if updated_at else None,
+        messages=[],
+    )
+
+
+def _serialize_message(message: Message) -> dict[str, Any]:
+    return {
+        "message_id": message.message_id,
+        "conversation_id": message.conversation_id,
+        "role": message.role,
+        "content": message.content,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+    }
+
+
+def _deserialize_message(payload: dict[str, Any]) -> Any:
+    created_at = payload.get("created_at")
+    return SimpleNamespace(
+        message_id=payload.get("message_id"),
+        conversation_id=payload.get("conversation_id"),
+        role=payload.get("role"),
+        content=payload.get("content"),
+        created_at=datetime.fromisoformat(created_at) if created_at else None,
+    )
+
+
+async def _invalidate_chat_cache(user_id: UUID, conversation_id: int) -> None:
+    await chat_cache.invalidate_user_conversations(user_id)
+    await chat_cache.invalidate_conversation_messages(conversation_id)
 
 def format_history(messages: List[Message]) -> str:
     formatted = []
@@ -151,9 +227,10 @@ async def process_chat_turn(
 
     # 1) user 저장
     user_msg = await repo.add_message(conversation_id, "user", user_content)
+    await _invalidate_chat_cache(user_id, conversation_id)
 
     # 2) history 최근 5개(이번 user 제외)
-    all_recent = await repo.get_recent_messages(conversation_id, limit=6)
+    all_recent = await get_recent_messages(db, conversation_id, limit=6)
     history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id]
     history_msgs = history_msgs[-5:]
     history_text = format_history(history_msgs)
@@ -173,6 +250,7 @@ async def process_chat_turn(
 
     # 4) assistant 저장
     ai_msg = await repo.add_message(conversation_id, "assistant", response_text)
+    await _invalidate_chat_cache(user_id, conversation_id)
 
     # 5) 추천이 있으면 DB 저장 (history에는 안 넣음)
     # retrieved_docs 포맷이 너 bot 구현에 따라 다르니까, 최소 payload로 저장
@@ -219,10 +297,11 @@ async def process_chat_turn_agent(
 
     # 1) user 저장
     user_msg = await repo.add_message(conversation_id, "user", user_content)
+    await _invalidate_chat_cache(user_id, conversation_id)
 
     # 2) history 최근 5개(이번 user 제외)
     # Orchestrator는 [{"role": "user", "content": ...}, ...] 형태의 list[dict]를 선호합니다.
-    all_recent = await repo.get_recent_messages(conversation_id, limit=6)
+    all_recent = await get_recent_messages(db, conversation_id, limit=6)
     history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id] # 중복 방지 방어코드
     
     # 시간순 정렬 (Repository는 Created At 기준 오름차순(Oldest -> Newest)으로 반환함)
@@ -259,6 +338,7 @@ async def process_chat_turn_agent(
 
     # 4) assistant 저장
     ai_msg = await repo.add_message(conversation_id, "assistant", response_text)
+    await _invalidate_chat_cache(user_id, conversation_id)
 
     # 5) 추천 결과 처리 (현재 Agent는 text만 반환하므로 생략)
     retrieved_docs = None
@@ -284,7 +364,6 @@ async def process_chat_by_user(
         (ai_msg, retrieved_docs, debug, conversation_id, user_id)
     """
     user_repo = UserRepository(db)
-    chat_repo = ChatRepository(db)
     
     # 1. User 식별 및 생성
     current_user_id = user_id
@@ -301,7 +380,7 @@ async def process_chat_by_user(
             raise e
         
         # 새 유저는 무조건 새 대화방
-        conversation = await chat_repo.create_conversation(current_user_id)
+        conversation = await create_conversation(db, current_user_id)
         conversation_id = conversation.conversation_id
     else:
         # 기존 유저 확인
@@ -315,11 +394,11 @@ async def process_chat_by_user(
             )
         else:
             # 기존 유저의 최근 대화방 찾기
-            convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
+            convs = await get_user_conversations(db, current_user_id, limit=1)
             if convs:
                 conversation_id = convs[0].conversation_id
             else:
-                conversation = await chat_repo.create_conversation(current_user_id)
+                conversation = await create_conversation(db, current_user_id)
                 conversation_id = conversation.conversation_id
     
     # 2. Chat Logic 실행
@@ -352,7 +431,6 @@ async def process_chat_by_user_llm_only(
         (ai_msg, retrieved_docs, debug, conversation_id, user_id)
     """
     user_repo = UserRepository(db)
-    chat_repo = ChatRepository(db)
 
     # 1. User 확인 및 생성
     current_user_id = user_id
@@ -366,7 +444,7 @@ async def process_chat_by_user_llm_only(
             logger.error(f"[Chat][LLM-only] Failed to create guest user: {e}")
             raise e
 
-        conversation = await chat_repo.create_conversation(current_user_id)
+        conversation = await create_conversation(db, current_user_id)
         conversation_id = conversation.conversation_id
     else:
         user = await user_repo.get_user_by_id(current_user_id)
@@ -377,11 +455,11 @@ async def process_chat_by_user_llm_only(
                 detail="User validation failed: ID mismatch. Please clear local storage."
             )
         else:
-            convs = await chat_repo.get_user_conversations(current_user_id, limit=1)
+            convs = await get_user_conversations(db, current_user_id, limit=1)
             if convs:
                 conversation_id = convs[0].conversation_id
             else:
-                conversation = await chat_repo.create_conversation(current_user_id)
+                conversation = await create_conversation(db, current_user_id)
                 conversation_id = conversation.conversation_id
 
     # 2. LLM-only Chat Logic 실행
@@ -422,8 +500,9 @@ async def process_chat_turn_llm_only(
     repo = ChatRepository(db)
 
     user_msg = await repo.add_message(conversation_id, "user", user_content)
+    await _invalidate_chat_cache(user_id, conversation_id)
 
-    all_recent = await repo.get_recent_messages(conversation_id, limit=history_limit + 1)
+    all_recent = await get_recent_messages(db, conversation_id, limit=history_limit + 1)
     history_msgs = [m for m in all_recent if m.message_id != user_msg.message_id]
     history_msgs = history_msgs[-history_limit:]
     if DEBUG_MODE:
@@ -454,5 +533,6 @@ async def process_chat_turn_llm_only(
     }
 
     ai_msg = await repo.add_message(conversation_id, "assistant", response_text)
+    await _invalidate_chat_cache(user_id, conversation_id)
 
     return ai_msg, None, {"metrics": metrics}
