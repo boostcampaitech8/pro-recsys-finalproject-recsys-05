@@ -5,7 +5,11 @@ from typing import Set, Dict, Any
 
 
 class DataManager:
-    """데이터 저장(JSONL), 체크포인트, 중복 방지를 관리하는 클래스"""
+    """
+    데이터 저장 및 로드 관리 (JSONL Data Management)
+    - Persistence: Manage JSONL file storage, caching, and duplicate prevention.
+    - Robustness: Handles both game (appid) and user (steamid) primary keys.
+    """
 
     def __init__(self, output_path: str):
         self.output_path = Path(output_path)
@@ -22,8 +26,8 @@ class DataManager:
                     try:
                         data = json.loads(line)
                         if isinstance(data, dict) and data:
-                            # Flat JSON 구조: appid가 필드로 존재
-                            data_id = str(data.get("appid", ""))
+                            # Try multiple ID keys (appid for games, steamid for users)
+                            data_id = str(data.get("appid") or data.get("steamid") or "")
                             if data_id:
                                 ids.add(data_id)
                                 # 최신 데이터로 캐시 갱신

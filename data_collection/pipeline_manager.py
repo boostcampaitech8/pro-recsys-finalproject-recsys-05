@@ -37,8 +37,7 @@ class PipelineManager:
         self.api_handler = self.game_collector.api  # 공통 핸들러
 
     def fetch_chart_appids(self) -> List[str]:
-            "🔥 Steam 차트 크롤링 중 (Top Sellers, New, Updated, Most Played)..."
-        )
+        print("🔥 Steam 차트 크롤링 중 (Top Sellers, New, Updated, Most Played)...")
 
         chart_ids = set()
         # 매출 차트(Topsellers) + 동접 차트(Most Played) 결합

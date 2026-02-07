@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 class ReviewCollector:
     """
-    리뷰 수집기
-    - Output Format: README_review_jsonl.md 준수 (Grouped by AppID)
-    - {"appid": "...", "stats": {...}, "reviews": [...]}
+    Steam 리뷰 수집기 (Steam Review Collector)
+    - Output Format: Grouped by AppID (JSONL)
+    - Saves reviews and statistics for localized trend analysis.
     """
 
     def __init__(self, output_file: str = "data/steam_reviews.jsonl"):
@@ -40,7 +40,7 @@ class ReviewCollector:
         params = {
             "json": 1,
             "filter": sort,  # all(helpful), recent
-            "language": "all",  # 모든 언어
+            "language": "all",  # Collect all languages (모든 언어 수집)
             "review_type": "all",
             "purchase_type": "all",
             "num_per_page": limit,

@@ -10,6 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class GameCollector:
+    """
+    Steam 게임 정보 수집기 (Steam Game Details Collector)
+    - Metadata: Fetch KR/EN details, tags, and media assets.
+    - Output: data/steam_games_info.jsonl
+    """
 
     def __init__(self, output_file: str = "data/steam_games_info.jsonl"):
         self.api = SteamAPIHandler(delay_seconds=1.5)

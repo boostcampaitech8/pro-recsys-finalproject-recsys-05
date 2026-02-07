@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 class UserCollector:
     """
-    유저 데이터 수집기
+    Steam 유저 데이터 수집기 (Steam User Data Collector)
+    - Activity: Fetch owned games and playtime for active users.
+    - Output: data/steam_users.jsonl
     """
 
     def __init__(
