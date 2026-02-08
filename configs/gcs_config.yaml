@@ -46,6 +46,13 @@ ml_rec:
       local_path: "candidates/lightgcn_embeddings.npz"
       upload_path: "ml_rec/candidates/lightgcn_embeddings.npz"
 
+# LLM 임베딩 데이터 (RAG/검색 기능용, 서버에서 필수가 아니면 제외 가능)
+ml_llm:
+  files:
+    game_vectors.parquet:
+      local_path: "ml_llm/data/vectors/vectors_BAAI__bge-m3.parquet"
+      upload_path: "ml_llm/vectors/vectors_BAAI__bge-m3.parquet"
+
     # 데이터셋 (4.3GB)
     steam_optimal.inter:
       local_path: "dataset/steam_optimal/steam_optimal.inter"
