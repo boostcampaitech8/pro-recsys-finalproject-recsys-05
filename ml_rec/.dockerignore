@@ -13,6 +13,13 @@ scripts/steam_inter_eda.ipynb
 configs/
 
 # 3. 문서 (프로덕션 불필요)
+dataset/
+saved_models/
+candidates/
+retrieval_results/
+log/
+log_tensorboard/
+logs/
 docs/
 *.md
 

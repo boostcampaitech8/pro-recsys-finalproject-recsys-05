@@ -41,22 +41,22 @@ class DatasetValidator:
 
         try:
             self.inter_df = pd.read_csv(inter_path, sep='\t')
-            logger.info(f"✓ Loaded {len(self.inter_df):,} interactions")
+            logger.info(f"✅ Loaded {len(self.inter_df):,} interactions")
         except FileNotFoundError:
-            logger.error(f"✗ Not found: {inter_path}")
+            logger.error(f"❌ Not found: {inter_path}")
             raise
 
         try:
             self.item_df = pd.read_csv(item_path, sep='\t')
-            logger.info(f"✓ Loaded {len(self.item_df):,} items")
+            logger.info(f"✅ Loaded {len(self.item_df):,} items")
         except FileNotFoundError:
-            logger.warning(f"⚠ Not found: {item_path}")
+            logger.warning(f"⚠️ Not found: {item_path}")
 
         try:
             self.user_df = pd.read_csv(user_path, sep='\t')
-            logger.info(f"✓ Loaded {len(self.user_df):,} users")
+            logger.info(f"✅ Loaded {len(self.user_df):,} users")
         except FileNotFoundError:
-            logger.warning(f"⚠ Not found: {user_path}")
+            logger.warning(f"⚠️ Not found: {user_path}")
 
     def validate_inter_format(self) -> bool:
         """
@@ -77,25 +77,25 @@ class DatasetValidator:
         missing_cols = [col for col in expected_cols if col not in self.inter_df.columns]
 
         if missing_cols:
-            logger.error(f"✗ Missing columns: {missing_cols}")
+            logger.error(f"❌ Missing columns: {missing_cols}")
             return False
 
-        logger.info(f"✓ Required columns found")
+        logger.info("✅ Required columns found")
         logger.info(f"  Columns: {list(self.inter_df.columns)}")
 
         # 데이터 타입 확인
-        logger.info(f"\n✓ Column data types:")
+        logger.info("\n✅ Column data types:")
         for col in self.inter_df.columns:
             logger.info(f"  {col}: {self.inter_df[col].dtype}")
 
         # Null 값 확인
         null_counts = self.inter_df.isnull().sum()
         if null_counts.any():
-            logger.warning(f"⚠ Null values detected:")
+            logger.warning("⚠️ Null values detected:")
             for col, count in null_counts[null_counts > 0].items():
                 logger.warning(f"  {col}: {count}")
         else:
-            logger.info(f"✓ No null values found")
+            logger.info("✅ No null values found")
 
         return True
 
@@ -117,21 +117,21 @@ class DatasetValidator:
             item_file_items = set(self.item_df['item_id:token'].unique())
             missing_items = inter_items - item_file_items
             if missing_items:
-                logger.warning(f"⚠ Items in .inter but not in .item: {len(missing_items)}")
+                logger.warning(f"⚠️ Items in .inter but not in .item: {len(missing_items)}")
             else:
-                logger.info(f"✓ All items in .inter are in .item")
+                logger.info("✅ All items in .inter are in .item")
         else:
-            logger.info("⚠ .item file not loaded, skipping item validation")
+            logger.info("⚠️ .item file not loaded, skipping item validation")
 
         if self.user_df is not None:
             user_file_users = set(self.user_df['user_id:token'].unique())
             missing_users = inter_users - user_file_users
             if missing_users:
-                logger.warning(f"⚠ Users in .inter but not in .user: {len(missing_users)}")
+                logger.warning(f"⚠️ Users in .inter but not in .user: {len(missing_users)}")
             else:
-                logger.info(f"✓ All users in .inter are in .user")
+                logger.info("✅ All users in .inter are in .user")
         else:
-            logger.info("⚠ .user file not loaded, skipping user validation")
+            logger.info("⚠️ .user file not loaded, skipping user validation")
 
         return True
 
@@ -153,14 +153,14 @@ class DatasetValidator:
         items_below_k = (item_counts < k).sum()
 
         if users_below_k == 0:
-            logger.info(f"✓ All users have >= {k} interactions")
+            logger.info(f"✅ All users have >= {k} interactions")
         else:
-            logger.warning(f"⚠ {users_below_k} users have < {k} interactions")
+            logger.warning(f"⚠️ {users_below_k} users have < {k} interactions")
 
         if items_below_k == 0:
-            logger.info(f"✓ All items have >= {k} interactions")
+            logger.info(f"✅ All items have >= {k} interactions")
         else:
-            logger.warning(f"⚠ {items_below_k} items have < {k} interactions")
+            logger.warning(f"⚠️ {items_below_k} items have < {k} interactions")
 
         return users_below_k == 0 and items_below_k == 0
 
@@ -176,10 +176,10 @@ class DatasetValidator:
         ).sum()
 
         if duplicates == 0:
-            logger.info(f"✓ No duplicate user-item pairs")
+            logger.info("✅ No duplicate user-item pairs")
             return True
         else:
-            logger.warning(f"⚠ {duplicates} duplicate pairs found")
+            logger.warning(f"⚠️ {duplicates} duplicate pairs found")
             return False
 
     def print_statistics(self):
@@ -257,7 +257,7 @@ class DatasetValidator:
         total = len(checks)
 
         for check_name, result in checks:
-            status = "✓ PASS" if result else "✗ FAIL"
+            status = "✅ PASS" if result else "❌ FAIL"
             logger.info(f"{status}: {check_name}")
 
         logger.info(f"\nResult: {passed}/{total} checks passed")
@@ -267,7 +267,7 @@ class DatasetValidator:
             logger.info("\n✅ All validations passed! Dataset is ready for training.")
             return True
         else:
-            logger.warning(f"\n⚠ {total - passed} validation(s) failed.")
+            logger.warning(f"\n⚠️ {total - passed} validation(s) failed.")
             return False
 
 

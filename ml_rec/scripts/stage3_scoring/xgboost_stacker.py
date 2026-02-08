@@ -96,7 +96,7 @@ class XGBoostStacker:
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
 
-        logger.info(f"✓ DCN v2 모델 로드 완료")
+        logger.info(f"✅ DCN v2 모델 로드 완료")
         return model
 
     def extract_dcn_predictions(self, model, train_data, val_data, test_data):
@@ -130,7 +130,7 @@ class XGBoostStacker:
         val_preds = predict_batch(val_data)
         test_preds = predict_batch(test_data)
 
-        logger.info(f"✓ 예측값 추출 완료:")
+        logger.info(f"✅ 예측값 추출 완료:")
         logger.info(f"  - 학습 데이터: {len(train_preds)}개")
         logger.info(f"  - 검증 데이터: {len(val_preds)}개")
         logger.info(f"  - 테스트 데이터: {len(test_preds)}개")
@@ -175,7 +175,7 @@ class XGBoostStacker:
                 'review_stability': review_stability
             })
 
-        logger.info(f"✓ 대리변수 생성 완료: {len(proxy_features_list)}개 샘플")
+        logger.info(f"✅ 대리변수 생성 완료: {len(proxy_features_list)}개 샘플")
         return proxy_features_list
 
     def prepare_xgboost_data(self, train_data, val_data, test_data,
@@ -202,7 +202,7 @@ class XGBoostStacker:
         y_val = np.array([float(s['label']) for s in val_data])
         y_test = np.array([float(s['label']) for s in test_data])
 
-        logger.info(f"✓ XGBoost 입력 데이터 준비 완료:")
+        logger.info("✅ XGBoost 입력 데이터 준비 완료:")
         logger.info(f"  - 특성 개수: {len(feature_names)}")
         logger.info(f"  - 학습 샘플: {len(X_train)}")
         logger.info(f"  - 검증 샘플: {len(X_val)}")
@@ -241,7 +241,7 @@ class XGBoostStacker:
             early_stopping_rounds=10
         )
 
-        logger.info(f"✓ XGBoost 모델 학습 완료")
+        logger.info("✅ XGBoost 모델 학습 완료")
 
         return model, evals_result
 
@@ -260,7 +260,7 @@ class XGBoostStacker:
 
         # 모델 저장
         model.save_model(str(self.models_path / 'xgb_final_scorer.pkl'))
-        logger.info(f"✓ 모델 저장: xgb_final_scorer.pkl")
+        logger.info("✅ 모델 저장: xgb_final_scorer.pkl")
 
         # 특성 중요도
         logger.info(f"\n[Step 7] 특성 중요도 분석:")

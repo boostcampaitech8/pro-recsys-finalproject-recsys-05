@@ -76,7 +76,7 @@ class RecBoleFormatConverter:
         # 필요한 컬럼만 선택
         inter_df = inter_df[['user_id:token', 'item_id:token', 'rating:float', 'timestamp:float']]
 
-        logger.info(f"  ✓ Prepared {len(inter_df):,} interactions")
+        logger.info(f"  ✅ Prepared {len(inter_df):,} interactions")
         return inter_df
 
     def prepare_item_file(self) -> pd.DataFrame:
@@ -108,7 +108,7 @@ class RecBoleFormatConverter:
             )
             item_df = item_df.merge(item_rating, on='item_id:token', how='left')
 
-        logger.info(f"  ✓ Prepared {len(item_df):,} items")
+        logger.info(f"  ✅ Prepared {len(item_df):,} items")
         return item_df
 
     def prepare_user_file(self) -> pd.DataFrame:
@@ -140,7 +140,7 @@ class RecBoleFormatConverter:
             )
             user_df = user_df.merge(user_rating, on='user_id:token', how='left')
 
-        logger.info(f"  ✓ Prepared {len(user_df):,} users")
+        logger.info(f"  ✅ Prepared {len(user_df):,} users")
         return user_df
 
     def save_files(self, inter_df: pd.DataFrame, item_df: pd.DataFrame, user_df: pd.DataFrame):
@@ -152,19 +152,19 @@ class RecBoleFormatConverter:
         # .inter 파일
         inter_path = os.path.join(self.output_dir, f"{self.dataset_name}.inter")
         inter_df.to_csv(inter_path, sep='\t', index=False)
-        logger.info(f"✓ Saved: {inter_path}")
+        logger.info(f"✅ Saved: {inter_path}")
         logger.info(f"  Rows: {len(inter_df):,}, Columns: {inter_df.shape[1]}")
 
         # .item 파일
         item_path = os.path.join(self.output_dir, f"{self.dataset_name}.item")
         item_df.to_csv(item_path, sep='\t', index=False)
-        logger.info(f"✓ Saved: {item_path}")
+        logger.info(f"✅ Saved: {item_path}")
         logger.info(f"  Rows: {len(item_df):,}, Columns: {item_df.shape[1]}")
 
         # .user 파일
         user_path = os.path.join(self.output_dir, f"{self.dataset_name}.user")
         user_df.to_csv(user_path, sep='\t', index=False)
-        logger.info(f"✓ Saved: {user_path}")
+        logger.info(f"✅ Saved: {user_path}")
         logger.info(f"  Rows: {len(user_df):,}, Columns: {user_df.shape[1]}")
 
         logger.info("="*80)

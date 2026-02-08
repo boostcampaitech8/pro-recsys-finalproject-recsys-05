@@ -31,7 +31,7 @@ def find_latest_model(model_pattern):
 
     # 최신 파일 선택
     latest_model = max(model_files, key=os.path.getmtime)
-    logger.info(f"✓ 모델 로드: {Path(latest_model).name}")
+    logger.info(f"[OK] 모델 로드: {Path(latest_model).name}")
     return latest_model
 
 
@@ -39,16 +39,16 @@ def load_ease_model():
     """EASE 모델 로드 (새로운 사용자 처리용)"""
     model_path = SAVED_MODELS_DIR / EASE_MODEL_FILE
     if not model_path.exists():
-        logger.warning(f"⚠️ EASE 모델 없음: {model_path} (새 사용자 처리 불가)")
+        logger.warning(f"[WARN] EASE 모델 없음: {model_path} (새 사용자 처리 불가)")
         return None
 
     try:
         with open(model_path, 'rb') as f:
             ease_model = pickle.load(f)
-        logger.info(f"✓ EASE 모델 로드")
+        logger.info(f"[OK] EASE 모델 로드")
         return ease_model
     except Exception as e:
-        logger.warning(f"⚠️ EASE 모델 로드 실패: {e}")
+        logger.warning(f"[WARN] EASE 모델 로드 실패: {e}")
         return None
 
 
@@ -61,7 +61,7 @@ def load_ease_candidates():
             print("[DEBUG] EASE 후보 로드 중 (Pickle)...", flush=True)
             with open(pkl_path, 'rb') as f:
                 candidates = pickle.load(f)
-            logger.info(f"✓ EASE 후보 로드 (Pickle): {len(candidates)} 사용자")
+            logger.info(f"[OK] EASE 후보 로드 (Pickle): {len(candidates)} 사용자")
             print(f"[DEBUG] EASE 후보 로드 완료: {len(candidates)} 사용자", flush=True)
             return candidates
 
@@ -70,17 +70,17 @@ def load_ease_candidates():
             print("[DEBUG] EASE 후보 로드 중 (JSON)...", flush=True)
             with open(EASE_CANDIDATES_FILE, 'r') as f:
                 candidates = json.load(f)
-            logger.info(f"✓ EASE 후보 로드 (JSON): {len(candidates)} 사용자")
+            logger.info(f"[OK] EASE 후보 로드 (JSON): {len(candidates)} 사용자")
             print(f"[DEBUG] EASE 후보 로드 완료: {len(candidates)} 사용자", flush=True)
             return candidates
 
         # 파일 없으면 빈 dict 반환 (새 사용자는 실시간 생성)
-        logger.warning("⚠️ EASE 후보 파일 없음 - 새 사용자는 실시간 생성됨")
+        logger.warning("[WARN] EASE 후보 파일 없음 - 새 사용자는 실시간 생성됨")
         print("[DEBUG] EASE 후보 파일 없음 - 새 사용자만 사용 가능", flush=True)
         return {}
 
     except Exception as e:
-        logger.warning(f"⚠️ EASE 후보 로드 실패: {e} - 새 사용자만 사용 가능")
+        logger.warning(f"[WARN] EASE 후보 로드 실패: {e} - 새 사용자만 사용 가능")
         print(f"[DEBUG] EASE 후보 로드 실패: {e} - 새 사용자만 사용 가능", flush=True)
         return {}
 
@@ -314,9 +314,9 @@ def load_all_models():
         xgb_model = load_xgboost_model()
 
         logger.info("=" * 50)
-        logger.info("✅ 모든 모델 로드 완료!")
+        logger.info("[OK] 모든 모델 로드 완료!")
         logger.info("=" * 50)
-        print("[DEBUG] ✅ 모든 모델 로드 완료!", flush=True)
+        print("[DEBUG] [OK] 모든 모델 로드 완료!", flush=True)
 
         return {
             'ease_model': ease_model,
@@ -331,9 +331,9 @@ def load_all_models():
         }
 
     except Exception as e:
-        print(f"[DEBUG] ❌ 모델 로드 실패: {e}", flush=True)
+        print(f"[DEBUG] [ERROR] 모델 로드 실패: {e}", flush=True)
         print(f"[DEBUG] Exception type: {type(e)}", flush=True)
         import traceback
         print(f"[DEBUG] Traceback:\n{traceback.format_exc()}", flush=True)
-        logger.error(f"❌ 모델 로드 실패: {e}")
+        logger.error(f"[ERROR] 모델 로드 실패: {e}")
         raise

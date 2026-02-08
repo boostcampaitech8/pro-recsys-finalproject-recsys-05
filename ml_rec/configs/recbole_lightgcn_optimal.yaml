@@ -23,9 +23,9 @@ require_pow: false           # No graph power normalization
 # ============================================================================
 # Training Configuration
 # ============================================================================
-epochs: 100                  # Number of training epochs
-train_batch_size: 4096       # Mini-batch size (reduced to prevent OOM)
-learning_rate: 0.001         # Learning rate
+epochs: 150                  # Number of training epochs
+train_batch_size: 65536      # Optimized for performance (8GB VRAM capacity)
+learning_rate: 0.002         # Adjusted for larger batch size
 learner: adam                # Optimizer
 loss_type: BPR               # Bayesian Personalized Ranking
 negative_sampler: uniform    # Uniform negative sampling
@@ -37,7 +37,7 @@ eval_strategy: epoch
 eval_step: 5                 # Evaluate every 5 epochs
 stopping_step: 20            # Early stopping patience
 valid_metric: Recall@10
-eval_batch_size: 4096       # Reduced to prevent OOM
+eval_batch_size: 65536      # Optimized for performance
 cutoff: 10
 top_k: [10, 20, 50]         # Report top-k metrics
 

@@ -86,11 +86,12 @@ class DCN_V2(nn.Module):
 
 
 class DCNTrainer:
-    def __init__(self):
+    def __init__(self, epochs=20):
         self.base_path = Path.cwd()
         self.candidates_path = self.base_path / 'candidates'
         self.models_path = self.base_path / 'saved_models'
         self.models_path.mkdir(exist_ok=True)
+        self.epochs = epochs
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info(f"Device: {self.device}")
@@ -105,15 +106,15 @@ class DCNTrainer:
 
         with open(self.candidates_path / 'ranking_train.pkl', 'rb') as f:
             train_data = pickle.load(f)
-        logger.info(f"✓ 학습 데이터 로드: {len(train_data)}개 샘플")
+        logger.info(f"✅ 학습 데이터 로드: {len(train_data)}개 샘플")
 
         with open(self.candidates_path / 'ranking_val.pkl', 'rb') as f:
             val_data = pickle.load(f)
-        logger.info(f"✓ 검증 데이터 로드: {len(val_data)}개 샘플")
+        logger.info(f"✅ 검증 데이터 로드: {len(val_data)}개 샘플")
 
         with open(self.candidates_path / 'ranking_test.pkl', 'rb') as f:
             test_data = pickle.load(f)
-        logger.info(f"✓ 테스트 데이터 로드: {len(test_data)}개 샘플")
+        logger.info(f"✅ 테스트 데이터 로드: {len(test_data)}개 샘플")
 
         return train_data, val_data, test_data
 
@@ -141,7 +142,7 @@ class DCNTrainer:
 
         return features, labels
 
-    def train_epoch(self, model, train_data, batch_size=2048, optimizer=None, criterion=None):
+    def train_epoch(self, model, train_data, batch_size=16384, optimizer=None, criterion=None):
         """한 에포크 학습"""
         model.train()
         total_loss = 0
@@ -164,7 +165,7 @@ class DCNTrainer:
 
         return total_loss / len(train_data)
 
-    def evaluate(self, model, val_data, batch_size=2048, criterion=None):
+    def evaluate(self, model, val_data, batch_size=16384, criterion=None):
         """모델 평가"""
         model.eval()
         total_loss = 0
@@ -203,7 +204,7 @@ class DCNTrainer:
             logger.info("\n[Step 2] DCN v2 모델 초기화 중...")
             input_dim = 1 + 1 + 64  # popularity + avg_playtime + embedding(64)
             model = DCN_V2(input_dim, deep_layers=(256, 128, 64), cross_layers=3, dropout_rate=0.1).to(self.device)
-            logger.info(f"✓ 모델 초기화: 입력 차원={input_dim}")
+            logger.info(f"✅ 모델 초기화: 입력 차원={input_dim}")
 
             # 옵티마이저 및 손실 함수
             optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -215,9 +216,9 @@ class DCNTrainer:
             patience = 5
             patience_counter = 0
 
-            for epoch in range(20):
-                train_loss = self.train_epoch(model, train_data, batch_size=2048, optimizer=optimizer, criterion=criterion)
-                val_loss, val_acc = self.evaluate(model, val_data, batch_size=2048, criterion=criterion)
+            for epoch in range(self.epochs):
+                train_loss = self.train_epoch(model, train_data, batch_size=16384, optimizer=optimizer, criterion=criterion)
+                val_loss, val_acc = self.evaluate(model, val_data, batch_size=16384, criterion=criterion)
 
                 logger.info(f"Epoch {epoch+1:2d}: train_loss={train_loss:.4f}, val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
 
@@ -231,11 +232,11 @@ class DCNTrainer:
                         'val_loss': val_loss,
                         'val_acc': val_acc
                     }, self.models_path / 'dcn_v2_steam.pth')
-                    logger.info(f"  → Best model saved (val_loss={val_loss:.4f})")
+                    logger.info(f"  -> Best model saved (val_loss={val_loss:.4f})")
                 else:
                     patience_counter += 1
                     if patience_counter >= patience:
-                        logger.info(f"  → Early stopping at epoch {epoch+1} (patience={patience})")
+                        logger.info(f"  -> Early stopping at epoch {epoch+1} (patience={patience})")
                         break
 
             # 테스트 성능 평가
@@ -244,7 +245,7 @@ class DCNTrainer:
             model.load_state_dict(checkpoint['model_state_dict'])
             test_loss, test_acc = self.evaluate(model, test_data, batch_size=2048, criterion=criterion)
 
-            logger.info(f"✓ 테스트 결과:")
+            logger.info("✅ 테스트 결과:")
             logger.info(f"  - Test Loss: {test_loss:.4f}")
             logger.info(f"  - Test Accuracy: {test_acc:.4f}")
 
@@ -258,5 +259,10 @@ class DCNTrainer:
 
 
 if __name__ == '__main__':
-    trainer = DCNTrainer()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=20, help="Number of training epochs")
+    args = parser.parse_args()
+
+    trainer = DCNTrainer(epochs=args.epochs)
     trainer.train()

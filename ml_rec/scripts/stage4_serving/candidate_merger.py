@@ -57,7 +57,7 @@ class CandidateMerger:
         all_items = all_items - user_interactions
 
         if not all_items:
-            logger.warning(f"모든 후보가 이미 상호작용한 아이템")
+            logger.warning(f"[WARN] 모든 후보가 이미 상호작용한 아이템")
             return []
 
         # 4. 역수 순위 가중치 계산
@@ -90,7 +90,7 @@ class CandidateMerger:
             reverse=True
         )[:top_k]
 
-        logger.info(f"병합 완료: {len(sorted_candidates)} 후보 (상호작용 제거 후)")
+        logger.info(f"[OK] 병합 완료: {len(sorted_candidates)} 후보 (상호작용 제거 후)")
 
         return sorted_candidates
 
@@ -145,11 +145,11 @@ class CandidateMerger:
                 for item_id, score in sorted_items
             ]
 
-            logger.info(f"✓ EASE 후보 생성: {len(candidates)} 개 (새 사용자)")
+            logger.info(f"[OK] EASE 후보 생성: {len(candidates)} 개 (새 사용자)")
             return candidates
 
         except Exception as e:
-            logger.warning(f"⚠️ EASE 후보 생성 실패: {e}")
+            logger.warning(f"[WARN] EASE 후보 생성 실패: {e}")
             return []
 
     @staticmethod
@@ -215,11 +215,11 @@ class CandidateMerger:
                 for item_id, score in sorted_items
             ]
 
-            logger.info(f"✓ LightGCN 후보 생성: {len(candidates)} 개 (새 사용자)")
+            logger.info(f"[OK] LightGCN 후보 생성: {len(candidates)} 개 (새 사용자)")
             return candidates
 
         except Exception as e:
-            logger.warning(f"⚠️ LightGCN 후보 생성 실패: {e}")
+            logger.warning(f"[WARN] LightGCN 후보 생성 실패: {e}")
             return []
 
     @staticmethod

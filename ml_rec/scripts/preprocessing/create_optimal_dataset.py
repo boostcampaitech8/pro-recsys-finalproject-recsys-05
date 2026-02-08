@@ -33,8 +33,8 @@ class OptimalDatasetCreator:
 
     def load_data(self):
         """데이터 로드"""
-        logger.info(f"Loading data from {self.input_path}...")
-        self.df = pd.read_csv(self.input_path)
+        # [Refinement] RecBole 및 데이터 브릿지와의 호환성을 위해 탭(\t) 구분자 사용
+        self.df = pd.read_csv(self.input_path, sep='\t')
         self.df.columns = self.df.columns.str.strip()
         logger.info(f"Loaded {len(self.df):,} interactions")
         logger.info(f"Users: {self.df['user_id:token'].nunique():,}, "
@@ -142,13 +142,34 @@ class OptimalDatasetCreator:
         output_path = os.path.join(self.output_dir, f"{output_name}.inter")
 
         logger.info(f"\nSaving filtered dataset to {output_path}...")
-        df.to_csv(output_path, index=False)
+        df.to_csv(output_path, index=False, sep='\t')
 
-        logger.info(f"✓ Saved {len(df):,} interactions")
-        logger.info(f"✓ Users: {df['user_id:token'].nunique():,}")
-        logger.info(f"✓ Items: {df['item_id:token'].nunique():,}")
+        logger.info(f"✅ {len(df):,} 상호작용 저장 완료")
+        logger.info(f"✅ Users: {df['user_id:token'].nunique():,}")
+        logger.info(f"✅ Items: {df['item_id:token'].nunique():,}")
+
+        # .item 및 .user 메타데이터 생성 및 저장
+        self.save_item_user_metadata(df, output_name)
 
         return output_path
+
+    def save_item_user_metadata(self, df: pd.DataFrame, output_name: str):
+        """아이템 및 사용자 메타데이터 (.item, .user) 생성 및 저장"""
+        # 1. .item 파일 생성: [item_id:token, popularity:float, avg_rating:float]
+        item_stats = df.groupby('item_id:token')['rating:float'].agg(['count', 'mean']).reset_index()
+        item_stats.columns = ['item_id:token', 'popularity:float', 'avg_rating:float']
+
+        item_path = os.path.join(self.output_dir, f"{output_name}.item")
+        item_stats.to_csv(item_path, index=False, sep='\t')
+        logger.info(f"✅ Saved item metadata to {item_path} ({len(item_stats)} items)")
+
+        # 2. .user 파일 생성: [user_id:token, num_items:float, avg_playtime:float]
+        user_stats = df.groupby('user_id:token')['rating:float'].agg(['count', 'mean']).reset_index()
+        user_stats.columns = ['user_id:token', 'num_items:float', 'avg_playtime:float']
+
+        user_path = os.path.join(self.output_dir, f"{output_name}.user")
+        user_stats.to_csv(user_path, index=False, sep='\t')
+        logger.info(f"✅ Saved user metadata to {user_path} ({len(user_stats)} users)")
 
     def get_dataset_stats(self, df: pd.DataFrame):
         """데이터셋 통계"""

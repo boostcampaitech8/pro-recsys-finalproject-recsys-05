@@ -70,7 +70,7 @@ class GameRecommendationService:
             self.feature_builder = FeatureBuilder(self.lightgcn_embeddings, self.item_ids)
             self.candidate_merger = CandidateMerger()
 
-            logger.info("✅ GameRecommendationService 초기화 완료!")
+            logger.info("[OK] GameRecommendationService 초기화 완료!")
             logger.info("=" * 60)
 
         except Exception as e:
@@ -78,7 +78,7 @@ class GameRecommendationService:
             print(f"[DEBUG] Exception type: {type(e)}", flush=True)
             import traceback
             print(f"[DEBUG] Traceback:\n{traceback.format_exc()}", flush=True)
-            logger.error(f"❌ 초기화 실패: {e}")
+            logger.error(f"[ERROR] 초기화 실패: {e}")
             raise
 
     @bentoml.api
@@ -141,7 +141,7 @@ class GameRecommendationService:
             # 새로운 사용자 처리 (사전 계산된 후보가 없는 경우)
             is_new_user = False
             if not user_ease_candidates:
-                logger.info(f"ℹ️ 새 사용자 감지 ({user_id}): EASE 후보 실시간 생성")
+                logger.info(f"[INFO] 새 사용자 감지 ({user_id}): EASE 후보 실시간 생성")
                 user_ease_candidates = self.candidate_merger.generate_ease_candidates(
                     self.ease_model,
                     user_games,
@@ -150,7 +150,7 @@ class GameRecommendationService:
                 is_new_user = True
 
             if not user_lightgcn_candidates:
-                logger.info(f"ℹ️ 새 사용자 감지 ({user_id}): LightGCN 후보 실시간 생성")
+                logger.info(f"[INFO] 새 사용자 감지 ({user_id}): LightGCN 후보 실시간 생성")
                 user_lightgcn_candidates = self.candidate_merger.generate_lightgcn_candidates(
                     self.lightgcn_embeddings,
                     user_games,
@@ -175,10 +175,10 @@ class GameRecommendationService:
                 top_k=TOP_K_RETRIEVAL
             )
 
-            logger.info(f"✓ Retrieval 완료: {len(retrieval_candidates)} 후보")
+            logger.info(f"[OK] Retrieval 완료: {len(retrieval_candidates)} 후보")
 
             if len(retrieval_candidates) == 0:
-                logger.warning(f"⚠️ 추가할 수 있는 게임이 없음 (모두 플레이함)")
+                logger.warning(f"[WARN] 추가할 수 있는 게임이 없음 (모두 플레이함)")
                 return {
                     "status": "error",
                     "error": "추가할 수 있는 게임이 없음",
@@ -296,7 +296,7 @@ class GameRecommendationService:
             processing_time = (time.time() - start_time) * 1000  # ms
 
             logger.info(f"\n{'='*60}")
-            logger.info(f"✅ 추천 완료 ({processing_time:.1f}ms)")
+            logger.info(f"[OK] 추천 완료 ({processing_time:.1f}ms)")
             logger.info(f"{'='*60}\n")
 
             return {
@@ -313,7 +313,7 @@ class GameRecommendationService:
             }
 
         except Exception as e:
-            logger.error(f"❌ 추천 실패: {e}", exc_info=True)
+            logger.error(f"[ERROR] 추천 실패: {e}", exc_info=True)
             return {
                 'status': 'error',
                 'error': str(e),
