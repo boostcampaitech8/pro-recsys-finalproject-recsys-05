@@ -1,7 +1,7 @@
 [project]
 name = "backend-recsys"
 version = "0.1.0"
-description = "백엔드와 추천엔진이 공유하는 uv 공간입니다"
+description = "백엔드와 추천엔진이 공유하는 최적화된 하이브리드 서빙 환경 (Windows GPU / Linux CPU)"
 authors = [
     {name = "rlaqudwn1", email = "162764129+rlaqudwn1@users.noreply.github.com"}
 ]
@@ -28,7 +28,7 @@ dependencies = [
     "lightgbm>=4.6.0",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.8.0",
-    "scipy>=1.17.0",
+    "scipy<1.13.0",
     "tqdm>=4.67.1",
     "matplotlib>=3.10.8",
     "seaborn>=0.13.2",
@@ -41,19 +41,41 @@ dependencies = [
     "langchain-openai>=1.1.7",
     "langchain-core>=1.2.7",
     "sentence-transformers>=5.2.2",
-    "numpy>=1.24,<2.0",
+    "numpy>=1.24.0,<2.0.0",
     "alembic>=1.18.3",
+    "prefect>=3.1.0",
+    "ray>=2.0.0",
+    "kmeans-pytorch",
+    "loguru",
+    "hyperopt",
+    "colorlog",
+    "torchvision>=0.21.0",
 ]
 
-# [tool.uv] 섹션에서 패키지 소스(Index)를 관리합니다.
-# Pytorch CPU 버전을 우선적으로 찾도록 설정합니다.
+# [tool.uv] 플랫폼별 Torch 인덱스 자동 전환 설정
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cpu" }
+torch = [
+  { index = "pytorch-cu124", marker = "sys_platform == 'win32'" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+  { index = "pytorch-cu124", marker = "sys_platform == 'win32'" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+torchaudio = [
+  { index = "pytorch-cu124", marker = "sys_platform == 'win32'" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
 
 [dependency-groups]
 dev = [
