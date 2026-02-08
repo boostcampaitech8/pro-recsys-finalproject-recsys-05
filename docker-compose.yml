@@ -10,6 +10,10 @@ services:
       - backend
     environment:
       - VITE_API_URL=http://backend:8000
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - app-network
   bentoml:
@@ -57,6 +61,10 @@ services:
       - ./backend:/app/backend
       - ./ml_rec:/app/ml_rec
       - ./configs:/app/configs
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       db:
@@ -84,6 +92,10 @@ services:
       - POSTGRES_USER=myuser
       - POSTGRES_PASSWORD=mypassword
       - POSTGRES_DB=mydatabase
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U myuser -d mydatabase" ]
       interval: 5s
@@ -94,6 +106,12 @@ services:
 
   redis:
     image: redis:alpine
+    ports:
+      - "6380:6379" # 로컬 호스트 터미널에서 실행되는 파이프라인과의 데이터 연동을 위해 6380 포트 개방
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
