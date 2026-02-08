@@ -7,5 +7,11 @@ Description:
 Key Attributes:
 - Genres: {{ genre_list | join(', ') }}
 - Categories: {{ category_list | join(', ') }}
+- Tags: {{ tag_list | join(', ') }}
 - Interface & Subtitles Languages: {{ lang_sub | join(', ') }}
 - Full Audio Languages: {{ lang_audio | join(', ') }}
+
+Review & Ratings:
+- Recent Reviews: {{ review_recent_score }} ({{ review_recent_count }} reviews)
+- All-time Reviews: {{ review_all_score }} 
+- Total Recommendations: {{ rec_total }}

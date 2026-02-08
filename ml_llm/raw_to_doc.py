@@ -78,6 +78,7 @@ def main() -> None:
     parser.add_argument("--output_path", type=Path, required=True, help="Output .jsonl file path")
     parser.add_argument("--mapping_config", type=Path, default=None, help="Mapping config .json path")
     parser.add_argument("--id_col", type=str, default="steam_appid", help="Column name for unique ID")
+    parser.add_argument("--reviews_parquet", type=Path, default=None, help="Optional reviews .parquet file path for stats join")
 
     args = parser.parse_args()
     if args.mapping_config is None:
@@ -97,6 +98,23 @@ def main() -> None:
     try:
         # 200k 정도는 메모리에 다 올려도 문제 없으므로 read_parquet 사용
         df = pl.read_parquet(args.input_parquet)
+        
+        # 2.1 리뷰 데이터 조인 (선택 사항)
+        if args.reviews_parquet and args.reviews_parquet.exists():
+            print(f"Joining with reviews data from {args.reviews_parquet}...")
+            df_rev = pl.read_parquet(args.reviews_parquet)
+            
+            # stats 컬럼 unnest (appid가 String임을 확인했으므로 조인 가능)
+            if "stats" in df_rev.columns:
+                df_rev = df_rev.select(["appid", "stats"]).unnest("stats")
+            
+            # appid 컬럼명 통일 (id_col과 맞춤)
+            if "appid" in df_rev.columns and args.id_col != "appid":
+                df_rev = df_rev.rename({"appid": args.id_col})
+            
+            # Join (Left join to keep all games)
+            df = df.join(df_rev, on=args.id_col, how="left")
+            
     except Exception as e:
         print(f"Error loading parquet: {e}", file=sys.stderr)
         sys.exit(1)

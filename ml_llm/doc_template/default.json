@@ -1,10 +1,15 @@
 {
   "_README": "LEFT: 템플릿 변수명(Jinja2) <--- 매핑 ---> RIGHT: 원본 데이터 컬럼명(Parquet)",
   "title": "name",
-  "desc": "short_description",
+  "desc": "short_description_kr",
   "dev_list": "developers",
-  "genre_list": "genres",
-  "category_list": "categories",
+  "genre_list": "genres_kr",
+  "category_list": "categories_kr",
   "lang_sub": "supported_languages",
-  "lang_audio": "full_audio_languages"
+  "lang_audio": "audio_languages",
+  "tag_list": "tags_en",
+  "rec_total": "recommendations_total",
+  "review_recent_score": "recent_score_desc",
+  "review_recent_count": "recent_count",
+  "review_all_score": "review_score_desc"
 }
