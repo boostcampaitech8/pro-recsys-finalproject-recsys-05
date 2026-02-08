@@ -1,15 +1,16 @@
 import logging
 import json
 import os
-
+import time
+import requests
 import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 
-from collect_games import GameCollector
-from collect_reviews import ReviewCollector
-from collect_users import UserCollector
+from data_collection.collectors.collect_games import GameCollector
+from data_collection.collectors.collect_reviews import ReviewCollector
+from data_collection.collectors.collect_users import UserCollector
 
 
 logger = logging.getLogger(__name__)
@@ -24,20 +25,53 @@ class PipelineManager:
     """
 
     def __init__(self, steam_api_key: str = None):
-        self.game_collector = GameCollector("data/steam_games_info.jsonl")
-        self.review_collector = ReviewCollector("data/steam_reviews.jsonl")
+        # 데이터 저장 경로 설정 (프로젝트 루트 /data 기준)
+        project_root = Path(__file__).parent.parent.parent
+        data_dir = project_root / "data"
+        
+        self.game_collector = GameCollector(str(data_dir / "steam_games_info.jsonl"))
+        self.review_collector = ReviewCollector(str(data_dir / "steam_reviews.jsonl"))
 
         # API Key가 없으면 환경변수 시도
         if not steam_api_key:
             steam_api_key = os.getenv("STEAM_API_KEY")
 
         self.user_collector = UserCollector(
-            "data/steam_users.jsonl", api_key=steam_api_key
+            str(data_dir / "steam_users.jsonl"), api_key=steam_api_key
         )
-        self.api_handler = self.game_collector.api  # 공통 핸들러
+
+    def _safe_request(self, url: str, params: Dict[str, Any] = None, retries: int = 3) -> Optional[requests.Response]:
+        """
+        [Standardized] 안전한 요청 처리 (1.5초 대기, 429 대응)
+        """
+        if params is None:
+            params = {}
+            
+        for i in range(retries):
+            # 1. Rate Limit 예방을 위한 기본 대기
+            time.sleep(1.5)
+
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                
+                if response.status_code == 200:
+                    return response
+                
+                elif response.status_code == 429:
+                    logger.warning(f"🚨 Rate Limit (429). 60초 대기... ({i+1}/{retries})")
+                    time.sleep(60)
+                    
+                else:
+                    logger.warning(f"⚠️ 요청 실패 ({response.status_code}): {url}")
+                    
+            except Exception as e:
+                logger.error(f"❌ 네트워크 오류: {e}")
+                time.sleep(2)
+                
+        return None
 
     def fetch_chart_appids(self) -> List[str]:
-        print("🔥 Steam 차트 크롤링 중 (Top Sellers, New, Updated, Most Played)...")
+        logger.info("🔥 Steam 차트 크롤링 중 (Top Sellers, New, Updated, Most Played)...")
 
         chart_ids = set()
         # 매출 차트(Topsellers) + 동접 차트(Most Played) 결합
@@ -51,7 +85,7 @@ class PipelineManager:
 
         for url in urls:
             try:
-                resp = self.api_handler.fetch_raw(url, params={})
+                resp = self._safe_request(url)
                 if resp:
 
                     soup = BeautifulSoup(resp.text, "html.parser")
@@ -85,7 +119,8 @@ class PipelineManager:
 
     def save_report(self, stats: dict):
         """실행 결과를 JSON 리포트로 저장 (모니터링용)"""
-        log_dir = Path("data/logs")
+        project_root = Path(__file__).parent.parent.parent
+        log_dir = project_root / "data" / "logs"
         log_dir.mkdir(exist_ok=True)
 
         filename = f"collection_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -118,8 +153,9 @@ class PipelineManager:
             # 0. 증분 데이터 저장을 위한 준비 (테스트 모드에서만 활성화)
             delta_path = None
             if test_mode:
+                project_root = Path(__file__).parent.parent.parent
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                delta_path = Path("data/logs") / f"collection_delta_{timestamp}.jsonl"
+                delta_path = project_root / "data" / "logs" / f"collection_delta_{timestamp}.jsonl"
                 delta_path.parent.mkdir(exist_ok=True)
 
             def save_delta(category, data_id, content):

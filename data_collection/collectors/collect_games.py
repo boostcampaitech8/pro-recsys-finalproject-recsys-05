@@ -1,10 +1,10 @@
-from core.api_handler import SteamAPIHandler
-from core.data_manager import DataManager
 import logging
 import time
-import requests  # 태그 수집용
+import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from typing import Optional, Dict, Any, List
+from data_collection.core.data_manager import DataManager
 
 logger = logging.getLogger(__name__)
 
@@ -12,14 +12,42 @@ logger = logging.getLogger(__name__)
 class GameCollector:
     """
     Steam 게임 정보 수집기 (Steam Game Details Collector)
-    - Metadata: Fetch KR/EN details, tags, and media assets.
+    - Metadata: Fetch KR details, English tags/description for AI.
     - Output: data/steam_games_info.jsonl
+    - Policy: Strict rate limiting (1.5s delay) to avoid 429 errors.
     """
 
     def __init__(self, output_file: str = "data/steam_games_info.jsonl"):
-        self.api = SteamAPIHandler(delay_seconds=1.5)
         self.storage = DataManager(output_file)
         self.base_url = "https://store.steampowered.com/api/appdetails"
+
+    def _safe_request(self, url: str, params: Dict[str, Any], retries: int = 3) -> Optional[Dict[str, Any]]:
+        """
+        [Standardized] 안전한 요청 처리 (1.5초 대기, 429 대응)
+        """
+        for i in range(retries):
+            # 1. 무조건 대기 (Rate Limit 예방)
+            time.sleep(1.5)
+
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                
+                if response.status_code == 200:
+                    return response.json()
+                
+                elif response.status_code == 429:
+                    logger.warning(f"🚨 Rate Limit (429). 60초 대기... ({i+1}/{retries})")
+                    time.sleep(60)
+                    
+                else:
+                    # 403, 404 등은 재시도하지 않음
+                    pass
+                    
+            except Exception as e:
+                logger.error(f"❌ 네트워크 오류: {e}")
+                time.sleep(2)
+                
+        return None
 
     def _clean_html(self, html_text):
         """HTML 태그 제거"""
@@ -57,25 +85,29 @@ class GameCollector:
 
         return {"interface": interface_list, "audio": audio_list}
 
-    def _fetch_steam_tags_en(self, appid):
-        """[크롤링] 영어 태그 수집 (임베딩용)"""
-        url = f"https://store.steampowered.com/app/{appid}/?l=english&cc=us"
+    def _fetch_steam_tags_en(self, appid) -> List[str]:
+        """영어 태그 수집 (임베딩 및 RAG 문서화용) - 별도 크롤링"""
+        url = f"https://store.steampowered.com/app/{appid}/"
+        params = {"l": "english", "cc": "us"}
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         cookies = {
             "birthtime": "946684801",
             "lastagecheckage": "1-0-2000",
             "wants_mature_content": "1",
             "Steam_Language": "english",
         }
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
         try:
-            response = requests.get(url, headers=headers, cookies=cookies, timeout=5)
+            # 여기도 간단하게 requests 직접 사용
+            time.sleep(1.0) 
+            response = requests.get(url, params=params, headers=headers, cookies=cookies, timeout=5)
+            
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
                 tags = [t.get_text(strip=True) for t in soup.select("a.app_tag")]
                 return tags[:20]
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"⚠️ [{appid}] 태그 수집 실패: {e}")
         return []
 
     def _parse_game_detail(self, kr_data, en_data):
@@ -105,16 +137,16 @@ class GameCollector:
                 else:
                     price_int = initial
             else:
-                # 값이 없으면 에러 코드 -2
                 price_int = -2
 
         # 2. 언어 정보 (EN 데이터의 supported_languages 파싱)
-        langs = self._parse_languages(en_data.get("supported_languages", ""))
+        langs = self._parse_languages(en_data.get("supported_languages", "") if en_data else "")
         is_kr_interface = "Korean" in langs["interface"]
         is_kr_audio = "Korean" in langs["audio"]
 
         # 3. 사양 정보 (EN 기준)
         def get_req_text(data, key, subkey):
+            if not data: return "정보 없음"
             req = data.get(key, {})
             if isinstance(req, list):
                 return "정보 없음"
@@ -154,7 +186,6 @@ class GameCollector:
                     },
                     "hls": m.get("hls_h264", ""),
                 }
-                # 유효성 검사
                 if (
                     movie_entry["mp4"]["max"]
                     or movie_entry["webm"]["max"]
@@ -165,15 +196,15 @@ class GameCollector:
         # 5. 최종 데이터 조립
         return {
             # --- 식별자 ---
-            "appid": str(kr_data.get("steam_appid")),  # String으로 변환 (레거시 호환)
+            "appid": str(kr_data.get("steam_appid")),
             "name": kr_data.get("name"),
             "type": kr_data.get("type"),
-            "is_available_in_kr": True,  # KR 데이터만 수집하므로 항상 True
+            "is_available_in_kr": True,
             # --- 기본 스펙 ---
             "is_free": kr_data.get("is_free"),
             "price_int": price_int,
             "price_currency": price_currency,
-            "release_date": en_data.get("release_date", {}).get("date", "Unknown"),
+            "release_date": en_data.get("release_date", {}).get("date", "Unknown") if en_data else "Unknown",
             "age_rating": kr_data.get("required_age", 0),
             "dlc_count": len(kr_data.get("dlc", [])),
             # --- 언어/플랫폼 정보 ---
@@ -181,14 +212,14 @@ class GameCollector:
             "audio_languages": langs["audio"],
             "is_korean_supported": is_kr_interface,
             "is_korean_dubbed": is_kr_audio,
-            "platforms": en_data.get("platforms", {}),
+            "platforms": en_data.get("platforms", {}) if en_data else {},
             "specs": specs,
             # --- UI 표시용 텍스트 (KR) ---
             "short_description_kr": kr_data.get("short_description", ""),
             "genres_kr": [g["description"] for g in kr_data.get("genres", [])],
             "categories_kr": [c["description"] for c in kr_data.get("categories", [])],
-            "developers": en_data.get("developers", []),
-            "publishers": en_data.get("publishers", []),
+            "developers": en_data.get("developers", []) if en_data else [],
+            "publishers": en_data.get("publishers", []) if en_data else [],
             # --- AI 임베딩용 텍스트 (EN) ---
             "name_en": en_data.get("name") if en_data else kr_data.get("name"),
             "short_description_en": (
@@ -197,8 +228,8 @@ class GameCollector:
             "genres_en": (
                 [g["description"] for g in en_data.get("genres", [])] if en_data else []
             ),
-            "categories_en": [c["description"] for c in en_data.get("categories", [])],
-            "tags_en": tags_en,  # (크롤링된 영어 태그)
+            "categories_en": [c["description"] for c in en_data.get("categories", [])] if en_data else [],
+            "tags_en": tags_en,
             # --- 통계 ---
             "metacritic": kr_data.get("metacritic", {}).get("score", 0),
             "recommendations_total": kr_data.get("recommendations", {}).get("total", 0),
@@ -223,26 +254,32 @@ class GameCollector:
         return False
 
     def collect_by_ids(self, appids: list, min_reviews: int = 20):
-        # ... (이전과 동일한 로직, 내부에서 _parse_game_detail 호출)
         count = 0
         collected_data = []
 
-        for appid in appids:
+        for idx, appid in enumerate(appids):
             if self.storage.is_collected(appid):
                 continue
 
-            logger.info(f"🔍 [{count+1}] Processing: {appid}")
+            # 진행 상황 로깅
+            if idx > 0 and idx % 10 == 0:
+                logger.info(f"⏳ 게임 정보 수집 중... ({idx+1}/{len(appids)})")
 
-            # API 호출 (KR/EN)
-            data_kr = self.api.fetch(
+            # 1. 한국 스토어 (KR) 조회
+            data_kr = self._safe_request(
                 self.base_url, {"appids": appid, "l": "koreana", "cc": "kr"}
             )
+            
+            # 한국 스토어에 없으면 건너뜀 (미국 우회 없음)
             if not data_kr or not data_kr.get(str(appid), {}).get("success"):
-                logger.warning(f"Failed to fetch KR data for {appid}")
+                logger.warning(f"⏩ {appid}: 한국 스토어 정보 부족으로 건너뜀")
                 continue
+                
             game_kr = data_kr[str(appid)]["data"]
 
-            data_en = self.api.fetch(
+            # 2. 영어 스토어 (US) 조회 (AI 임베딩용, 있으면 좋음)
+            # 영어 데이터는 실패해도 치명적이지 않음
+            data_en = self._safe_request(
                 self.base_url, {"appids": appid, "l": "english", "cc": "us"}
             )
             game_en = (
@@ -256,7 +293,6 @@ class GameCollector:
                 continue
 
             total_recs = game_kr.get("recommendations", {}).get("total", 0)
-            # 출시일 체크는 EN 데이터 기준이 정확함
             release_date = ""
             if game_en:
                 release_date = game_en.get("release_date", {}).get("date", "")
@@ -264,27 +300,25 @@ class GameCollector:
             is_new = self._is_new_release(release_date)
 
             if total_recs < min_reviews and not is_new:
-                logger.info(
-                    f"Skip {appid}: Reviews({total_recs}) < {min_reviews} & Not New"
-                )
                 continue
-
-            if is_new and total_recs < min_reviews:
-                logger.info(f"Collect {appid}: New Release! ({release_date})")
 
             # 저장
             parsed_data = self._parse_game_detail(game_kr, game_en)
             if parsed_data:
                 self.storage.save_row(appid, parsed_data)
                 collected_data.append({"appid": appid, "data": parsed_data})
-                logger.info(f"Saved {parsed_data['name']}")
-
-            count += 1
-            if count % 50 == 0:
-                time.sleep(30)
+                logger.info(f"✅ Saved: {parsed_data['name']} (Reviews: {total_recs})")
+                count += 1
 
         return collected_data
 
 
+def main():
+    """CLI 실행용 엔트리포인트"""
+    logging.basicConfig(level=logging.INFO)
+    collector = GameCollector()
+    logger.info("🎮 GameCollector 가동 준비 완료")
+
+
 if __name__ == "__main__":
-    c = GameCollector()
+    main()
