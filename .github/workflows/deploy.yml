@@ -195,6 +195,10 @@ jobs:
         run: |
           docker build --target runner -t ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG} .
 
+      - name: Build BentoML Image
+        run: |
+          docker build -f ml_rec/Dockerfile.bentoml -t ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:${IMAGE_TAG} ./ml_rec
+
       # ---------------------------------------------------
       # [통합 테스트: Docker Compose]
       # 실제 컨테이너들이 잘 뜨는지(Health Check) 확인
@@ -238,6 +242,10 @@ jobs:
       - name: Push Backend Image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG}
+
+      - name: Push BentoML Image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:${IMAGE_TAG}
 
     # ---------------------------------------------------
     # [서버 배포: SSH]

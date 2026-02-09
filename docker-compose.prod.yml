@@ -1,11 +1,12 @@
 services:
-  # [Production] Frontend (Docker Hub에서 이미지 다운로드)
+  # Production frontend image
   frontend:
-    image: your-registry/rec-frontend:latest
-    ports:
-      - "3000:80"
+    image: ${DOCKER_USERNAME:-your-registry}/rec-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     depends_on:
       - backend
+    networks:
+      - app-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
@@ -14,9 +15,11 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     ports:
       - "80:80"
     depends_on:
+      - frontend
       - backend
     networks:
       - app-network
@@ -24,21 +27,49 @@ services:
       - ./backend/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
   backend:
-    image: ${DOCKER_USERNAME}/rec-server:${IMAGE_TAG:-latest}
+    image: ${DOCKER_USERNAME:-your-registry}/rec-server:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    depends_on:
+      bentoml:
+        condition: service_healthy
     networks:
       - app-network
     env_file:
       - ./.env
     environment:
-      - GCS_KEY_BASE64=${GCS_KEY_BASE64}
-      - STEAM_API_KEY=${STEAM_API_KEY}
-      - CLOVA_API_KEY=${CLOVA_API_KEY}
+      - ENV=prod
+      - DEBUG_MODE=False
+      - BENTOML_SERVICE_URL=${BENTOML_SERVICE_URL:-http://bentoml:3000}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/configs/gcs/gcs_key.json
+    volumes:
+      - ./configs/gcs:/app/configs/gcs:ro
+
+  bentoml:
+    image: ${DOCKER_USERNAME:-your-registry}/rec-bentoml:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      - ML_REC_ROOT=/app/ml_rec
+      - GCS_CONFIG_PATH=/app/configs/gcs_config.yaml
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/configs/gcs/gcs_key.json
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./ml_rec/saved_models:/app/ml_rec/saved_models
+      - ./ml_rec/candidates:/app/ml_rec/candidates
+      - ./ml_rec/dataset:/app/ml_rec/dataset
+      - ./ml_rec/logs:/app/ml_rec/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
-    command: [ "/usr/bin/cadvisor", "--url_base_prefix=/monitor" ]
+    command: ["/usr/bin/cadvisor", "--url_base_prefix=/monitor"]
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -50,3 +81,7 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+
+networks:
+  app-network:
+    driver: bridge
