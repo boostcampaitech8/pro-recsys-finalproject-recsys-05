@@ -1,0 +1,112 @@
+services:
+  # [Development] Frontend (React + Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE_URL=http://backend:8000
+    networks:
+      - app-network
+  bentoml:
+    build:
+      context: ./ml_rec
+      dockerfile: Dockerfile.bentoml
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+      - MKLDNN_VERBOSE=0
+    deploy:
+      resources:
+        limits:
+          memory: 5G
+        reservations:
+          memory: 3G
+    volumes:
+      - ./ml_rec/saved_models:/app/ml_rec/saved_models
+      - ./ml_rec/candidates:/app/ml_rec/candidates
+      - ./ml_rec/dataset:/app/ml_rec/dataset
+      - ./ml_rec/logs:/app/ml_rec/logs
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - app-network
+
+  # [Development] FastAPI (현재 소스코드로 빌드)
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    # env_file:
+    #   - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
+      - REDIS_URL=redis://redis:6379
+      - ML_REC_ROOT=/app/ml_rec
+      - BENTOML_SERVICE_URL=http://bentoml:3000
+      - DEBUG_MODE=True # 개발 환경: True, 프로덕션: False
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./backend:/app/backend
+      - ./ml_rec:/app/ml_rec
+      - ./configs:/app/configs
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      bentoml:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - app-network
+
+  db:
+    image: pgvector/pgvector:pg15
+    ports:
+      - "5432:5432"
+    volumes:
+      # [DB] PostgreSQL 공통 설정
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=mydatabase
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U myuser -d mydatabase" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  redis:
+    image: redis:alpine
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,67 @@
+# RecBole LightGCN Model Configuration
+# Dataset: steam_optimal (9.47M interactions, 96K users, 17.5K items)
+
+# ============================================================================
+# Dataset Configuration
+# ============================================================================
+dataset: steam_optimal
+data_path: dataset
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+model: LightGCN
+
+# ============================================================================
+# LightGCN Specific Parameters
+# ============================================================================
+embedding_size: 64           # Dimension of user/item embeddings (for ranking stage)
+n_layers: 3                  # Number of GCN layers
+reg_weight: 1e-5             # L2 regularization weight
+require_pow: false           # No graph power normalization
+
+# ============================================================================
+# Training Configuration
+# ============================================================================
+epochs: 100                  # Number of training epochs
+train_batch_size: 4096       # Mini-batch size (reduced to prevent OOM)
+learning_rate: 0.001         # Learning rate
+learner: adam                # Optimizer
+loss_type: BPR               # Bayesian Personalized Ranking
+negative_sampler: uniform    # Uniform negative sampling
+
+# ============================================================================
+# Evaluation Configuration
+# ============================================================================
+eval_strategy: epoch
+eval_step: 5                 # Evaluate every 5 epochs
+stopping_step: 20            # Early stopping patience
+valid_metric: Recall@10
+eval_batch_size: 4096       # Reduced to prevent OOM
+cutoff: 10
+top_k: [10, 20, 50]         # Report top-k metrics
+
+# ============================================================================
+# Device Configuration
+# ============================================================================
+device: cuda
+seed: 2024
+use_gpu: true
+num_workers: 4               # Data loading workers
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+show_progress: true
+save_model: true
+saved_model_dir: saved_models
+checkpoint_dir: saved_models
+log_wandb: false
+
+# ============================================================================
+# Advanced Settings
+# ============================================================================
+save_dataset: false
+reproducibility: true
+eval_neg_sample_args:
+  strategy: 'full'           # Full evaluation on all items

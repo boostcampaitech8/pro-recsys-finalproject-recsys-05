@@ -1,17 +1,46 @@
-#!/bin/bash
+﻿#!/bin/bash
 
-# 1. 최신 이미지 당겨오기 
-sudo docker pull rlaqudwn/rec-server:latest
+# Use a fixed Compose project name to avoid duplicate stacks.
+export COMPOSE_PROJECT_NAME=recsys
+export DOCKER_USERNAME=${DOCKER_USERNAME:-rlaqudwn}
+export DEPLOY_DIR=${DEPLOY_DIR:-"$HOME/pro-recsys-finalproject-recsys-05"}
 
-# 2. 기존 컨테이너 삭제
-sudo docker rm -f backend-prod
+# Ensure we run from the deployment root so relative paths resolve.
+cd "$DEPLOY_DIR" || { echo "Deploy dir not found: $DEPLOY_DIR"; exit 1; }
 
-# 3. 다시 띄우기
-sudo docker run -d \
-  -p 8000:8000 \
-  --name backend-prod \
-  --restart always \
-  rlaqudwn/rec-server:latest # 항상 latest를 바라보지만, 내용은 갱신됨
+# 0.5. Docker 설치 확인 및 설치
+if ! command -v docker &> /dev/null
+then
+    echo "Docker가 설치되어 있지 않습니다. 설치를 시작합니다.."
+    # Docker 그룹에 현재 사용자 추가 (sudo 없이 사용하려는 경우)
+    sudo usermod -aG docker $USER
+    echo "Docker 설치 완료"
+else
+    echo "Docker가 이미 설치되어 있습니다."
+fi
 
-# 4. 안 쓰는 구버전 이미지 청소
-sudo docker image prune -f
+# 0.8. Docker Compose 명령어 감지
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+else
+    DOCKER_COMPOSE_CMD="docker compose"
+fi
+
+# 1. (옵션) 배포 파일은 SCP 방식으로 업로드되었다고 가정
+# git pull origin main (선택)
+
+# 1.5. GCS Key File 생성 (from Environment Variable)
+if [ -n "$GCS_KEY_BASE64" ]; then
+    echo "GCS_KEY_BASE64 환경변수 감지됨. gcs_key.json 생성 중..."
+    mkdir -p configs/gcs
+    echo "$GCS_KEY_BASE64" | base64 -d > configs/gcs/gcs_key.json
+    echo "configs/gcs/gcs_key.json 생성 완료."
+else
+    echo "WARN: GCS_KEY_BASE64 환경변수가 없습니다."
+fi
+
+# 2. 최신 이미지 받기 (Prod only)
+sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml pull
+
+# 3. 서비스 재시작 (이미지 pull 기반, 서버에서 빌드하지 않음)
+sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml up -d --no-build --force-recreate
