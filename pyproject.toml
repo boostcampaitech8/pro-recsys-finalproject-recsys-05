@@ -1,0 +1,23 @@
+[project]
+name = "steam-recsys"
+version = "0.1.0"
+description = "Steam Game Recommendation System"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "prefect>=2.19.0",
+    "polars>=0.20.0",
+    "google-cloud-storage>=2.14.0",
+    "redis>=5.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "scikit-learn>=1.3.0",
+    "torch>=2.0.0",
+    "pyyaml>=6.0",
+]
+
+[tool.uv]
+package = true
