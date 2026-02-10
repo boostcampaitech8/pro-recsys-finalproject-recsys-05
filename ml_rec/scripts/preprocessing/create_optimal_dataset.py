@@ -23,13 +23,15 @@ logger = logging.getLogger(__name__)
 class OptimalDatasetCreator:
     """최적 필터링 옵션으로 데이터셋 생성"""
 
-    def __init__(self, input_path: str, output_dir: str):
+    def __init__(self, input_path: str, output_dir: str, output_name: str = "steam_optimal"):
         self.input_path = input_path
         self.output_dir = output_dir
+        self.output_name = output_name
         self.df = None
 
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Output directory: {output_dir}")
+        logger.info(f"Output name: {output_name}")
 
     def load_data(self):
         """데이터 로드"""
@@ -220,7 +222,7 @@ class OptimalDatasetCreator:
         self.get_dataset_stats(filtered_df)
 
         # 저장
-        output_path = self.save_dataset(filtered_df, output_name="steam_optimal")
+        output_path = self.save_dataset(filtered_df, output_name=self.output_name)
 
         logger.info(f"\n✅ Dataset creation completed!")
         logger.info(f"Output: {output_path}")
@@ -244,12 +246,19 @@ def main():
         default="dataset/steam_optimal/",
         help="Output directory (default: dataset/steam_optimal/)"
     )
+    parser.add_argument(
+        "--output_name",
+        type=str,
+        default="steam_optimal",
+        help="Output dataset name (default: steam_optimal)"
+    )
 
     args = parser.parse_args()
 
     creator = OptimalDatasetCreator(
         input_path=args.input,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
+        output_name=args.output_name
     )
     creator.run()
 

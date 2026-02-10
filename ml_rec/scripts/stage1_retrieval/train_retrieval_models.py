@@ -71,7 +71,9 @@ class RetrievalModelTrainer:
             sys.executable, "run_recbole.py",
             "--model", model_name,
             "--dataset", self.dataset_name,
-            "--config_file", config_path
+            "--config_file", config_path,
+            "--saved_model_dir", self.saved_model_dir,
+            "--checkpoint_dir", self.saved_model_dir
         ]
 
         if checkpoint_path:

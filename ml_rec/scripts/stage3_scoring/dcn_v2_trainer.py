@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import logging
 from pathlib import Path
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+# from sklearn.preprocessing import StandardScaler, LabelEncoder  # Unused
 import random
 
 # 랜덤 시드 고정
@@ -86,10 +86,10 @@ class DCN_V2(nn.Module):
 
 
 class DCNTrainer:
-    def __init__(self, epochs=20):
+    def __init__(self, epochs=20, candidates_dir='candidates', models_dir='saved_models'):
         self.base_path = Path.cwd()
-        self.candidates_path = self.base_path / 'candidates'
-        self.models_path = self.base_path / 'saved_models'
+        self.candidates_path = self.base_path / candidates_dir
+        self.models_path = self.base_path / models_dir
         self.models_path.mkdir(exist_ok=True)
         self.epochs = epochs
 
@@ -98,6 +98,8 @@ class DCNTrainer:
 
         logger.info("=" * 80)
         logger.info("Task 2: DCN v2 모델 학습 시작")
+        logger.info(f"  - Candidates Dir: {self.candidates_path}")
+        logger.info(f"  - Models Dir: {self.models_path}")
         logger.info("=" * 80)
 
     def load_data(self):
@@ -258,11 +260,19 @@ class DCNTrainer:
             raise
 
 
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=20, help="Number of training epochs")
+    parser.add_argument("--candidates_dir", type=str, default="candidates", help="Directory containing candidate files")
+    parser.add_argument("--models_dir", type=str, default="saved_models", help="Directory to save models")
     args = parser.parse_args()
 
-    trainer = DCNTrainer(epochs=args.epochs)
+    trainer = DCNTrainer(
+        epochs=args.epochs,
+        candidates_dir=args.candidates_dir,
+        models_dir=args.models_dir
+    )
     trainer.train()

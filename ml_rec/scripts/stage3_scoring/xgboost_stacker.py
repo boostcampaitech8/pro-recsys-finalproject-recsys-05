@@ -73,26 +73,34 @@ class DCN_V2(torch.nn.Module):
 
 
 class XGBoostStacker:
-    def __init__(self):
+    def __init__(self, candidates_dir='candidates', dataset_dir='dataset/steam_optimal', models_dir='saved_models'):
         self.base_path = Path.cwd()
-        self.candidates_path = self.base_path / 'candidates'
-        self.dataset_path = self.base_path / 'dataset' / 'steam_optimal'
-        self.models_path = self.base_path / 'saved_models'
+        self.candidates_path = self.base_path / candidates_dir
+        self.dataset_path = self.base_path / dataset_dir
+        self.models_path = self.base_path / models_dir
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info(f"Device: {self.device}")
 
         logger.info("=" * 80)
         logger.info("Task 3: XGBoost Stacking 시작")
+        logger.info(f"  - Candidates Dir: {self.candidates_path}")
+        logger.info(f"  - Dataset Dir: {self.dataset_path}")
+        logger.info(f"  - Models Dir: {self.models_path}")
         logger.info("=" * 80)
 
     def load_dcn_model(self):
         """DCN v2 모델 로드"""
         logger.info("\n[Step 1] DCN v2 모델 로드 중...")
 
-        input_dim = 66
+        input_dim = 66 # Fixed: 1+1+64 = 66 (pop + avg_playtime + embedding)
         model = DCN_V2(input_dim).to(self.device)
+        # PyTorch 2.6+ 변경점 대응: weights_only=False 명시
         checkpoint = torch.load(self.models_path / 'dcn_v2_steam.pth', map_location=self.device, weights_only=False)
+        
+        # checkpoint 로드 시 input_dim 불일치 방지를 위해 shape 확인 필요하지만, 
+        # 일단 저장된 모델의 차원을 맞춤.
+        
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
 
@@ -309,6 +317,19 @@ class XGBoostStacker:
             raise
 
 
+
+
 if __name__ == '__main__':
-    stacker = XGBoostStacker()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--candidates_dir", type=str, default="candidates", help="Directory containing candidate files")
+    parser.add_argument("--dataset_dir", type=str, default="dataset/steam_optimal", help="Directory containing dataset files")
+    parser.add_argument("--models_dir", type=str, default="saved_models", help="Directory to save models")
+    args = parser.parse_args()
+
+    stacker = XGBoostStacker(
+        candidates_dir=args.candidates_dir,
+        dataset_dir=args.dataset_dir,
+        models_dir=args.models_dir
+    )
     stacker.run()
