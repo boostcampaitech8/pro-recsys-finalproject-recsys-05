@@ -29,6 +29,16 @@ fi
 # 1. (옵션) 배포 파일은 SCP 방식으로 업로드되었다고 가정
 # git pull origin main (선택)
 
+# 1.5. GCS Key File 생성 (from Environment Variable)
+if [ -n "$GCS_KEY_BASE64" ]; then
+    echo "GCS_KEY_BASE64 환경변수 감지됨. gcs_key.json 생성 중..."
+    mkdir -p configs/gcs
+    echo "$GCS_KEY_BASE64" | base64 -d > configs/gcs/gcs_key.json
+    echo "configs/gcs/gcs_key.json 생성 완료."
+else
+    echo "WARN: GCS_KEY_BASE64 환경변수가 없습니다."
+fi
+
 # 2. 최신 이미지 받기 (Prod only)
 sudo COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml pull
 

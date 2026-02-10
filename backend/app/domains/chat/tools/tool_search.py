@@ -131,11 +131,11 @@ class SearchGamesByFilterTool(Tool):
                 },
                 "max_price": {
                     "type": "integer",
-                    "description": "최대 가격 (KRW)"
+                    "description": "최대 가격 (KRW) (예: '30000원 이하' -> max_price=30000)"
                 },
                 "min_price": {
                     "type": "integer",
-                    "description": "최소 가격 (KRW)"
+                    "description": "최소 가격 (KRW) (예: '30000원 이상' -> min_price=30000)"
                 },
                 "genres": {
                     "type": "array",
@@ -149,7 +149,7 @@ class SearchGamesByFilterTool(Tool):
                 },
                 "release_year": {
                     "type": "integer",
-                    "description": "출시 연도 (이후)"
+                    "description": "출시 연도 (이후, >=) (예: '2023년 이후' -> 2023)"
                 }
             },
             "required": []

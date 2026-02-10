@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+import re
 from typing import Optional, Tuple, List, Dict, Any
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI # Clova X가 OpenAI 호환이므로 이거 씁니다.
@@ -228,7 +229,160 @@ class SteamBotOrchestrator:
 
         # 라우팅을 위한 전용 시스템 프롬프트 (Simple string format)
         self.router_system_prompt = template_system.format(schema=json.dumps(self._get_clova_schema(), indent=2, ensure_ascii=False))
-        
+
+    def _normalize_intent(self, intent_value: Any) -> Optional[UserIntent]:
+        """Normalize diverse intent labels into UserIntent."""
+        if isinstance(intent_value, UserIntent):
+            return intent_value
+        if not isinstance(intent_value, str):
+            return None
+
+        key = intent_value.strip().lower()
+        aliases = {
+            "recommendation": UserIntent.RECOMMENDATION,
+            "recommend": UserIntent.RECOMMENDATION,
+            "rec": UserIntent.RECOMMENDATION,
+            "search": UserIntent.SEARCH,
+            "find": UserIntent.SEARCH,
+            "lookup": UserIntent.SEARCH,
+            "info": UserIntent.SEARCH,
+            "chitchat": UserIntent.CHITCHAT,
+            "chat": UserIntent.CHITCHAT,
+            "smalltalk": UserIntent.CHITCHAT,
+            "small_talk": UserIntent.CHITCHAT,
+            "small-talk": UserIntent.CHITCHAT,
+        }
+        return aliases.get(key)
+
+    def _parse_intent_payload(self, payload: Any) -> Optional[IntentAnalysis]:
+        """Build IntentAnalysis from parsed JSON-like payload."""
+        if not isinstance(payload, dict):
+            return None
+
+        normalized_intent = self._normalize_intent(payload.get("intent"))
+        if normalized_intent is None:
+            return None
+
+        raw_keywords = payload.get("keywords", [])
+        if isinstance(raw_keywords, str):
+            candidates = [raw_keywords]
+        elif isinstance(raw_keywords, list):
+            candidates = raw_keywords
+        else:
+            candidates = []
+
+        keywords: List[str] = []
+        for item in candidates:
+            if not isinstance(item, str):
+                continue
+            value = item.strip()
+            if value and value not in keywords:
+                keywords.append(value)
+            if len(keywords) >= 5:
+                break
+
+        return IntentAnalysis(intent=normalized_intent, keywords=keywords)
+
+    def _parse_intent_with_recovery(self, raw_content: str) -> Optional[IntentAnalysis]:
+        """Parse model output with fallbacks when strict JSON is broken."""
+        if not raw_content:
+            return None
+
+        try:
+            return self.parser.parse(raw_content)
+        except Exception:
+            pass
+
+        json_candidates: List[str] = []
+
+        for match in re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", raw_content, flags=re.IGNORECASE | re.DOTALL):
+            json_candidates.append(match)
+
+        first_brace = raw_content.find("{")
+        last_brace = raw_content.rfind("}")
+        if 0 <= first_brace < last_brace:
+            json_candidates.append(raw_content[first_brace:last_brace + 1])
+
+        json_candidates.extend(re.findall(r"\{.*?\}", raw_content, flags=re.DOTALL))
+
+        seen = set()
+        for candidate in json_candidates:
+            normalized = candidate.strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+
+            try:
+                payload = json.loads(normalized)
+            except Exception:
+                continue
+
+            parsed = self._parse_intent_payload(payload)
+            if parsed is not None:
+                return parsed
+
+        return None
+
+    def _extract_keywords(self, user_message: str) -> List[str]:
+        tokens = re.findall(r"[0-9A-Za-z가-힣]{2,}", user_message)
+        stop_words = {
+            "게임", "추천", "추천해", "추천해줘", "추천해주세요", "검색", "검색해줘",
+            "좀", "그냥", "그리고", "근데", "요즘", "최근", "지금", "할만한",
+            "찾아줘", "찾아봐", "알려줘", "정보", "있어", "해주세요", "가능",
+        }
+        keywords: List[str] = []
+        for token in tokens:
+            if token in stop_words:
+                continue
+            if token not in keywords:
+                keywords.append(token)
+            if len(keywords) >= 3:
+                break
+        return keywords
+
+    def _heuristic_intent_analysis(self, user_message: str) -> IntentAnalysis:
+        text = user_message.lower()
+
+        personal_markers = [
+            "나에게", "내게", "내가", "나랑", "나의",
+            "내 취향", "내스타일", "내 스타일", "내 플레이", "내가 해본",
+            "for me", "my taste", "my style", "for my",
+        ]
+        search_markers = [
+            "검색", "찾아", "알려", "가격", "평점", "리뷰", "출시", "지원",
+            "정보", "뭐야", "어때", "compare", "difference", "vs",
+        ]
+
+        has_personal = any(marker in text for marker in personal_markers)
+        has_search = any(marker in text for marker in search_markers)
+        has_recommend = ("추천" in text) or ("recommend" in text)
+        has_game_context = ("게임" in text) or ("game" in text)
+
+        if has_personal:
+            return IntentAnalysis(intent=UserIntent.RECOMMENDATION, keywords=self._extract_keywords(user_message))
+        if has_search or has_recommend or has_game_context:
+            return IntentAnalysis(intent=UserIntent.SEARCH, keywords=self._extract_keywords(user_message))
+        return IntentAnalysis(intent=UserIntent.CHITCHAT, keywords=[])
+
+    def _apply_intent_guardrail(self, analysis: IntentAnalysis, user_message: str) -> IntentAnalysis:
+        heuristic = self._heuristic_intent_analysis(user_message)
+
+        if analysis.intent == UserIntent.CHITCHAT and heuristic.intent != UserIntent.CHITCHAT:
+            return heuristic
+
+        if analysis.intent == UserIntent.SEARCH and heuristic.intent == UserIntent.RECOMMENDATION:
+            return heuristic
+
+        if analysis.intent == UserIntent.RECOMMENDATION and heuristic.intent == UserIntent.SEARCH:
+            text = user_message.lower()
+            has_personal = any(
+                marker in text
+                for marker in ["나에게", "내게", "내가", "나랑", "나의", "내 취향", "내 스타일", "내 플레이"]
+            )
+            if not has_personal:
+                return heuristic
+
+        return analysis
 
     async def classify_intent(self, user_message: str, history: List[Dict[str, Any]] = None) -> IntentAnalysis:
         """
@@ -253,11 +407,16 @@ class SteamBotOrchestrator:
             )
 
             raw_content = response.content
-            return self.parser.parse(raw_content)
+            parsed = self._parse_intent_with_recovery(raw_content)
+            if parsed is not None:
+                return self._apply_intent_guardrail(parsed, user_message)
+
+            logger.warning("Routing parser failed; applying heuristic fallback. raw_content=%s", raw_content[:400])
+            return self._heuristic_intent_analysis(user_message)
 
         except Exception as e:
-            print(f"Routing Error: {e}")
-            return IntentAnalysis(intent=UserIntent.CHITCHAT, keywords=["Error fallback"])
+            logger.warning("Routing Error: %s", e)
+            return self._heuristic_intent_analysis(user_message)
 
     def _get_or_load_embedding_model(self) -> Optional[HuggingFaceEmbeddings]:
         """
