@@ -1,0 +1,56 @@
+# RecBole EASE Model Configuration
+# Dataset: steam_optimal (9.47M interactions, 96K users, 17.5K items)
+
+# ============================================================================
+# Dataset Configuration
+# ============================================================================
+dataset: steam_optimal
+data_path: dataset
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+model: EASE
+
+# ============================================================================
+# Training Configuration
+# ============================================================================
+epochs: 1                    # EASE doesn't have epochs like neural networks
+batch_size: 2048             # Mini-batch size for optimization
+learning_rate: 0.01
+l2_weight: 1e-6              # Regularization parameter for EASE
+optimizer: adam
+loss_type: BPR               # Bayesian Personalized Ranking
+
+# ============================================================================
+# Evaluation Configuration
+# ============================================================================
+eval_strategy: epoch
+valid_metric: Recall@10
+eval_batch_size: 4096        # Larger batch for evaluation
+cutoff: 10                   # Top-10 evaluation
+top_k: [10, 20, 50]         # Report top-k metrics
+
+# ============================================================================
+# Device Configuration
+# ============================================================================
+device: cuda                 # Use GPU if available
+seed: 2024
+use_gpu: true
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+show_progress: true
+save_model: true
+saved_model_dir: saved_models
+checkpoint_dir: saved_models
+log_wandb: false
+
+# ============================================================================
+# Advanced Settings
+# ============================================================================
+save_dataset: false
+reproducibility: true
+eval_neg_sample_args:
+  strategy: 'full'           # Full evaluation on all items

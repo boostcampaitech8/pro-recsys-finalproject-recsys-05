@@ -1,0 +1,62 @@
+gcs:
+  bucket_name: "data-tailor-test"
+  project_id: "pro-recsys-finalproject-recsys-05"
+
+
+# 로컬 데이터 기본 경로 (스크립트 실행 위치 기준)
+# - raw/: 원본 데이터
+# - processed/: 가공된 데이터
+# - models/: 학습된 모델
+local:
+  data_root: "app/data"      # 로컬 데이터 폴더 (backend/app/data)
+  files:
+    games_metadata.jsonl:
+      local_path: "processed/games_metadata.jsonl"       # 로컬 파일명 (data_root 기준)
+      upload_path: "processed/games_metadata.jsonl"
+      download_path: "processed/games_metadata.jsonl"
+
+    item_similarity.pkl:
+      local_path: "item_similarity.pkl"
+      upload_path: "ml_rec/item_similarity.pkl"
+      download_path: "ml_rec/item_similarity.pkl"
+
+# BentoML 모델 및 후보 데이터 백업
+ml_rec:
+  data_root: "ml_rec"
+  files:
+    # 모델 파일들 (1.4GB)
+    dcn_v2_steam.pth:
+      local_path: "saved_models/dcn_v2_steam.pth"
+      upload_path: "ml_rec/models/dcn_v2_steam.pth"
+    xgb_final_scorer.pkl:
+      local_path: "saved_models/xgb_final_scorer.pkl"
+      upload_path: "ml_rec/models/xgb_final_scorer.pkl"
+    item_similarity.pkl:
+      local_path: "saved_models/item_similarity.pkl"
+      upload_path: "ml_rec/models/item_similarity.pkl"
+
+    # 후보 데이터 (3.4GB)
+    ease_candidates.json:
+      local_path: "candidates/ease_candidates.json"
+      upload_path: "ml_rec/candidates/ease_candidates.json"
+    lightgcn_candidates.json:
+      local_path: "candidates/lightgcn_candidates.json"
+      upload_path: "ml_rec/candidates/lightgcn_candidates.json"
+    lightgcn_embeddings.npz:
+      local_path: "candidates/lightgcn_embeddings.npz"
+      upload_path: "ml_rec/candidates/lightgcn_embeddings.npz"
+
+    # 데이터셋 (4.3GB)
+    steam_optimal.inter:
+      local_path: "dataset/steam_optimal/steam_optimal.inter"
+      upload_path: "ml_rec/dataset/steam_optimal.inter"
+    steam_optimal.item:
+      local_path: "dataset/steam_optimal/steam_optimal.item"
+      upload_path: "ml_rec/dataset/steam_optimal.item"
+    steam_optimal.user:
+      local_path: "dataset/steam_optimal/steam_optimal.user"
+      upload_path: "ml_rec/dataset/steam_optimal.user"
+
+versioning:
+  use_timestamp: false    # 업로드 시 파일명에 타임스탬프 자동 추가
+  timestamp_format: "%Y%m%d_%H%M%S"

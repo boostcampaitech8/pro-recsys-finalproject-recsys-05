@@ -1,0 +1,10 @@
+{
+  "_README": "LEFT: 템플릿 변수명(Jinja2) <--- 매핑 ---> RIGHT: 원본 데이터 컬럼명(Parquet)",
+  "title": "name",
+  "desc": "short_description",
+  "dev_list": "developers",
+  "genre_list": "genres",
+  "category_list": "categories",
+  "lang_sub": "supported_languages",
+  "lang_audio": "full_audio_languages"
+}
