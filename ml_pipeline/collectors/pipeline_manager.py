@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 
-from data_collection.collectors.collect_games import GameCollector
-from data_collection.collectors.collect_reviews import ReviewCollector
-from data_collection.collectors.collect_users import UserCollector
+from ml_pipeline.collectors.collect_games import GameCollector
+from ml_pipeline.collectors.collect_reviews import ReviewCollector
+from ml_pipeline.collectors.collect_users import UserCollector
 
 
 logger = logging.getLogger(__name__)
@@ -24,10 +24,16 @@ class PipelineManager:
     4. 유저 갱신: 활동 유저 대상 보유 게임 강제 업데이트
     """
 
-    def __init__(self, steam_api_key: str = None):
+    def __init__(self, steam_api_key: str = None, is_test_mode: bool = False):
         # 데이터 저장 경로 설정 (프로젝트 루트 /data 기준)
         project_root = Path(__file__).parent.parent.parent
         data_dir = project_root / "data"
+        
+        if is_test_mode:
+            data_dir = data_dir / "test"
+            logger.info(f"🧪 Test Mode: 데이터 저장 경로가 {data_dir}로 변경됩니다.")
+        
+        data_dir.mkdir(parents=True, exist_ok=True)
         
         self.game_collector = GameCollector(str(data_dir / "steam_games_info.jsonl"))
         self.review_collector = ReviewCollector(str(data_dir / "steam_reviews.jsonl"))

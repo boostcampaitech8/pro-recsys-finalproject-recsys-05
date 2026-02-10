@@ -2,7 +2,7 @@ from typing import List, Set
 from prefect import task, get_run_logger
 from prefect.tasks import task_input_hash
 from datetime import timedelta
-from data_collection.collectors.pipeline_manager import PipelineManager
+from ml_pipeline.collectors.pipeline_manager import PipelineManager
 
 @task(
     name="Fetch Target Games",

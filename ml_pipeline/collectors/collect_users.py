@@ -3,7 +3,7 @@ import os
 import time
 import requests
 from typing import List, Dict, Any, Optional
-from data_collection.core.data_manager import DataManager
+from ml_pipeline.core.data_manager import DataManager
 
 logger = logging.getLogger(__name__)
 

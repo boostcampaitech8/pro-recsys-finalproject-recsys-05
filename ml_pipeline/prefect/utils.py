@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import Dict, Any
 from dotenv import load_dotenv
 
-# data_collection 루트 디렉토리 설정
+# ml_pipeline 루트 디렉토리 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # .env 로드 (API Key 등 환경변수 설정)
-# data_collection의 상위 폴더(프로젝트 루트)에 있는 .env 로드
+# ml_pipeline의 상위 폴더(프로젝트 루트)에 있는 .env 로드
 LOADED_ENV = load_dotenv(Path(BASE_DIR).parent / ".env")
 
 def setup_gcs_auth():

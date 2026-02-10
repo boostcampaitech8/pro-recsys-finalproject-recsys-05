@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from data_collection.core.data_manager import DataManager
+from ml_pipeline.core.data_manager import DataManager
 
 logger = logging.getLogger(__name__)
 
