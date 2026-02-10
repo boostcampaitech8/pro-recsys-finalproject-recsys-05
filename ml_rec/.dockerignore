@@ -49,3 +49,8 @@ __pycache__
 *.egg-info/
 dist/
 build/
+
+# Runtime-synced assets (downloaded from GCS at startup)
+saved_models/
+candidates/
+dataset/

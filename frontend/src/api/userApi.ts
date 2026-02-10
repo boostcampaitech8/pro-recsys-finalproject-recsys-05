@@ -9,12 +9,12 @@ export interface UserChatResponse {
   user_id: string;
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export async function sendChatMessage(
   request: UserChatRequest,
 ): Promise<UserChatResponse> {
-  const baseUrl = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
-
-  const response = await fetch(`${baseUrl}/chat/chat/messages`, {
+  const response = await fetch(`${API_BASE}/chat/chat/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

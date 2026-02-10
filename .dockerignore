@@ -40,6 +40,8 @@ coverage.xml
 **/*.jsonl
 backend/app/data/games_metadata.jsonl
 backend/test/data/
+ml_rec/candidates/*.json
+ml_rec/dataset/*.json
 
 # Other
 Dockerfile

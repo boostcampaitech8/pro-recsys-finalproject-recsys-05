@@ -79,7 +79,7 @@ TailorPlay는 Naver Boostcamp 최종 프로젝트의 프론트엔드 부분입�
 ```bash
 # configs/frontend/.env ?? (???)
 # (???: configs/frontend/.env.example)
-VITE_API_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
 ### 스타일링 (Tailwind CSS)
@@ -172,4 +172,4 @@ npm run build
 ### 환경 변수 설정
 
 배포 플랫폼에서 다음 변수 설정:
-- `VITE_API_URL`: 백엔드 API 서버 URL
+- `VITE_API_BASE_URL`: 백엔드 API 서버 URL

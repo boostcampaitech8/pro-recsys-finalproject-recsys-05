@@ -23,12 +23,12 @@ interface RecommendationResponse {
   top_k: number;
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export async function getGameRecommendations(
   request: RecommendationRequest,
 ): Promise<RecommendationResponse> {
-  const baseUrl = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
-
-  const response = await fetch(`${baseUrl}/rec/recommend-from-steam`, {
+  const response = await fetch(`${API_BASE}/rec/recommend-from-steam`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
