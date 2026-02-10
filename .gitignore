@@ -1,6 +1,4 @@
 .env
-backend/.env
-configs/**/.env
 __pycache__/
 *.pyc
 *.pyo
@@ -13,23 +11,6 @@ build/
 .idea/
 .vscode/
 .DS_Store
-*.json
 
 # docker volumes(로컬 파일로 잡는 경우)
 .pgdata/
-*.txt
-*.parquet
-*.pth
-
-# ml_rec 데이터 파일
-ml_rec/dataset/
-ml_rec/scripts/saved/
-ml_rec/scripts/log/
-ml_rec/scripts/log_tensorboard/
-*.jsonl
-*.pkl
-*.npz
-
-log/
-logs/
-log_tensorboard/
