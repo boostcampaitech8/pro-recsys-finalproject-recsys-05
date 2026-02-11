@@ -1,37 +1,76 @@
-# 📊 Advanced Data Collection Pipeline
+# ⚙️ ML Pipeline Orchestrator
 
-이 디렉토리는 Steam 데이터 수집 및 ML 학습 엔진(`ml_pipeline`)입니다.
-추천 시스템에 필요한 양질의 데이터(Top Games, Reviews, User Activities)를 안정적으로 수집하며, **Legacy 데이터 포맷과 완벽하게 호환**되어 기존 데이터셋과 함께 사용할 수 있습니다.
+`ml_pipeline`은 Steam 데이터 수집부터 모델 학습, 임베딩 생성, 그리고 아티팩트 관리까지의 전 과정을 자동화하는 **Prefect 기반 오케스트레이션 엔진**입니다.
 
-## 🏗️ 폴더 구조
+기존의 단순 수집 스크립트(`data_collection`)를 확장하여 **MLOps 파이프라인**으로 재설계되었습니다.
 
-- `pipeline_manager.py`: 전체 수집 프로세스(게임->리뷰->유저) 통합 관리자
-- `collect_*.py`: 각 데이터 유형별 수집 모듈 (Games, Reviews, Users)
-    - `collect_games.py`: 스마트 필터링(신작 보호) 및 정밀 파싱(Archive Logic) 적용
-    - `collect_reviews.py`: 증분 수집(Incremental) 및 중복 방지
-    - `collect_users.py`: 활동 유저(Active User) 기반 스노우볼링 수집
-- `core/`: API 핸들러(Rate Limit) 및 데이터 저장소(DataManager, Cache)
-- `prefect/`: Prefect 오케스트레이션 및 서브플로우
-- `../data/`: **[Output]** 수집된 데이터(`.jsonl`) 및 로그(`logs/`) 저장소
+## 🏗️ 아키텍처 및 폴더 구조 (Architecture)
 
-## 🚀 주요 특징
+이 모듈은 **3계층 구조 (Flow -> Subflow -> Task)**로 설계되어 있습니다.
 
-1.  **Legacy 포맷 완벽 호환**: 출력되는 JSONL 파일의 키(Key) 이름과 데이터 구조가 기존 `archive` 코드와 100% 동일합니다. (전처리 코드 수정 불필요)
-2.  **스마트 필터링 (Smart Filtering)**:
-    -   기본적으로 리뷰 수 20개 미만인 게임은 제외하지만,
-    -   **출시 14일 이내 신작(New Release)**은 리뷰가 적어도 수집하여 Cold Start 문제에 대응합니다.
-3.  **증분 수집 (Incremental)**:
-    -   리뷰 수집 시 스냅샷(덮어쓰기) 방식이 아닌, **개별 리뷰 단위(Recommendation ID) 저장** 방식을 사용합니다.
-    -   이미 수집된 리뷰는 API 단계에서 필터링하거나 저장하지 않아 **중복 데이터가 발생하지 않습니다.**
-4.  **증분 저장 (Delta Logging)**: 매 실행 시 `../data/logs/collection_delta_...jsonl` 파일을 생성하여 신규 수집된 데이터만 따로 확인할 수 있습니다.
-
-## 🛠️ 실행 방법
-
-이 폴더(`ml_pipeline`)가 아닌 **프로젝트 루트**에서 아래 명령어를 실행하는 것을 권장합니다.
-
-```bash
-# 파이프라인 직접 실행
-python ml_pipeline/collectors/pipeline_manager.py
-# Prefect Flow 실행
-python -m ml_pipeline.prefect.flows
+```text
+ml_pipeline/
+├── prefect/
+│   ├── flows.py                # [Main] 주간 통합 파이프라인 (Weekly Steam Pipeline)
+│   ├── subflows/               # [Middle] 주요 단계별 워크플로우
+│   │   ├── collection.py       # 데이터 수집 (Users, Games, Reviews)
+│   │   ├── training.py         # 모델 학습 (Preprocessing -> Retrieval -> Ranking)
+│   │   └── embedding.py        # LLM 기반 임베딩 생성 및 벡터화
+│   ├── tasks/                  # [Atomic] 개별 작업 단위
+│   │   ├── collection.py       # 수집 스크립트 실행
+│   │   ├── ml_pipeline.py      # ML 학습 스크립트 실행 (ml_rec 연동)
+│   │   ├── llm_embedding.py    # OpenAI/VertexAI 임베딩 호출
+│   │   └── storage.py          # GCS 업로드/다운로드 및 아티팩트 관리
+│   └── utils.py                # Config 및 공통 유틸리티
+├── collectors/                 # [Legacy Compatible] 순수 파이썬 수집 스크립트
+│   ├── collect_users.py
+│   ├── collect_games.py
+│   ├── collect_reviews.py
+│   └── pipeline_manager.py
+└── core/                       # 데이터 매니저 및 캐싱 로직
 ```
+
+## 🔄 주요 파이프라인 단계 (Workflow)
+
+1.  **Data Collection (데이터 수집)**:
+    *   Steam Web API 및 Scraping을 통해 최신 데이터를 수집합니다.
+    *   **Stateless Mode**: GCS에서 이전 데이터를 복원(Restore)하여 증분 수집을 수행합니다.
+2.  **ML Training (모델 학습)**:
+    *   `ml_rec` 패키지의 학습 스크립트를 트리거합니다.
+    *   **Preprocessing**: 데이터 정제 및 변환
+    *   **Retrieval**: EASE, LightGCN 모델 학습
+    *   **Ranking**: DCN V2, XGBoost 모델 학습
+3.  **Embedding & Vectorization**:
+    *   새로운 게임에 대한 설명을 LLM으로 요약하고 임베딩 벡터를 생성합니다.
+4.  **Artifact Management**:
+    *   학습된 모델 가중치와 데이터를 GCS(Google Cloud Storage)에 업로드합니다.
+    *   **Cold Cache**: Redis에 직접 적재하지 않고, Serving 서버가 필요할 때 다운로드하도록 합니다.
+
+## 💻 실행 방법 (Usage)
+
+프로젝트 루트 디렉토리에서 실행해야 합니다.
+
+### 1. 통합 파이프라인 실행
+```bash
+# [추천] 테스트 모드 (소량 데이터로 전체 흐름 검증)
+python -m ml_pipeline.prefect.flows --mode test --force-prod
+
+# 운영 모드 (전체 데이터)
+python -m ml_pipeline.prefect.flows --mode prod
+```
+
+### 2. 스케줄러 실행 (Server Mode)
+Prefect 서버와 에이전트를 통해 주기적으로 실행합니다. (기본값: 매주 월요일 02:00 KST)
+```bash
+python -m ml_pipeline.prefect.flows --serve
+```
+
+### 3. 개별 수집 스크립트 실행 (Debugging)
+오케스트레이션 없이 단순 데이터 수집만 테스트할 때 사용합니다.
+```bash
+python ml_pipeline/collectors/pipeline_manager.py
+```
+
+## ⚠️ 주의사항
+*   **환경 변수**: `.env` 파일에 `GCS_KEY_PATH`, `OPENAI_API_KEY` 등이 설정되어 있어야 합니다.
+*   **의존성**: 이 모듈은 `ml_rec` 패키지의 스크립트를 `subprocess` 또는 모듈 임포트 방식으로 실행하므로, `ml_rec`의 의존성도 함께 설치되어 있어야 합니다.
