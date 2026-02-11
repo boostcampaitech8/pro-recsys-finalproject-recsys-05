@@ -161,7 +161,9 @@ ReAct Agent 패턴을 활용한 의도 파악 및 도구 실행:
 
 ---
 
-## 🗄️ 데이터 파이프라인 (Prefect 자동화)
+## 🗄️ ML 파이프라인 (Prefect 자동화)
+
+> **Note**: ML 파이프라인 구현체는 [backend/ml_pipeline 브랜치의 ml_pipeline](https://github.com/boostcampaitech8/pro-recsys-finalproject-recsys-05/tree/backend/ml_pipeline/ml_pipeline) 디렉토리에서 확인하실 수 있습니다.
 
 ```yaml
 매주 월요일 AM 2시:
@@ -201,5 +203,29 @@ ReAct Agent 패턴을 활용한 의도 파악 및 도구 실행:
 
 ---
 
+## ⚠️ 주의사항 및 면책 조항 (Disclaimer)
+이 프로젝트는 학습 및 연구 목적으로 제작되었습니다. 사용자는 아래 내용을 숙지해야 합니다.
+
+1. **Steam Web API Usage**
+   이 애플리케이션은 Steam Web API를 사용하지만, Valve Corporation에 의해 승인되거나 제휴되지 않았습니다.
+
+2. **Web Scraping Warning**
+   이 프로젝트에는 Steam 상점 페이지에 대한 크롤링(Scraping) 코드가 포함되어 있습니다.
+   *   **과도한 요청 금지**: 짧은 시간 내에 과도한 요청(Request)을 보낼 경우 Steam 서버로부터 IP 차단(Ban)을 당할 수 있습니다.
+   *   **책임 소재**: 제공된 코드를 사용하여 발생하는 계정 정지, IP 차단, 법적 문제에 대한 책임은 전적으로 사용자 본인에게 있습니다. 코드 내의 sleep 시간(딜레이)을 임의로 삭제하지 마십시오.
+
+3. **Data Privacy**
+   수집된 유저 데이터(Steam ID 등)는 개인정보 보호법 및 GDPR에 따라 보호받아야 합니다. 이 코드를 통해 수집한 데이터를 무단으로 배포하거나 상업적으로 이용하지 마십시오.
+
+---
+
 📌 **Project Completed**: Feb 2026  
 🏫 **Naver Boostcamp AI Tech 8th | recsys-05 – Data Tailor**
+
+---
+
+<div align="center">
+  <img src="https://steamcommunity.com/public/shared/images/header/globalheader_logo.png" alt="Steam Logo" width="150" />
+  <p>This project uses the Steam Web API and is not endorsed or certified by Valve Corporation.</p>
+</div>
+
