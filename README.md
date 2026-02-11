@@ -82,7 +82,6 @@ docker-compose up -d --build
 
 1. **Steam Web API Usage**
    이 애플리케이션은 Steam Web API를 사용하지만, Valve Corporation에 의해 승인되거나 제휴되지 않았습니다.
-   > "Powered by Steam". This application is not affiliated with, maintained, authorized, endorsed, or sponsored by Valve Corporation.
 
 2. **Web Scraping Warning**
    이 프로젝트에는 Steam 상점 페이지에 대한 크롤링(Scraping) 코드가 포함되어 있습니다.
@@ -91,3 +90,10 @@ docker-compose up -d --build
 
 3. **Data Privacy**
    수집된 유저 데이터(Steam ID 등)는 개인정보 보호법 및 GDPR에 따라 보호받아야 합니다. 이 코드를 통해 수집한 데이터를 무단으로 배포하거나 상업적으로 이용하지 마십시오.
+
+---
+
+<div align="center">
+  <img src="https://steamcommunity.com/public/shared/images/header/globalheader_logo.png" alt="Steam Logo" width="150" />
+  <p>This project uses the Steam Web API and is not endorsed or certified by Valve Corporation.</p>
+</div>
