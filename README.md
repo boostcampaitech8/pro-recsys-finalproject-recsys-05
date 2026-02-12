@@ -37,14 +37,21 @@
 
 ```
 project/
-├── backend/                   # FastAPI 서버 & 오케스트레이터
+├── backend/                    # FastAPI 서버 & 오케스트레이터
+│   ├── alembic/                # DB 마이그레이션
 │   ├── app/
-│   │   ├── api/              # API 라우터 (추천, 검색, 대화)
-│   │   ├── core/             # 설정 및 데이터베이스
-│   │   ├── models/           # SQLAlchemy 모델
-│   │   ├── schemas/          # Pydantic 스키마
-│   │   └── services/         # 비즈니스 로직
-│   ├── nginx/                # 역프록시 설정
+│   │  ├── core/                # 인프라 (DB, Redis, 설정, 로깅)
+│   │  ├── domains/
+│   │  │   ├── chat/            # 챗봇 (LLM, Agent, Tools, Reranker)
+│   │  │   ├── game/            # 게임 CRUD
+│   │  │   ├── recommendation/  # 추천 (ML + 벡터검색)
+│   │  │   ├── steam/           # Steam API 연동
+│   │  │   └── user/            # 유저 CRUD
+│   │  ├── routers/             # API 라우터
+│   │  ├── services/            # ML 추론 (BentoML)
+│   │  └── data/                # 게임 메타데이터 시드
+│   ├── scripts/                # 데이터 로딩/벡터 관리 스크립트
+│   ├── nginx/                  # Nginx 설정
 │   └── Dockerfile
 │
 ├── frontend/                  # React UI
@@ -64,9 +71,9 @@ project/
 │   └── Dockerfile.bentoml
 │
 ├── ml_llm/                    # LLM & RAG 파이프라인
-│   ├── raw_to_doc.py          # 리뷰 데이터 문서화
-│   ├── doc_to_vector_local.py # 임베딩 (bge-m3)
-│   └── agent_tools.py         # ReAct Agent Tools
+│   ├── raw_to_doc.py          # 데이터 문서화 v1
+│   ├── doc_to_vector_local.py # 임베딩 v1
+│   └── rag_embedding/         # 데이터 문서화 임베딩 v2
 │
 ├── configs/                   # 설정 파일
 │   ├── backend/              # Backend 환경변수
