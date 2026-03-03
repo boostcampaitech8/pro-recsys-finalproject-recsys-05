@@ -8,7 +8,6 @@ services:
     environment:
       - PYTHONPATH=/app/backend:/app
       - PYTHONUNBUFFERED=1
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/backend/app/gcs_key.json
     volumes:
       - ./backend:/app/backend
       - ./ml_rec:/app/ml_rec

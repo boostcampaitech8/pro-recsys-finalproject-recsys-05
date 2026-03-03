@@ -11,6 +11,14 @@ COPY . /app/ml_rec/
 WORKDIR /app/ml_rec
 
 RUN pip install --no-cache-dir -r requirements.txt
+
+# 모델 굽기 (Model Baking)
+# 빌드 시점에 모델을 다운로드하여 이미지에 포함시킵니다.
+# 주의: 이 단계를 실행하려면 빌드 환경에 접근 권한(GCS 인증 등)이 있어야 합니다.
+# RUN --mount=type=secret,id=gcs_key \
+#     GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcs_key \
+#     python scripts/stage4_serving/bootstrap_data.py
+
 RUN chmod +x /app/ml_rec/entrypoint.bentoml.sh
 
 EXPOSE 3000

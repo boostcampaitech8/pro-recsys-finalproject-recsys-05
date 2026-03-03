@@ -91,6 +91,9 @@ jobs:
     needs: test
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # 빠른 피드백 루프를 위해 도커/컴포즈 변경이나 API 관련일 때만 수행
+    # paths 설정은 GitHub Actions 내장 기능이 아니므로, PR에서 관련 파일이 변경되었는지 
+    # 별도 step에서 확인하거나 트리거 단에 paths를 추가해야 하지만, 현 구조(Job 레벨 제어) 유지.
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -113,6 +116,7 @@ jobs:
           DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
           REDIS_URL=redis://redis:6379/0
           ML_REC_ROOT=/app/ml_rec
+          BENTOML_SKIP_GCS_BOOTSTRAP=true
           STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
           GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
           CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
@@ -192,12 +196,24 @@ jobs:
           EOF
 
       - name: Build Backend Image (runner)
-        run: |
-          docker build --target runner -t ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG} .
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          target: runner
+          tags: ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ env.IMAGE_TAG }}
+          push: false
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
       - name: Build BentoML Image
-        run: |
-          docker build -f ml_rec/Dockerfile.bentoml -t ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:${IMAGE_TAG} ./ml_rec
+        uses: docker/build-push-action@v4
+        with:
+          context: ./ml_rec
+          file: ./ml_rec/Dockerfile.bentoml
+          tags: ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:${{ env.IMAGE_TAG }}
+          push: false
+          cache-from: type=gha,scope=bentoml
+          cache-to: type=gha,mode=max,scope=bentoml
 
       # ---------------------------------------------------
       # [통합 테스트: Docker Compose]
@@ -230,9 +246,9 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
-      # ---------------------------------------------------
-      # [빌드 및 푸시]
-      # ---------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -241,11 +257,11 @@ jobs:
 
       - name: Push Backend Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${IMAGE_TAG}
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ env.IMAGE_TAG }}
 
       - name: Push BentoML Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:${IMAGE_TAG}
+          docker push ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:${{ env.IMAGE_TAG }}
 
     # ---------------------------------------------------
     # [서버 배포: SSH]

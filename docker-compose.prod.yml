@@ -8,7 +8,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -53,6 +53,7 @@ services:
       - ML_REC_ROOT=/app/ml_rec
       - GCS_CONFIG_PATH=/app/configs/gcs_config.yaml
       - GOOGLE_APPLICATION_CREDENTIALS=/app/configs/gcs/gcs_key.json
+      - BENTOML_SKIP_GCS_BOOTSTRAP=${BENTOML_SKIP_GCS_BOOTSTRAP:-false}
     volumes:
       - ./configs:/app/configs:ro
       - ./ml_rec/saved_models:/app/ml_rec/saved_models
@@ -60,7 +61,7 @@ services:
       - ./ml_rec/dataset:/app/ml_rec/dataset
       - ./ml_rec/logs:/app/ml_rec/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/" ]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -69,7 +70,7 @@ services:
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
-    command: ["/usr/bin/cadvisor", "--url_base_prefix=/monitor"]
+    command: [ "/usr/bin/cadvisor", "--url_base_prefix=/monitor" ]
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro

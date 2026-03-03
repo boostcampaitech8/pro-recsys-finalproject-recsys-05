@@ -20,6 +20,7 @@ services:
       - CUDA_VISIBLE_DEVICES=0
       - PYTORCH_ENABLE_MPS_FALLBACK=1
       - MKLDNN_VERBOSE=0
+      - BENTOML_SKIP_GCS_BOOTSTRAP=${BENTOML_SKIP_GCS_BOOTSTRAP:-false}
     deploy:
       resources:
         limits:

@@ -5,7 +5,6 @@ echo "Starting backend service..."
 
 echo "Checking GCS key files..."
 echo "  - /app/configs/gcs/gcs_key.json: $([ -f /app/configs/gcs/gcs_key.json ] && echo 'EXISTS' || echo 'NOT FOUND')"
-echo "  - /app/backend/app/gcs_key.json: $([ -f /app/backend/app/gcs_key.json ] && echo 'EXISTS' || echo 'NOT FOUND')"
 
 DATA_DIR="/app/backend/app/data"
 mkdir -p "$DATA_DIR/processed"
@@ -17,10 +16,9 @@ if [ ! -f "$GAMES_DATA_FILE" ]; then
     echo "Data file not found. Downloading from GCS..."
     cd /app/backend
 
-    if [ ! -f "/app/backend/app/gcs_key.json" ] && [ ! -f "/app/configs/gcs/gcs_key.json" ]; then
+    if [ ! -f "/app/configs/gcs/gcs_key.json" ]; then
         echo "WARNING: GCS key file not found. Download will likely fail."
-        echo "Please ensure gcs_key.json exists in either:"
-        echo "- backend/app/gcs_key.json"
+        echo "Please ensure gcs_key.json exists in:"
         echo "- configs/gcs/gcs_key.json"
     fi
 

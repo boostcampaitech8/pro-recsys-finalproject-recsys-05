@@ -14,7 +14,7 @@ build/
 .vscode/
 .DS_Store
 *.json
-
+*.agent/
 # docker volumes(로컬 파일로 잡는 경우)
 .pgdata/
 *.txt

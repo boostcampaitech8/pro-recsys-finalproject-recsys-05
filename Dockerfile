@@ -43,6 +43,21 @@ FROM base AS builder
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev --no-install-project
 
+# 모델과 데이터를 다운로드 받아서 이미지 굽기 (Baking)
+# GCS 다운로드 스크립트를 임시 폴더에서 실행하여 다운로드 캐시 활용
+COPY backend/scripts/manage_data.py /app/backend/scripts/manage_data.py
+COPY backend/app/core/config.py /app/backend/app/core/config.py
+COPY backend/app/core/logger.py /app/backend/app/core/logger.py
+# gcs_key.json 대신 임시 환경 변수로 다운로드를 처리하거나
+# 빌드 인자(ARG)로 인증 토큰을 넘기는 방식을 사용할 수 있습니다.
+# (이 예시에서는 manage_data.py 가 이미 존재하는 파일 다운인 경우 캐싱에 의존)
+# RUN --mount=type=secret,id=gcs_key \
+#     GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcs_key \
+#     mkdir -p /app/backend/app/data/processed && \
+#     cd /app/backend && \
+#     python scripts/manage_data.py games_metadata.jsonl --download && \
+#     python scripts/manage_data.py item_similarity.pkl --download
+
 # ==========================================
 # [Stage 4] Runner: 최종 실행 이미지 (Slim 버전, uv 빌드도구 미포함)
 # ==========================================
