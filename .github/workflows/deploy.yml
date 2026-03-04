@@ -1,4 +1,4 @@
-﻿name: Production CI/CD
+﻿name: 운영 CI/CD
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
 
 jobs:
   # ---------------------------------------------------
-  # [테스트: Pytest & Lint]
-  # GitHub Native Service를 사용하여 격리된 DB/Redis 환경에서 테스트합니다.
+  # [테스트: 파이테스트 및 린트]
+  # GitHub 기본 서비스로 격리된 DB/Redis 환경에서 테스트합니다.
   # ---------------------------------------------------
   test:
     runs-on: ubuntu-latest
@@ -43,23 +43,23 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout code
+      - name: 코드 체크아웃
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: 파이썬 설정
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       # curl 설치 제거하고 공식 action으로 교체 + uv cache 활성화
-      - name: Install uv (with cache)
+      - name: uv 설치(캐시 사용)
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           working-directory: backend
 
       # venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
-      - name: Cache backend .venv
+      - name: backend .venv 캐시
         uses: actions/cache@v4
         with:
           path: backend/.venv
@@ -67,12 +67,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-py311-venv-
 
-      - name: Install Dependencies
+      - name: 의존성 설치
         run: |
           cd backend
           uv sync --frozen
 
-      - name: Run Pytest
+      - name: Pytest 실행
         env:
           # 서비스 컨테이너(localhost)로 연결
           DATABASE_URL: postgresql+asyncpg://myuser:mypassword@localhost:5432/mydatabase
@@ -84,8 +84,8 @@ jobs:
           uv run pytest test/
 
   # ---------------------------------------------------
-  # [PR 통합 테스트: Docker Compose (override)]
-  # PR일 때만 로컬 개발용 override로 통합 테스트합니다.
+  # [PR 통합 테스트: 도커 컴포즈(오버라이드)]
+  # PR일 때만 로컬 개발용 오버라이드 설정으로 통합 테스트합니다.
   # ---------------------------------------------------
   compose_pr:
     needs: test
@@ -95,10 +95,10 @@ jobs:
     # paths 설정은 GitHub Actions 내장 기능이 아니므로, PR에서 관련 파일이 변경되었는지 
     # 별도 step에서 확인하거나 트리거 단에 paths를 추가해야 하지만, 현 구조(Job 레벨 제어) 유지.
     steps:
-      - name: Checkout code
+      - name: 코드 체크아웃
         uses: actions/checkout@v3
 
-      - name: Create backend env for compose_pr (local-style)
+      - name: compose_pr용 백엔드 env 생성(로컬 스타일)
         run: |
           # 1. 루트 .env (Docker Compose 변수 치환용)
           cat > .env << EOF
@@ -123,33 +123,33 @@ jobs:
           CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
           EOF
 
-      - name: Build and Run with Docker Compose (override)
+      - name: Docker Compose로 빌드 및 실행(override)
         run: |
           docker compose -f docker-compose.yml -f docker-compose.override.yml build
           docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
-          echo "Waiting for services to start..."
+          echo "서비스 기동 대기 중..."
           sleep 20
 
-      - name: Check Health (Integration Test)
+      - name: 헬스 체크(통합 테스트)
         run: |
           for i in {1..5}; do
             if curl -f http://localhost:8000/health/db; then
-              echo "Health Check Passed!"
+              echo "헬스 체크 통과"
               exit 0
             fi
-            echo "Retrying... ($i/5)"
+            echo "재시도 중... ($i/5)"
             sleep 10
           done
-          echo "Health Check Failed!"
+          echo "헬스 체크 실패"
           docker compose logs
           exit 1
 
-      - name: Tear Down
+      - name: 정리
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.override.yml down
 
   # ---------------------------------------------------
-  # [배포: Build & Deploy]
+  # [배포: 빌드 및 배포]
   # 테스트가 성공했을 때만 실행됩니다.
   # ---------------------------------------------------
   pipeline:
@@ -159,26 +159,44 @@ jobs:
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
     steps:
-      - name: Checkout code
+      - name: 코드 체크아웃
         uses: actions/checkout@v3
 
-      - name: Set image tag
+      - name: 이미지 태그 결정
         run: |
           if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
             echo "IMAGE_TAG=dev" >> $GITHUB_ENV
+            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
+            echo "TAG_REASON=dev 브랜치는 가변 dev 태그를 사용" >> $GITHUB_ENV
+            echo "SHOULD_DEPLOY=true" >> $GITHUB_ENV
           elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
             echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+            echo "DEPLOY_ENV=none" >> $GITHUB_ENV
+            echo "TAG_REASON=main 브랜치는 latest 빌드/푸시만 수행, 운영 배포는 릴리즈 태그(v*)에서만 수행" >> $GITHUB_ENV
+            echo "SHOULD_DEPLOY=false" >> $GITHUB_ENV
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
+            echo "TAG_REASON=릴리즈 태그 이벤트" >> $GITHUB_ENV
+            echo "SHOULD_DEPLOY=true" >> $GITHUB_ENV
           else
             echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+            echo "DEPLOY_ENV=none" >> $GITHUB_ENV
+            echo "TAG_REASON=기본 대체 latest 태그" >> $GITHUB_ENV
+            echo "SHOULD_DEPLOY=false" >> $GITHUB_ENV
           fi
 
+      - name: 배포 태그 컨텍스트 출력
+        run: |
+          echo "선택된 IMAGE_TAG=${IMAGE_TAG}"
+          echo "선택된 DEPLOY_ENV=${DEPLOY_ENV}"
+          echo "배포 실행 여부=${SHOULD_DEPLOY}"
+          echo "선정 사유=${TAG_REASON}"
       # ---------------------------------------------------
       # [환경 변수 설정]
       # .env 파일을 생성하여 Docker Compose 빌드/실행 시 사용
       # ---------------------------------------------------
-      - name: Create env file from secrets
+      - name: 시크릿으로 env 파일 생성
         run: |
           cat > .env << EOF
           DATABASE_URL=${{ secrets.DATABASE_URL }}
@@ -195,7 +213,7 @@ jobs:
           IMAGE_TAG=${IMAGE_TAG}
           EOF
 
-      - name: Build Backend Image (runner)
+      - name: 백엔드 이미지 빌드(runner)
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -205,7 +223,7 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
-      - name: Build BentoML Image
+      - name: BentoML 이미지 빌드
         uses: docker/build-push-action@v4
         with:
           context: ./ml_rec
@@ -216,75 +234,77 @@ jobs:
           cache-to: type=gha,mode=max,scope=bentoml
 
       # ---------------------------------------------------
-      # [통합 테스트: Docker Compose]
-      # 실제 컨테이너들이 잘 뜨는지(Health Check) 확인
+      # [통합 테스트: 도커 컴포즈]
+      # 실제 컨테이너가 정상 기동하는지(헬스 체크) 확인
       # ---------------------------------------------------
-      - name: Build and Run with Docker Compose
+      - name: Docker Compose로 빌드 및 실행
         run: |
-          # Use Base + Prod override (이미지 pull 기반)
+          # Base + Prod override 사용(이미지 pull 기반)
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-          echo "Waiting for services to start..."
+          echo "서비스 기동 대기 중..."
           sleep 20  # DB 초기화 및 서버 구동 대기
 
-      - name: Check Health (Integration Test)
+      - name: 헬스 체크(통합 테스트)
         run: |
           # 5번 재시도 (총 50초 대기)
           for i in {1..5}; do
             if curl -f http://localhost:80/health/db; then
-              echo "Health Check Passed!"
+              echo "헬스 체크 통과"
               exit 0
             fi
-            echo "Retrying... ($i/5)"
+            echo "재시도 중... ($i/5)"
             sleep 10
           done
-          echo "Health Check Failed!"
+          echo "헬스 체크 실패"
           # 실패 시 로그 출력 (디버깅용)
           docker compose logs
           exit 1
 
-      - name: Tear Down
+      - name: 정리
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
-      - name: Set up Docker Buildx
+      - name: Docker Buildx 설정
         uses: docker/setup-buildx-action@v2
 
-      - name: Login to Docker Hub
+      - name: Docker Hub 로그인
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push Backend Image
+      - name: 백엔드 이미지 푸시
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/rec-server:${{ env.IMAGE_TAG }}
 
-      - name: Push BentoML Image
+      - name: BentoML 이미지 푸시
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:${{ env.IMAGE_TAG }}
 
     # ---------------------------------------------------
     # [서버 배포: SSH]
     # ---------------------------------------------------
-      - name: Connect to Tailscale
+      - name: Tailscale 연결
+        if: env.SHOULD_DEPLOY == 'true'
         uses: tailscale/github-action@v2
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Copy files to Server
-        if: github.event_name != 'pull_request'
+      - name: 서버로 파일 복사
+        if: env.SHOULD_DEPLOY == 'true'
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
-          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,.env,backend/nginx,Dockerfile"
+          source: "docker-compose.yml,docker-compose.prod.yml,deploy.sh,backend/nginx,Dockerfile"
           target: "pro-recsys-finalproject-recsys-05"
 
-      - name: Deploy to Server
+      - name: 서버 배포
+        if: env.SHOULD_DEPLOY == 'true'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -292,13 +312,11 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script: |
-            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            export GCS_KEY_BASE64='${{ secrets.GCS_KEY_BASE64 }}'
-            export STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
-            export CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
+            export DEPLOY_ENV=${{ env.DEPLOY_ENV }}
 
-            # Deploy Script 실행
+            # 배포 스크립트 실행
             cd ~/pro-recsys-finalproject-recsys-05
             sed -i 's/\r$//' deploy.sh
             chmod +x deploy.sh
             ./deploy.sh
+
