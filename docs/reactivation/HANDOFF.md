@@ -1,8 +1,58 @@
-# 메인컴퓨터 인계 문서 (HANDOFF)
+# 인계 문서 (HANDOFF)
+
+> 전체 맥락: 루트 `CLAUDE.md`(진행 상태) + `docs/reactivation/PLAN.md`(마스터 플랜) 먼저 읽을 것.
+> - §A: **Phase 3 세션 인계** (2026-07-07 작성, 현행)
+> - §B 이하: Phase 1 노트북→메인컴 인계 (2026-07-06, 완료되어 기록용)
+
+---
+
+## §A. Phase 3 세션 인계 (2026-07-07)
+
+### 현재 상태 스냅샷
+
+- **Phase 0·1·2 완료** (상세 체크리스트: CLAUDE.md). 브랜치 `revive/reactivation`, origin과 동기화됨.
+- **메인컴(WSL2) 로컬 풀스택 정상 구동 중**: db(pgvector)·redis·backend·frontend 4개 컨테이너. games 36,667건 적재·임베딩 31,695건. BentoML은 의도적으로 제외(추천은 backend 로컬 EASE 폴백, score=0으로 나옴).
+- **LLM**: Gemini OpenAI 호환. 체인 `gemini-flash-lite-latest`(주력) → `gemini-2.5-flash` → `gemini-3.5-flash`, 전 클라이언트 timeout=30s. 신규 코드: `backend/app/domains/chat/providers/gemini.py`.
+- secrets/데이터는 전부 로컬 배치 완료 (gitignore 대상). **`configs/backend/.env`에 GEMINI 키·모델 설정이 추가됐으므로 Gdrive `configs_secrets/` 백업 갱신 권장.**
+
+### 로컬 기동/테스트 치트시트 (메인컴)
+
+```bash
+# Docker Desktop 먼저 실행 ("/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe")
+docker compose up -d db redis
+docker compose up -d --no-deps backend frontend   # backend가 bentoml healthy에 의존하므로 --no-deps 필수
+# 접속: 프론트 http://localhost:3000 (API 프록시 포함), 백엔드 http://localhost:8000
+# 주의: 호스트 5678은 n8n 점유 → 디버그 포트는 5679로 매핑되어 있음
+
+# pytest (격리 DB 사용 — dev DB 오염 방지)
+docker compose exec -T db psql -U myuser -d mydatabase -c "CREATE DATABASE test_mydatabase OWNER myuser;"  # 최초 1회
+export DATABASE_URL=postgresql+asyncpg://myuser:mypassword@localhost:5432/test_mydatabase \
+       REDIS_URL=redis://localhost:6379/1 PYTHONPATH=$PWD/backend
+uv run --directory backend pytest test/   # 2026-07-07 기준 7 passed, 1 skipped(수동 게이트)
+```
+
+### Phase 3 작업 목록 (PLAN.md §5 상세 참조)
+
+1. **(사용자 액션) Oracle A1.Flex 인스턴스 프로비저닝** — 2 OCPU/12GB Always Free, Ubuntu ARM + Docker + Tailscale + **스왑 8GB**. 최소 구성(BentoML·cadvisor 제외, ~6.4GB)으로 시작.
+2. **CI ARM 전환**: `deploy.yml`이 x86 전용 `docker build` → buildx `--platform linux/arm64` (또는 멀티아치). ARM에서 현재 이미지는 exec format error 확정.
+3. **frontend CI 누락 수정 (버그 #4)**: CI가 `rec-frontend` 이미지를 빌드/푸시하지 않음.
+4. **CI secrets CLOVA→GEMINI 교체**: `deploy.yml`이 아직 `CLOVA_API_KEY`/`CLOVA_BASE_URL`을 주입 — `GEMINI_API_KEY` 등으로 교체. GitHub secrets 17개 재설정 목록은 PLAN.md 부록 A (CLOVA 2개는 GEMINI로 대체).
+5. **컨테이너 메모리 제한 명시** (prod compose): db 1.5~2G, backend 4G, redis 256M, frontend/nginx 128M — 현재 bentoml 외 무제한.
+6. 서버에 bind-mount 디렉터리(`ml_rec/*`, `configs/`) 사전 배치 → `deploy.sh` → 헬스체크.
+
+### Phase 3에서 주의할 것
+
+- **Gemini 무료 쿼터**: `gemini-2.5-flash`는 **하루 20회**뿐 (오늘 소진 경험). lite 계열이 넉넉함. 쿼터/모델 변경은 `configs/backend/.env`의 `GEMINI_MODEL`/`GEMINI_FALLBACK_MODEL`(콤마 구분)로.
+- **Gemini 클라이언트 신설 시 timeout 필수**: 과부하 모델이 응답 없이 연결을 물면(SDK 기본 600초) 폴백이 무의미해짐 — 실사고 있었음.
+- 프로덕션 nginx(`nginx/nginx.conf`)는 `/api/`만 백엔드로 프록시 — 프론트 컨테이너 내부 nginx(`frontend/nginx.conf`)가 `/chat|/rec|/steam|/health`를 프록시하도록 수정되어 있으므로 그대로 두면 동작. 단 Phase 3에서 도메인/TLS 구성 시 재확인.
+- `ml_rec/scripts/stage4_serving/model_loader.py`의 후보 JSON 로드 스킵을 되돌리지 말 것 (12GB OOM — PLAN.md §5).
+
+---
+
+## §B. Phase 1 인계 (2026-07-06, 완료 — 기록용)
 
 > 작성: 2026-07-06, 노트북(16GB RAM)에서 Phase 1 검증 직전까지 진행 후 인계.
 > **✅ 2026-07-06 메인컴에서 검증 완료** — 결과와 발견 사항은 루트 `CLAUDE.md` Phase 1 참조. 아래 절차는 기록용이며, 원문 오류 2건을 정정함(§3 jsonl 경로, §4 기동 명령).
-> 전체 맥락: 루트 `CLAUDE.md`(진행 상태) + `docs/reactivation/PLAN.md`(마스터 플랜) 먼저 읽을 것.
 
 ## 현재까지 완료된 것
 
