@@ -24,8 +24,12 @@
 레포/Docker 이미지에는 모델·데이터 아티팩트가 **하나도 없다** (`.gitignore`가 `*.pkl`, `*.pth`, `*.inter`, `ml_rec/dataset/` 등 전부 제외). 복구 경로는 아래 3가지뿐.
 
 ### 경로 ① GCP 결제계정 재연결 → GCS 다운로드 (최우선, 사용자 액션 필요)
-- 프로젝트 `pro-recsys-finalproject-recsys-05` 오너 계정(GCP 콘솔 → 결제 → 결제계정 연결)으로 유효한 결제계정을 다시 연결하면 다운로드가 즉시 재개될 것으로 예상.
-- 예상 비용: 스토리지 ~17GB 보관 + 다운로드 egress ~8GB ≈ **월 1~2달러 미만**. 다운로드 후 버킷을 비우면 과금 종료.
+- 프로젝트 `pro-recsys-finalproject-recsys-05` 오너 계정으로 둘 중 하나:
+  - (a) 기존 closed 결제계정 본인 소유 시: 콘솔 → 결제 → 계정 관리 → **다시 열기(Reopen)** 후 결제수단 갱신
+  - (b) 다른 활성 결제계정에 연결: 프로젝트 → 결제 → **결제 계정 연결/변경** (필요 권한: 프로젝트 Owner + 대상 결제계정의 Billing Account User)
+- 연결 후 보통 수 분~1시간 내 Cloud Storage 접근 재개 (오브젝트가 아직 리스팅됨 = 데이터 미삭제 확인됨).
+- 예상 비용: 스토리지 ~17GB 보관 + 다운로드 egress ~8GB ≈ **1~2달러 수준**. 다운로드 후 버킷을 비우거나 결제 연결을 다시 해제하면 과금 종료.
+- Google Developer Program premium 월간 크레딧(CREDIT_TYPE_MONTHLY, AI Pro/Ultra 번들 $10/$40/$100/월)은 **SKU 제한(Vertex AI·AI Studio·Cloud Run 등 중심)이라 Cloud Storage 보관/egress에 적용되지 않을 가능성이 높음** — 다만 절대 금액이 1~2달러라 크레딧 미적용이어도 부담 없음. 연결 후 결제 리포트에서 크레딧 적용 여부 확인.
 - 결제 재연결 후 실행할 백업 스크립트는 준비 완료 (재시도/이어받기 지원):
   - `backend/.venv/Scripts/python.exe <scratchpad>/gcs_backup.py` → `C:\Users\rlaqu\Documents\recsys05_gcs_backup`
   - 완료 후 Google Drive로 복사: `G:\내 드라이브\부스트캠프\backup`
@@ -81,15 +85,19 @@
 
 ## 5. 인프라 이전: GCP → Oracle Cloud A1.Flex
 
-GCP 배포 서버 사망 확정. **결론: A1.Flex (Always Free, Ampere ARM 4 OCPU / 24GB) 단일 인스턴스로 풀스택 구동 가능** (2026-07-06 산정 완료).
+GCP 배포 서버 사망 확정. **⚠️ Oracle이 2026-06-15부로 Always Free A1을 4 OCPU/24GB → 2 OCPU/12GB로 무공지 축소** (월 1,500 OCPU-hours / 9,000 GB-hours). 산정은 **12GB 기준**.
 
-### RAM 산정 결과
+**결론: 12GB에서도 구동 가능하나 타이트 — 최소 구성(시나리오 C)으로 시작해 여유 확인 후 BentoML 추가 권장.**
 
-| 시나리오 | 피크 RAM | 판정 |
+### RAM 산정 결과 (12GB Always Free 기준)
+
+| 시나리오 | 피크 RAM | 12GB 판정 |
 |---|---|---|
-| **A. 전형 운영** (현재 코드 그대로: BentoML이 후보 JSON 로드를 스킵) | **~8.7GB** | ✅ 24GB의 1/3 수준, 여유 큼 |
-| B. 최악 (후보 JSON 로드 재활성화 + 채팅 bge-m3 + EASE 폴백 동시) | ~15–19GB | ⚠️ 가능하나 BentoML 제한 5G→10~12G 상향 필요 |
-| C. 최소 구성 (BentoML 제거, backend EASE 폴백만) | **~6.4GB** | ✅ `integrated_service.py` 폴백이 이미 구현돼 있어 compose에서 bentoml 삭제만으로 동작 (추천 품질은 EASE 단독으로 저하) |
+| A. 전형 운영 (현재 코드 그대로: BentoML이 후보 JSON 로드를 스킵) | ~8.7GB (+OS ~0.5GB) | ⚠️ 가능하나 여유 ~2.8GB — 스왑 필수, cadvisor 제외 권장, 컨테이너 메모리 제한 필수 |
+| B. 최악 (후보 JSON 로드 재활성화 + 채팅 bge-m3 + EASE 폴백 동시) | ~15–19GB | ❌ **불가** — `model_loader.py`의 후보 JSON 로드 스킵("임시 스킵" 주석)을 절대 되돌리지 말 것 |
+| **C. 최소 구성 (BentoML 제거, backend EASE 폴백만)** | **~6.4GB** | ✅ 여유 충분 — **12GB에서는 이 구성으로 시작** (`integrated_service.py` 폴백 기구현, 추천 품질은 EASE 단독으로 저하) |
+
+추가 유의: OCPU 2개로 축소 → bge-m3 CPU 임베딩(채팅 RAG)과 EASE 실시간 후보 계산이 느려질 수 있음. 스왑 8GB로 피클 역직렬화 순간 피크(일시 2배) 흡수 필요.
 
 주요 근거: BentoML 상주 ≈ 2~3.5GB(`item_similarity.pkl` 1.3GB + 런타임; `model_loader.py`가 후보 JSON 1.8GB×2 로드를 현재 스킵 중), backend ≈ 0.6GB + 채팅 RAG 최초 사용 시 bge-m3 +2~2.5GB(lazy) + BentoML 장애 시 EASE 폴백 +1.3GB(lazy), PostgreSQL(games ~2.3만 행 × 1024차원 + HNSW) ≈ 0.5~2GB, redis/nginx/frontend/cadvisor 합계 ~0.3GB.
 
@@ -100,10 +108,11 @@ GCP 배포 서버 사망 확정. **결론: A1.Flex (Always Free, Ampere ARM 4 OC
 3. cadvisor `latest` 태그 → arm64 지원 확인된 버전으로 고정 권장.
 4. pgvector/redis/nginx/python 베이스 이미지: 공식 멀티아치, 리스크 없음.
 
-### 권장 구성
+### 권장 구성 (12GB 기준)
 
-- 4 OCPU / 24GB 단일 인스턴스 (분할 실익 없음) + **스왑 4~8GB** (피클 역직렬화 순간 피크 대비 OOM 안전망).
-- 컨테이너 메모리 제한 명시: db 2~3G(shared_buffers 1~2G 튜닝), backend 3~4G, bentoml 5G 유지, redis 256M, frontend/nginx 128M, cadvisor 256M. (현재 bentoml 외 전부 무제한이라 누수 시 전체 잠식 위험)
+- 2 OCPU / 12GB 단일 인스턴스 (Always Free 한도 전부) + **스왑 8GB** (피클 역직렬화 순간 피크 대비 OOM 안전망, 부트볼륨 200GB 여유 활용).
+- 시작은 **BentoML·cadvisor 제외 최소 구성(~6.4GB)** → 안정화 후 BentoML(제한 3~4G로 하향 조정) 추가 검토.
+- 컨테이너 메모리 제한 명시: db 1.5~2G(shared_buffers 1G), backend 4G(bge-m3+EASE 폴백 동시 대비), redis 256M, frontend/nginx 128M. (현재 bentoml 외 전부 무제한이라 누수 시 전체 잠식 위험)
 - 배포 방식: Tailscale 유지(서버만 tailnet 재등록), GitHub secrets의 `SSH_HOST`/`SSH_USERNAME`/`SSH_KEY` 갱신.
 
 ---
