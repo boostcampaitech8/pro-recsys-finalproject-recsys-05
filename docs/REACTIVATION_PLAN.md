@@ -81,13 +81,30 @@
 
 ## 5. 인프라 이전: GCP → Oracle Cloud A1.Flex
 
-- GCP 배포 서버 사망 확정. Oracle A1.Flex (Always Free: Ampere ARM, 최대 4 OCPU / 24GB RAM) 이전 검토 중.
-- **RAM 요구량 산정 조사 진행 중** (별도 에이전트) — 결과로 이 섹션 업데이트 예정. 쟁점:
-  - backend가 메모리에 올리는 것: bge-m3 모델(~2GB+) + `item_similarity.pkl`(1.33GB, 로드 시 팽창) 
-  - BentoML 컨테이너 메모리 제한(compose 상 5G/3G) 및 제외 가능 여부 (backend에 EASE 폴백 존재)
-  - PostgreSQL pgvector HNSW 인덱스 메모리
-  - **ARM(aarch64) 호환성**: 현재 CI는 x86 빌드 → `docker buildx` 멀티아치 재빌드 필요. PyTorch/RecBole/sentence-transformers aarch64 휠 확인 필요
-- 배포 방식 변경점: Tailscale은 유지 가능(서버만 tailnet 재등록), GitHub secrets의 `SSH_HOST`/`SSH_USERNAME`/`SSH_KEY` 갱신.
+GCP 배포 서버 사망 확정. **결론: A1.Flex (Always Free, Ampere ARM 4 OCPU / 24GB) 단일 인스턴스로 풀스택 구동 가능** (2026-07-06 산정 완료).
+
+### RAM 산정 결과
+
+| 시나리오 | 피크 RAM | 판정 |
+|---|---|---|
+| **A. 전형 운영** (현재 코드 그대로: BentoML이 후보 JSON 로드를 스킵) | **~8.7GB** | ✅ 24GB의 1/3 수준, 여유 큼 |
+| B. 최악 (후보 JSON 로드 재활성화 + 채팅 bge-m3 + EASE 폴백 동시) | ~15–19GB | ⚠️ 가능하나 BentoML 제한 5G→10~12G 상향 필요 |
+| C. 최소 구성 (BentoML 제거, backend EASE 폴백만) | **~6.4GB** | ✅ `integrated_service.py` 폴백이 이미 구현돼 있어 compose에서 bentoml 삭제만으로 동작 (추천 품질은 EASE 단독으로 저하) |
+
+주요 근거: BentoML 상주 ≈ 2~3.5GB(`item_similarity.pkl` 1.3GB + 런타임; `model_loader.py`가 후보 JSON 1.8GB×2 로드를 현재 스킵 중), backend ≈ 0.6GB + 채팅 RAG 최초 사용 시 bge-m3 +2~2.5GB(lazy) + BentoML 장애 시 EASE 폴백 +1.3GB(lazy), PostgreSQL(games ~2.3만 행 × 1024차원 + HNSW) ≈ 0.5~2GB, redis/nginx/frontend/cadvisor 합계 ~0.3GB.
+
+### ARM(aarch64) 호환성 리스크
+
+1. **(필수 변경) CI가 x86 전용 빌드** — `deploy.yml`이 buildx 없이 `docker build` → ARM에서 pull 시 exec format error 확정. `docker buildx build --platform linux/amd64,linux/arm64` 전환 또는 ARM 네이티브 빌드 필요.
+2. PyTorch/XGBoost/sentence-transformers: aarch64 휠 존재 (`uv.lock`에 aarch64 항목 확인됨) — 실빌드 검증만 필요.
+3. cadvisor `latest` 태그 → arm64 지원 확인된 버전으로 고정 권장.
+4. pgvector/redis/nginx/python 베이스 이미지: 공식 멀티아치, 리스크 없음.
+
+### 권장 구성
+
+- 4 OCPU / 24GB 단일 인스턴스 (분할 실익 없음) + **스왑 4~8GB** (피클 역직렬화 순간 피크 대비 OOM 안전망).
+- 컨테이너 메모리 제한 명시: db 2~3G(shared_buffers 1~2G 튜닝), backend 3~4G, bentoml 5G 유지, redis 256M, frontend/nginx 128M, cadvisor 256M. (현재 bentoml 외 전부 무제한이라 누수 시 전체 잠식 위험)
+- 배포 방식: Tailscale 유지(서버만 tailnet 재등록), GitHub secrets의 `SSH_HOST`/`SSH_USERNAME`/`SSH_KEY` 갱신.
 
 ---
 
