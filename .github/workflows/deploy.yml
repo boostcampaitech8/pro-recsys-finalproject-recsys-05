@@ -86,8 +86,10 @@ jobs:
           uv run pytest test/
 
   # ---------------------------------------------------
-  # [PR 통합 테스트: Docker Compose (override)]
-  # PR일 때만 로컬 개발용 override로 통합 테스트합니다.
+  # [PR 이미지 빌드 검증: Docker Compose (override)]
+  # Dockerfile 회귀만 잡는다. 부팅/헬스체크 검증은 하지 않음:
+  # CI에는 모델 아티팩트가 없어 bentoml이 뜰 수 없고, backend는
+  # 기동 시 bge-m3(~2.3GB) 로딩이 완료돼야 응답해 CI에 부적합.
   # ---------------------------------------------------
   compose_pr:
     needs: test
@@ -97,51 +99,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Create backend env for compose_pr (local-style)
+      - name: Create dummy backend env (override의 env_file 참조용, 빌드엔 secrets 불필요)
         run: |
-          # 1. 루트 .env (Docker Compose 변수 치환용)
-          cat > .env << EOF
-          POSTGRES_USER=myuser
-          POSTGRES_PASSWORD=mypassword
-          POSTGRES_DB=mydatabase
-          DOCKER_USERNAME=local
-          IMAGE_TAG=dev
-          EOF
-
-          # 2. configs/backend/.env (백엔드 애플리케이션용)
           mkdir -p configs/backend
           cat > configs/backend/.env << EOF
           ENV=ci
           DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
           REDIS_URL=redis://redis:6379/0
           ML_REC_ROOT=/app/ml_rec
-          STEAM_API_KEY=${{ secrets.STEAM_API_KEY }}
-          GCS_KEY_BASE64=${{ secrets.GCS_KEY_BASE64 }}
-          CLOVA_API_KEY=${{ secrets.CLOVA_API_KEY }}
-          CLOVA_BASE_URL=${{ secrets.CLOVA_BASE_URL }}
           EOF
 
-      - name: Build and Run with Docker Compose (override)
+      - name: Build images (backend, frontend)
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.override.yml build
-          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
-          echo "Waiting for services to start..."
-          sleep 20
-
-      - name: Check Health (Integration Test)
-        run: |
-          for i in {1..5}; do
-            if curl -f http://localhost:8000/health/db; then
-              echo "Health Check Passed!"
-              exit 0
-            fi
-            echo "Retrying... ($i/5)"
-            sleep 10
-          done
-          echo "Health Check Failed!"
-          docker compose logs
-          exit 1
-
-      - name: Tear Down
-        if: always()
-        run: docker compose -f docker-compose.yml -f docker-compose.override.yml down
+          docker compose -f docker-compose.yml -f docker-compose.override.yml build backend frontend
