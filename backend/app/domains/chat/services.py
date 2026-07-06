@@ -22,7 +22,7 @@ from app.domains.user.schemas import UserCreate
 
 from app.domains.chat.orchestrator import SteamBotOrchestrator
 from app.domains.chat.tools.registry import ToolRegistry
-from app.domains.chat.providers.clova import ClovaProvider
+from app.domains.chat.providers.gemini import GeminiProvider
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 chat_cache = ChatCache()
@@ -38,12 +38,8 @@ def get_orchestrator() -> SteamBotOrchestrator:
     """
     global GLOBAL_ORCHESTRATOR
     if GLOBAL_ORCHESTRATOR is None:
-        # TODO: API Key 등은 환경변수에서 로드
-        provider = ClovaProvider(
-            api_key=os.getenv("CLOVA_API_KEY"),
-            api_base=os.getenv("CLOVA_BASE_URL"),
-            default_model="HCX-007"
-        )
+        # 키·모델은 GEMINI_* 환경변수에서 로드 (GeminiProvider 내부 기본값)
+        provider = GeminiProvider()
         registry = ToolRegistry() # Factory pattern
         
         GLOBAL_ORCHESTRATOR = SteamBotOrchestrator(

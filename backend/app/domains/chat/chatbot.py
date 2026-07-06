@@ -18,7 +18,7 @@ class chatbot:
         self.embeddings: Optional[HuggingFaceEmbeddings] = None
         # self.vectorstore: Optional[PGVector] = None
         self.engine = None
-        self.llm: Optional[ChatOpenAI] = None
+        self.llm = None  # ChatOpenAI 또는 with_fallbacks가 적용된 Runnable
         self.retriever = None
         self.prompt_template: Optional[ChatPromptTemplate] = None
         self.output_parser = StrOutputParser()
@@ -28,16 +28,17 @@ class chatbot:
     async def initialize(
         self,
         engine: AsyncEngine,
-        clova_api_key: str,          # Studio API Key
-        clova_base_url: str = "https://clovastudio.stream.ntruss.com/v1/openai/",
-        model_name: str = "HCX-DASH-001",
+        api_key: str,                 # LLM API Key (Gemini)
+        base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/",
+        model_name: str = "gemini-flash-lite-latest",
+        fallback_model: Optional[str] = None,  # 주력 모델 실패 시 폴백 (콤마 구분 다중 지정 가능)
         temperature: float = 0.5,     # 추천 시스템은 할루시네이션 방지를 위해 낮게 설정 권장
         max_tokens: int = 1024,
         # collection_name: str = "steam_games_bge_m3",
         top_k: int = 3
     ):
         """
-        리소스를 초기화합니다. NCP 인증 헤더 처리가 포함되어 있습니다.
+        리소스를 초기화합니다. OpenAI 호환 엔드포인트(Gemini)를 사용합니다.
         """
         if self._initialized:
             logger.info("⚠️ Chatbot service already initialized")
@@ -61,16 +62,40 @@ class chatbot:
 
             self.engine = engine
             
-            # 4. CLOVA Studio LLM 초기화 (OpenAI 호환 모드 + 헤더 주입)
-            logger.info(f"🤖 Connecting to CLOVA Studio ({model_name})...")
-            
+            # 4. LLM 초기화 (Gemini, OpenAI 호환 모드)
+            logger.info(f"🤖 Connecting to LLM ({model_name})...")
+
+            # timeout 필수: 과부하 모델이 응답을 물고 있으면 폴백으로 못 넘어간다
             self.llm = ChatOpenAI(
-                base_url=clova_base_url,
-                api_key=clova_api_key,
+                base_url=base_url,
+                api_key=api_key,
                 model=model_name,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                timeout=30,
+                max_retries=1,
             )
+
+            # 주력 모델 실패(쿼터 초과 등) 시 폴백 모델들로 순서대로 자동 재시도
+            fallback_models = [
+                m.strip() for m in (fallback_model or "").split(",")
+                if m.strip() and m.strip() != model_name
+            ]
+            if fallback_models:
+                fallback_llms = [
+                    ChatOpenAI(
+                        base_url=base_url,
+                        api_key=api_key,
+                        model=fb,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        timeout=30,
+                        max_retries=1,
+                    )
+                    for fb in fallback_models
+                ]
+                self.llm = self.llm.with_fallbacks(fallback_llms)
+                logger.info(f"🔁 Fallback models configured: {fallback_models}")
 
             # 5. Prompt Template 설정
             self._setup_prompt()
@@ -78,9 +103,10 @@ class chatbot:
             # 설정 저장
             self.config = {
                 "model": model_name,
+                "fallback_model": fallback_model,
                 "temperature": temperature,
                 "top_k": top_k,
-                "base_url": clova_base_url
+                "base_url": base_url
             }
 
             self._initialized = True

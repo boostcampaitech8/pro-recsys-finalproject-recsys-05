@@ -1,4 +1,5 @@
 import json
+import os
 from enum import Enum
 import re
 from typing import Optional, Tuple, List, Dict, Any
@@ -118,36 +119,39 @@ class IntentAnalysis(BaseModel):
     }
 
 class SteamOrchestrator:
-    def __init__(self, api_key: str, base_url: str):
+    def __init__(self, api_key: str | None = None, base_url: str | None = None, model: str | None = None):
         """
-        Clova X (OpenAI Compatible) 클라이언트 초기화
+        Gemini (OpenAI Compatible) 클라이언트 초기화 — 미지정 시 GEMINI_* 환경변수 사용
         """
         self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url # Clova X 엔드포인트
+            api_key=api_key or os.getenv("GEMINI_API_KEY"),
+            base_url=base_url or os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"),
+            timeout=30.0,
+            max_retries=1,
         )
+        self.model = model or os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
         self.parser = PydanticOutputParser(pydantic_object=IntentAnalysis)
         # 라우팅을 위한 전용 시스템 프롬프트
         self.router_system_prompt  = PromptTemplate.from_template(template_system).format(schema=self._get_clova_schema())
-        
+
     async def classify_intent(self, user_message: str) -> IntentAnalysis:
         """
         [Phase 2 핵심] 사용자의 의도를 분석하여 구조화된 데이터로 반환
         """
         try:
             response = await self.client.chat.completions.create(
-                model="HCX-007", # 실제 모델명으로 변경 필요
+                model=self.model,
                 messages=[
                     {"role": "system", "content": self.router_system_prompt},
                     {"role": "user", "content": user_message}
                 ],
                 temperature=0.1, # 분류는 창의성이 필요 없으므로 0에 가깝게
-                # 중요: JSON 모드 강제 (Clova API 스펙에 맞춰 조정 가능)
-                extra_body={
-                    "type": "json",
-                    "schema": {
-                        "type": "object",
-                        "responseFormat": self._get_clova_schema()
+                # JSON 모드 강제 (OpenAI 표준 json_schema 포맷)
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "intent_analysis",
+                        "schema": self._get_clova_schema()
                     }
                 }
             )

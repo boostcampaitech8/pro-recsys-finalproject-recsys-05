@@ -30,7 +30,7 @@ from app.domains.chat import services
 from app.core.database import get_db
 from app.core.logger import logger
 
-from app.domains.chat.providers.clova import ClovaProvider
+from app.domains.chat.providers.gemini import GeminiProvider
 # 환경변수에서 DEBUG_MODE 읽기
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
@@ -178,14 +178,11 @@ async def single_chat_recommend(
 async def create_chat_response(
     request: ChatRequest,
 ):
-    llm = SteamOrchestrator(
-        api_key=os.getenv("CLOVA_API_KEY"),
-        base_url=os.getenv("CLOVA_BASE_URL"),
-    )
+    llm = SteamOrchestrator()
     intent_analysis = await llm.classify_intent(request.text)
     
     return TestResponse(
-        output=intent_analysis.model_dump_json(indent=2)  # JSON 문자열로 변환
+        message=intent_analysis.model_dump_json(indent=2)  # JSON 문자열로 변환
     )
     
     
@@ -195,11 +192,7 @@ async def create_chat_response(
 )
 async def agent_endpoint(request: TestRequest):
     
-    provider = ClovaProvider(
-        api_key=os.getenv("CLOVA_API_KEY"),
-        api_base=os.getenv("CLOVA_BASE_URL"),
-        default_model="HCX-007"
-    )
+    provider = GeminiProvider()
     
     registry = ToolRegistry()
     tools = registry.get_tools()
