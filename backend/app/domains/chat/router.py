@@ -297,7 +297,7 @@ async def chat_unified_llm_only(
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
 ):
-    if not bot.is_ready():
+    if not bot.is_llm_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
     try:
@@ -464,7 +464,7 @@ async def send_message_llm_only(
     bot: chatbot = Depends(get_chatbot),
     user_id: UUID = Header(..., alias="id", description="사용자 ID"),
 ):
-    if not bot.is_ready():
+    if not bot.is_llm_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
     try:

@@ -226,11 +226,21 @@ class chatbot:
     def cleanup(self):
         logger.info("🧹 Cleaning up chatbot resources...")
         self.embeddings = None
-        self.vectorstore = None
+        if getattr(self, "vectorstore", None) is not None:
+            self.vectorstore = None
         self.llm = None
         self._initialized = False
 
     def is_ready(self) -> bool:
+        """RAG 파이프라인 전체(LLM + 임베딩)가 사용 가능한지 확인합니다."""
+        return (
+            self._initialized
+            and self.llm is not None
+            and self.embeddings is not None
+        )
+
+    def is_llm_ready(self) -> bool:
+        """임베딩 없이 LLM만 필요한 경로(llm-only 테스트)용 준비 상태 확인."""
         return self._initialized and self.llm is not None
     
 # 싱글톤 인스턴스
