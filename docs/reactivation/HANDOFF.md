@@ -1,6 +1,7 @@
 # 메인컴퓨터 인계 문서 (HANDOFF)
 
 > 작성: 2026-07-06, 노트북(16GB RAM)에서 Phase 1 검증 직전까지 진행 후 인계.
+> **✅ 2026-07-06 메인컴에서 검증 완료** — 결과와 발견 사항은 루트 `CLAUDE.md` Phase 1 참조. 아래 절차는 기록용이며, 원문 오류 2건을 정정함(§3 jsonl 경로, §4 기동 명령).
 > 전체 맥락: 루트 `CLAUDE.md`(진행 상태) + `docs/reactivation/PLAN.md`(마스터 플랜) 먼저 읽을 것.
 
 ## 현재까지 완료된 것
@@ -36,7 +37,7 @@ Gdrive `부스트캠프/backup/` 에서:
 | Gdrive 경로 | 복원 위치 | 필수? |
 |---|---|---|
 | `converted/item_similarity_backend_format.pkl` | `backend/app/data/item_similarity.pkl` | ✅ (변환 완료본 — 재변환 불필요) |
-| `gcs_data-tailor-test/processed/games_metadata.jsonl` | `backend/app/data/games_metadata.jsonl` | ✅ (DB 시드, 주의: `processed/` 하위 아님, `data/` 바로 아래) |
+| `gcs_data-tailor-test/processed/games_metadata.jsonl` | `backend/app/data/processed/games_metadata.jsonl` | ✅ (DB 시드. **정정: `processed/` 하위가 정위치** — 부팅 스크립트가 gcs_config `local_path` 기준으로 체크함. 원문의 "`data/` 바로 아래"는 오류) |
 | `gcs_data-tailor-test/ml_rec/models/*` | `ml_rec/saved_models/` | BentoML 쓸 때만 |
 | `gcs_data-tailor-test/ml_rec/dataset/steam_optimal.{inter,item,user}` | `ml_rec/dataset/steam_optimal/` | 재학습/재변환 때만 |
 | `gcs_data-tailor-test/ml_rec/candidates/*` | `ml_rec/candidates/` | BentoML 쓸 때만 |
@@ -46,7 +47,10 @@ Gdrive `부스트캠프/backup/` 에서:
 ### 4. 부팅 검증 (Phase 1 잔여 작업)
 ```bash
 # 최소 구성 기동 (bentoml/frontend 제외)
-docker compose up -d --build db redis backend
+# 정정: backend가 bentoml service_healthy에 의존하므로 한 번에 올리면 bentoml까지 끌려옴.
+# db·redis 먼저 healthy 확인 후 backend를 --no-deps로 기동할 것.
+docker compose up -d db redis
+docker compose up -d --build --no-deps backend
 
 # 부팅 로그 관찰 — 기대 로그:
 #   "✅ Database tables created successfully"
