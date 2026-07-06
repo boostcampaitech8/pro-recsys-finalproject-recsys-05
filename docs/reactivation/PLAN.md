@@ -35,6 +35,14 @@
   - 완료 후 Google Drive로 복사: `G:\내 드라이브\부스트캠프\backup`
 - ⚠️ 결제계정 closed 후 데이터는 유예기간이 지나면 영구 삭제될 수 있음 — **가능한 한 빨리 실행**.
 
+### 백업 이후 데이터 소스 전략 (GCS 의존성 제거)
+
+부팅 로직이 로컬 파일 존재 시 GCS 다운로드를 스킵하므로(`backend/app/main.py:57-58`, `entrypoint.sh`), **서버에 파일을 미리 배치하면 GCS 없이 완전 동작**한다. 재배포 시:
+- Gdrive 백업(`G:\내 드라이브\부스트캠프\backup`)을 영구 보관소로 삼고, Oracle 서버 셋업 시 rclone으로 1회 복사:
+  - `backend/app/data/processed/games_metadata.jsonl`, `backend/app/data/item_similarity.pkl`
+  - (BentoML 사용 시) `ml_rec/{models,candidates,dataset}/` bind-mount 디렉터리
+- 이후 GCS 결제 연결은 해제해도 무방. 부팅 시 Gdrive 자동 다운로드(코드 수정)는 Drive API 쿼터/복잡도 때문에 비권장.
+
 ### 경로 ② 로컬 사본 수색 (메인컴퓨터 + 팀원)
 찾아야 할 파일 (경로 후보: 다른 clone의 `ml_rec/dataset/`, `ml_rec/saved_models/`, `ml_rec/candidates/`, `backend/app/data/`, 다운로드 폴더):
 
@@ -64,7 +72,7 @@
 |---|---|---|---|
 | 1 | GCS 키 경로 3중 불일치: 실제 파일은 `configs/gcs_key.json`인데 코드는 `configs/gcs/gcs_key.json` 또는 `backend/app/gcs_key.json`을 찾음 | `backend/app/main.py:60`, `backend/app/storage.py`, `backend/scripts/gcs_utils.py`, `docker-compose.override.yml` | 과거 부팅(2/3 로그)도 이것 때문에 **"빈 DB"로 기동**됨. GCS 다운로드가 조용히 스킵 |
 | 2 | `gcs_config.yaml`의 `item_similarity.pkl` download_path가 `ml_rec/item_similarity.pkl`인데 버킷 실제 경로는 `ml_rec/models/item_similarity.pkl` | `configs/gcs_config.yaml` | 부팅 시 모델 다운로드 404 |
-| 3 | `item_similarity.pkl` 포맷 불일치: 파이프라인 산출물은 raw matrix, 백엔드는 `{similarity_matrix, item_num, id2token, token2id}` dict 요구 | `ml_rec/scripts/stage1_retrieval/extract_candidates_simple.py` vs `backend/app/services/ml_inference/inference_service.py` | 재학습해도 서빙 연결 불가 — 변환 스크립트 신규 작성 필요. GCS의 1.33GB pkl이 어느 포맷인지 복구 후 확인 |
+| 3 | `item_similarity.pkl` 포맷 불일치 — **확정(2026-07-06)**: GCS 실물은 RecBole EASE 체크포인트(`torch.save`; `config` + `other_parameter.item_similarity` dense 17,792×17,792 float32 + `interaction_matrix` csr 97,870×17,792). 백엔드는 `{similarity_matrix, item_num, id2token, token2id}` dict를 일반 pickle로 요구 | `backend/app/services/ml_inference/inference_service.py` | 변환 스크립트 신규 작성 필요: 체크포인트에서 행렬 추출 + `steam_optimal` dataset을 RecBole로 재로드해 id2token/token2id 맵 추출 → dict로 재저장 |
 | 4 | CI가 `rec-frontend` 이미지를 빌드/푸시하지 않음 (워크플로에 frontend 스텝 부재) | `.github/workflows/deploy.yml` vs `docker-compose.prod.yml` | 프로덕션 `pull` 실패 → frontend 기동 불가 |
 | 5 | 루트 README 구조도가 구식 (`stage1_ease.py`, `bentoml_service.py`, `PROJECT_REPORT.md`는 전 브랜치에 없음) | `README.md` | 문서 신뢰 불가 — 실제 트리는 `ml_rec/scripts/{preprocessing,stage1_retrieval,stage2_ranking,stage3_scoring,stage4_serving}` |
 | 6 | `/chat/messages/llm-only`만 LLM 예외를 안 잡아 HTTP 500 | `backend/app/domains/chat/services.py:483-538` | LLM 장애 시 이 엔드포인트만 500 |
