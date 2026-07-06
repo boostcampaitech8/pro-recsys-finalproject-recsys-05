@@ -457,9 +457,13 @@ class SteamBotOrchestrator:
         messages.append({"role": "user", "content": message})
 
         # 도구 없이 LLM만 호출
-        response = await self.provider.chat(
-            messages=messages,
-            tools=None,
-            max_tokens=100
-        )
-        return response.content
+        try:
+            response = await self.provider.chat(
+                messages=messages,
+                tools=None,
+                max_tokens=100
+            )
+            return response.content
+        except Exception as e:
+            logger.error(f"Chitchat LLM Error: {e}")
+            return "죄송합니다. 처리 중에 오류가 발생했습니다."
