@@ -21,7 +21,6 @@ from app.domains.user.schemas import UserCreate
 
 
 from app.domains.chat.orchestrator import SteamBotOrchestrator
-from app.domains.chat.tools.registry import ToolRegistry
 from app.domains.chat.providers.clova import ClovaProvider
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
@@ -44,12 +43,7 @@ def get_orchestrator() -> SteamBotOrchestrator:
             api_base=os.getenv("CLOVA_BASE_URL"),
             default_model="HCX-007"
         )
-        registry = ToolRegistry() # Factory pattern
-        
-        GLOBAL_ORCHESTRATOR = SteamBotOrchestrator(
-            provider=provider,
-            tool_registry=registry
-        )
+        GLOBAL_ORCHESTRATOR = SteamBotOrchestrator(provider=provider)
     return GLOBAL_ORCHESTRATOR
 
 async def create_conversation(db: AsyncSession, user_id: UUID) -> Conversation:
@@ -202,6 +196,22 @@ async def maybe_save_recommendation(
         # MVP: recommendation 저장이 아직 wiring 안 되어 있으면 그냥 패스
         await db.rollback()
 
+async def verify_conversation_owner(db: AsyncSession, conversation_id: int, user_id: UUID) -> Conversation:
+    """
+    대화방 존재 및 소유자 일치를 검증합니다.
+
+    conversation_id만으로 임의 대화방에 읽기/쓰기가 가능했던 IDOR을 막습니다.
+    존재하지 않으면 404, 소유자가 다르면 403을 발생시킵니다.
+    """
+    repo = ChatRepository(db)
+    conversation = await repo.get_conversation(conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conversation.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized for this conversation")
+    return conversation
+
+
 async def process_chat_turn(
     db: AsyncSession,
     bot: chatbot,
@@ -223,6 +233,7 @@ async def process_chat_turn(
       - retrieved_docs (Optional[list]): 검색된 문서(게임) 리스트
       - debug (Optional[dict]): 디버그 메트릭
     """
+    await verify_conversation_owner(db, conversation_id, user_id)
     repo = ChatRepository(db)
 
     # 1) user 저장
@@ -497,6 +508,7 @@ async def process_chat_turn_llm_only(
     Returns:
         Tuple[Message, None, dict]: AI 메시지, None(검색결과 없음), 메트릭
     """
+    await verify_conversation_owner(db, conversation_id, user_id)
     repo = ChatRepository(db)
 
     user_msg = await repo.add_message(conversation_id, "user", user_content)

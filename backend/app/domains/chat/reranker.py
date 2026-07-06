@@ -99,14 +99,23 @@ class ClovaReranker:
             cited_docs = result.get("result", {}).get("citedDocuments", [])
 
             # 원본 형식으로 변환: [{"index": 0, "score": 1.0, "document": "..."}]
-            reranked_docs = [
-                {
+            # API 응답에 실제 관련도 점수(relevanceScore 또는 score)가 있으면 그대로 사용
+            reranked_docs = []
+            score_missing = False
+            for idx, doc in enumerate(cited_docs):
+                raw_score = doc.get("relevanceScore", doc.get("score"))
+                if raw_score is None:
+                    # 응답에 점수 필드가 없는 경우 순서 기반 점수로 폴백
+                    raw_score = 1.0 - (idx * 0.01)
+                    score_missing = True
+                reranked_docs.append({
                     "index": int(doc.get("id", 0)),
-                    "score": 1.0 - (idx * 0.01),  # 순서에 따라 점수 부여 (임시)
+                    "score": float(raw_score),
                     "document": doc.get("doc", "")
-                }
-                for idx, doc in enumerate(cited_docs)
-            ]
+                })
+
+            if score_missing:
+                logger.warning("⚠️ CLOVA Reranker 응답에 관련도 점수 필드가 없어 순서 기반 점수로 대체합니다.")
 
             # top_k 적용
             if top_k is not None and top_k > 0:

@@ -10,6 +10,22 @@ from app.domains.chat.tools.base import Tool
 from app.domains.chat.interfaces import UserIntent
 from app.domains.chat.reranker import ClovaReranker
 
+
+def _ensure_parsed(value: Any) -> Any:
+    """JSONB 컬럼 값 파싱 헬퍼 - 드라이버가 이미 dict/list로 역직렬화한 경우 그대로 반환"""
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as e:
+            logger.warning(f"⚠️ JSONB 값 파싱 실패: {e}")
+            return None
+    return None
+
+
 class SearchByEmbeddingTool(Tool):
     """의미 유사도 기반 게임 검색 (RAG) 도구 - 2단계 파이프라인 (벡터 검색 → Reranking)"""
 
@@ -34,6 +50,7 @@ class SearchByEmbeddingTool(Tool):
     @property
     def parameters(self) -> dict[str, Any]:
         return {
+            "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
@@ -414,6 +431,7 @@ class GameInfoTool(Tool):
     @property
     def parameters(self) -> dict[str, Any]:
         return {
+            "type": "object",
             "properties": {
                 "game_name": {
                     "type": "string",
@@ -462,9 +480,9 @@ class GameInfoTool(Tool):
                 logger.warning(f"❌ 게임 없음: {game_name}")
                 return json.dumps({"error": f"'{game_name}' 게임을 찾을 수 없습니다."}, ensure_ascii=False)
 
-            # 2. 전체 정보 구성
-            specs = json.loads(game.specs) if game.specs else {}
-            screenshots = json.loads(game.screenshots) if game.screenshots else []
+            # 2. 전체 정보 구성 (JSONB 컬럼은 드라이버에 따라 str 또는 dict/list로 반환됨)
+            specs = _ensure_parsed(game.specs) or {}
+            screenshots = _ensure_parsed(game.screenshots) or []
 
             full_response = {
                 "title": game.name,
@@ -474,7 +492,7 @@ class GameInfoTool(Tool):
                     "original": int(game.price) if game.price else 0
                 },
                 "details": {
-                    "genres": json.loads(game.genres_kr) if game.genres_kr else [],
+                    "genres": _ensure_parsed(game.genres_kr) or [],
                     "release_date": game.release_date or "Unknown",
                     "description": game.short_description_kr or ""
                 },
@@ -523,6 +541,7 @@ class GameReviewsTool(Tool):
     @property
     def parameters(self) -> dict[str, Any]:
         return {
+            "type": "object",
             "properties": {
                 "game_name": {
                     "type": "string",
@@ -561,8 +580,8 @@ class GameReviewsTool(Tool):
                 logger.warning(f"❌ 게임 없음: {game_name}")
                 return json.dumps({"error": f"'{game_name}' 게임을 찾을 수 없습니다."}, ensure_ascii=False)
 
-            # 2. 태그 추출 (상위 5개)
-            tags = json.loads(game.tags_en) if game.tags_en else []
+            # 2. 태그 추출 (상위 5개) (JSONB 컬럼은 드라이버에 따라 str 또는 list로 반환됨)
+            tags = _ensure_parsed(game.tags_en) or []
             keywords = tags[:5] if tags else []
 
             # 3. 결과 구성

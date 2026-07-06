@@ -82,12 +82,11 @@ class ClovaProvider(LLMProvider):
             return self._parse_response(response)
             
         except Exception as e:
+            # 에러를 content로 반환하면 호출부가 정상 응답으로 오인해
+            # "Error: ..." 문자열이 사용자에게 그대로 노출된다. 예외를 전파해
+            # 호출부(classify_intent의 휴리스틱 fallback, AgentEngine의 안내 메시지)가 처리하게 한다.
             logger.error(f"Error calling Clova X: {str(e)}")
-            # Return error as content for graceful handling in Agent Loop
-            return LLMResponse(
-                content=f"Error: {str(e)}",
-                finish_reason="error"
-            )
+            raise
 
     def _parse_response(self, response: Any) -> LLMResponse:
         """Parse OpenAI-compatible response into standard LLMResponse."""

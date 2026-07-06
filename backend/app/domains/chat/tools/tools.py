@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -11,7 +11,7 @@ from app.domains.recommendation.repository import RecommendationRepository
 from app.domains.user.repository import UserRepository
 
 from app.domains.chat.tools.tool_recommand import PersonalizedRecommendationTool
-from app.domains.chat.tools.tool_search import SearchByEmbeddingTool, SearchGamesByFilterTool, SearchGamesByFilterTool, GameInfoTool, GameReviewsTool
+from app.domains.chat.tools.tool_search import SearchByEmbeddingTool, SearchGamesByFilterTool, GameInfoTool, GameReviewsTool
 from app.domains.chat.tools.base import Tool
 from app.domains.chat.reranker import ClovaReranker
 
@@ -20,7 +20,7 @@ def get_game_tools(
     redis_client=None,
     embeddings_model=None,
     request=None
-) -> List[Tool]:
+) -> Dict[str, Tool]:
     """
     FastAPI 의존성 주입용 헬퍼 함수
 

@@ -29,9 +29,9 @@ async def test_user_flow(db):
     assert created_user.user_id is not None
     logger.info("   -> 유저 생성 성공")
     
-    # 2. 유저 조회 (Get User)
-    logger.info(f"2. 유저 조회 시도: {test_steam_id}")
-    fetched_user = await service.get_user_profile(test_steam_id)
+    # 2. 유저 조회 (Get User) - get_user_profile은 steam_id가 아니라 user_id(UUID)를 받는다
+    logger.info(f"2. 유저 조회 시도: {created_user.user_id}")
+    fetched_user = await service.get_user_profile(created_user.user_id)
     
     assert fetched_user is not None
     assert fetched_user.steam_id == test_steam_id
