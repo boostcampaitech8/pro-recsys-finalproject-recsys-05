@@ -4,7 +4,8 @@ import os
 
 # 모델 파일 경로 설정 (Docker 및 로컬 환경 모두 대응)
 # 우선순위: 1. backend/app/data (새로운 경로) -> 2. ml_rec (기존 경로)
-APP_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+# parents[3] == app/ (ml_inference -> recommendation -> domains -> app)
+APP_DATA_DIR = Path(__file__).parents[3] / "data"
 MODEL_PATH = APP_DATA_DIR / "item_similarity.pkl"
 
 # 기존 경로 (호환성)
