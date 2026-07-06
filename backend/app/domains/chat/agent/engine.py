@@ -1,5 +1,6 @@
 """Stateless Agent Engine for Steambot."""
 
+import inspect
 import json
 import logging
 import sys
@@ -84,7 +85,6 @@ class AgentEngine:
             # 2. Decide (Tool Call or Final Answer)
             if response.tool_calls:
                 # Add assistant message with tool calls
-                # Add assistant message with tool calls
                 # Convert ToolCallRequest objects back to dict format for context builder
                 tool_calls_dict = [
                     {
@@ -118,12 +118,15 @@ class AgentEngine:
                             tool_func = self.tools[function_name]
                             args = arguments_dict
 
-                            # Add steam_id if available
-                            if self.steam_id:
+                            # Inject engine-level context only into tools whose
+                            # execute() signature actually accepts the parameter
+                            # (explicitly or via **kwargs).
+                            if self.steam_id and self._tool_accepts_param(tool_func, "steam_id"):
                                 args["steam_id"] = self.steam_id
 
-                            # Add embedding_model if available
-                            if self.embedding_model is not None:
+                            if self.embedding_model is not None and self._tool_accepts_param(
+                                tool_func, "embedding_model"
+                            ):
                                 args["embedding_model"] = self.embedding_model
 
                             # Execute (Strict Tool Interface)
@@ -153,6 +156,34 @@ class AgentEngine:
             final_content = "죄송합니다. 답변을 생성하는 데 실패했습니다. (Too many iterations)"
             
         return final_content
+
+    @staticmethod
+    def _tool_accepts_param(tool: Any, param_name: str) -> bool:
+        """
+        Check whether a tool's execute() can receive the given keyword argument.
+
+        Returns True if the parameter is explicitly declared in the signature,
+        or if the signature accepts arbitrary keyword arguments (**kwargs).
+        Returns False when the signature cannot be inspected, so we never
+        inject arguments into an opaque callable.
+        """
+        try:
+            signature = inspect.signature(tool.execute)
+        except (TypeError, ValueError):
+            return False
+
+        parameters = signature.parameters
+        if param_name in parameters:
+            param = parameters[param_name]
+            return param.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            )
+
+        return any(
+            param.kind is inspect.Parameter.VAR_KEYWORD
+            for param in parameters.values()
+        )
 
     def _get_tool_definitions(self) -> List[dict]:
         """Convert registered tools to OpenAI function definitions."""

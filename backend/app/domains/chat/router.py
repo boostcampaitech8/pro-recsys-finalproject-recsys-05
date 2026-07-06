@@ -20,17 +20,14 @@ from app.domains.chat.schemas import (
     MultiTurnChatResponse,
     ChatTurnRequest,
     ChatTurnResponse,
+    TestResponse,
+    TestRequest,
 )
-from app.domains.chat.schemas import EchoRequest, EchoResponse, ChatResponse, ErrorResponse, ChatRequest, TestResponse, TestRequest
 from app.domains.chat.chatbot import get_chatbot, chatbot
-from app.domains.chat.orchestrator import SteamOrchestrator, IntentAnalysis, SteamBotOrchestrator
-from app.domains.chat.agent.engine import AgentEngine
-from app.domains.chat.tools.registry import ToolRegistry
 from app.domains.chat import services
 from app.core.database import get_db
 from app.core.logger import logger
 
-from app.domains.chat.providers.gemini import GeminiProvider
 # 환경변수에서 DEBUG_MODE 읽기
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 
@@ -178,37 +175,31 @@ async def single_chat_recommend(
 async def create_chat_response(
     request: ChatRequest,
 ):
-    llm = SteamOrchestrator()
-    intent_analysis = await llm.classify_intent(request.text)
-    
+    orchestrator = services.get_orchestrator()
+    intent_analysis = await orchestrator.classify_intent(request.text)
+
     return TestResponse(
         message=intent_analysis.model_dump_json(indent=2)  # JSON 문자열로 변환
     )
-    
-    
+
+
 @router.post(
     "/test/agent",
-    response_model=TestRequest,
+    response_model=TestResponse,
+    summary="에이전트 오케스트레이터 단발 테스트",
+    description="히스토리 없이 에이전트 오케스트레이터(의도분류→도구실행)를 1회 호출합니다.",
 )
-async def agent_endpoint(request: TestRequest):
-    
-    provider = GeminiProvider()
-    
-    registry = ToolRegistry()
-    tools = registry.get_tools()
-    
-    orchestrator = SteamBotOrchestrator(
-        provider=provider,
-        tools=tools
-    )
-    
-    if not orchestrator:
-        raise HTTPException(status_code=500, detail="Orchestrator not initialized")
-    
+async def agent_endpoint(
+    request: TestRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    orchestrator = services.get_orchestrator()
+
     try:
         response_text = await orchestrator.handle_request(
             user_message=request.message,
-            history=[]
+            history=[],
+            db_session=db,
         )
         return TestResponse(message=response_text)
     except Exception as e:
@@ -306,7 +297,7 @@ async def chat_unified_llm_only(
     db: AsyncSession = Depends(get_db),
     bot: chatbot = Depends(get_chatbot),
 ):
-    if not bot.is_ready():
+    if not bot.is_llm_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
     try:
@@ -473,7 +464,7 @@ async def send_message_llm_only(
     bot: chatbot = Depends(get_chatbot),
     user_id: UUID = Header(..., alias="id", description="사용자 ID"),
 ):
-    if not bot.is_ready():
+    if not bot.is_llm_ready():
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
     try:
@@ -556,19 +547,28 @@ async def send_message_stream(
     description="대화방의 메시지 내역을 조회합니다. created_at 기준 시간순 정렬.",
     responses={
         200: {"description": "조회 성공"},
+        403: {"model": ErrorResponse, "description": "다른 사용자의 대화방"},
+        404: {"model": ErrorResponse, "description": "대화방 없음"},
         500: {"model": ErrorResponse, "description": "DB 조회 실패"}
     }
 )
-async def get_messages(conversation_id: int, limit: int = 20, db: AsyncSession = Depends(get_db)):
+async def get_messages(
+    conversation_id: int,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Header(..., alias="id", description="사용자 ID"),
+):
     """
     메시지 내역 조회 핸들러
-    
+
     Args:
         conversation_id (int): 대화방 ID
         limit (int): 조회할 메시지 개수 (default=20)
         db (AsyncSession): DB 세션
-        
+        user_id (UUID): 요청 사용자 ID (소유자 검증용)
+
     Returns:
         List[MessageResponse]: 메시지 목록
     """
+    await services.verify_conversation_owner(db, conversation_id, user_id)
     return await services.get_recent_messages(db, conversation_id, limit)
