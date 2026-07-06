@@ -547,19 +547,28 @@ async def send_message_stream(
     description="대화방의 메시지 내역을 조회합니다. created_at 기준 시간순 정렬.",
     responses={
         200: {"description": "조회 성공"},
+        403: {"model": ErrorResponse, "description": "다른 사용자의 대화방"},
+        404: {"model": ErrorResponse, "description": "대화방 없음"},
         500: {"model": ErrorResponse, "description": "DB 조회 실패"}
     }
 )
-async def get_messages(conversation_id: int, limit: int = 20, db: AsyncSession = Depends(get_db)):
+async def get_messages(
+    conversation_id: int,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Header(..., alias="id", description="사용자 ID"),
+):
     """
     메시지 내역 조회 핸들러
-    
+
     Args:
         conversation_id (int): 대화방 ID
         limit (int): 조회할 메시지 개수 (default=20)
         db (AsyncSession): DB 세션
-        
+        user_id (UUID): 요청 사용자 ID (소유자 검증용)
+
     Returns:
         List[MessageResponse]: 메시지 목록
     """
+    await services.verify_conversation_owner(db, conversation_id, user_id)
     return await services.get_recent_messages(db, conversation_id, limit)
