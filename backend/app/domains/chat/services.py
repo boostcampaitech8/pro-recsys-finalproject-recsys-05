@@ -21,7 +21,6 @@ from app.domains.user.schemas import UserCreate
 
 
 from app.domains.chat.orchestrator import SteamBotOrchestrator
-from app.domains.chat.tools.registry import ToolRegistry
 from app.domains.chat.providers.clova import ClovaProvider
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
@@ -44,12 +43,7 @@ def get_orchestrator() -> SteamBotOrchestrator:
             api_base=os.getenv("CLOVA_BASE_URL"),
             default_model="HCX-007"
         )
-        registry = ToolRegistry() # Factory pattern
-        
-        GLOBAL_ORCHESTRATOR = SteamBotOrchestrator(
-            provider=provider,
-            tool_registry=registry
-        )
+        GLOBAL_ORCHESTRATOR = SteamBotOrchestrator(provider=provider)
     return GLOBAL_ORCHESTRATOR
 
 async def create_conversation(db: AsyncSession, user_id: UUID) -> Conversation:
