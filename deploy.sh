@@ -46,6 +46,30 @@ if [ ! -f "$DATA_JSONL" ] || [ ! -f "$DATA_PKL" ]; then
     fi
 fi
 
+# bentoml 3-stage 아티팩트: prod.yml의 bentoml이 bind-mount로 참조한다.
+# 없으면 bentoml이 모델 로드 실패로 unhealthy → backend는 조용히 EASE 폴백(무중단이나 3-stage 아님).
+# 조용한 품질 저하를 배포 단계에서 잡기 위한 하드 체크. (비상시 EASE 폴백으로만 띄우려면 ALLOW_MISSING_BENTOML=1)
+echo "[preflight] checking bentoml 3-stage artifacts..."
+bfail=0
+for f in \
+    ml_rec/saved_models/item_similarity_backend_format.pkl \
+    ml_rec/saved_models/dcn_v2_steam.pth \
+    ml_rec/saved_models/xgb_final_scorer.pkl \
+    ml_rec/candidates/lightgcn_embeddings.npz; do
+    if [ ! -f "$f" ]; then echo "  MISSING: $f"; bfail=1; fi
+done
+if [ "$bfail" -eq 1 ]; then
+    if [ "${ALLOW_MISSING_BENTOML:-0}" = "1" ]; then
+        echo "[preflight] WARN: bentoml artifacts missing — ALLOW_MISSING_BENTOML=1, 계속 진행"
+        echo "  주의: bentoml이 crash-loop 할 수 있음. EASE 폴백만 원하면 배포 후 'docker rm -f recsys-bentoml-1'"
+    else
+        echo "[preflight] bentoml artifacts missing — abort (3-stage는 이 파일들이 서버에 상주해야 함)"
+        echo "  복원: Gdrive 백업 또는 rec-bentoml 이미지에서 docker cp (file-ID: docs/reactivation/BENTOML_VERIFY.md §3)"
+        echo "  EASE 폴백으로만 배포하려면 ALLOW_MISSING_BENTOML=1 로 재실행"
+        exit 1
+    fi
+fi
+
 # ---------- update code (compose/nginx/deploy.sh 최신화; 이미지가 아닌 설정 파일용) ----------
 # stale checkout 배포 방지: pull 실패는 기본 중단 (비상시 ALLOW_STALE_CHECKOUT=1로 우회)
 if [ -d .git ]; then
@@ -66,6 +90,12 @@ $COMPOSE pull
 
 echo "[deploy] starting services..."
 $COMPOSE up -d --no-build --remove-orphans
+
+# nginx는 upstream(backend/frontend) IP를 기동 시 1회만 해석해 캐시한다. 이번 배포에서 backend/
+# frontend 컨테이너가 recreate되면 IP가 바뀌는데, nginx 컨테이너는 config 무변경이라 recreate되지
+# 않아 stale IP로 502(connection refused)를 낸다. up 이후 nginx를 재시작해 현재 IP를 재해석시킨다.
+echo "[deploy] restarting nginx to re-resolve upstream IPs..."
+$COMPOSE restart nginx
 
 # ---------- healthcheck ----------
 echo "[health] waiting for $HEALTH_URL (timeout ${HEALTH_TIMEOUT}s)..."
