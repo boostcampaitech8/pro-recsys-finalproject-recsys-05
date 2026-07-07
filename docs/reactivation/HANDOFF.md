@@ -1,12 +1,16 @@
 # 인계 문서 (HANDOFF)
 
 > 전체 맥락: 루트 `CLAUDE.md`(진행 상태) + `docs/reactivation/PLAN.md`(마스터 플랜) 먼저 읽을 것.
-> - §A: **Phase 3 세션 인계** (2026-07-07 작성, 현행)
+> - §A: Phase 3 세션 인계 (2026-07-07 작성) — ✅ **Phase 3·4 완료되어 기록용**
 > - §B 이하: Phase 1 노트북→메인컴 인계 (2026-07-06, 완료되어 기록용)
+>
+> **⚠️ reactivation 트랙은 전체 종료됨** (Phase 0~4 완료, 2026-07-07). 이 파일 전체가 기록용이며 더 이상 활성 인계가 아니다. 이후 활성 작업은 **backend-refactoring 트랙**(`docs/backend-refactoring/PLAN.md`)을 볼 것.
 
 ---
 
-## §A. Phase 3 세션 인계 (2026-07-07)
+## §A. Phase 3 세션 인계 (2026-07-07, ✅ 완료 — 기록용)
+
+> **결과 (사후 갱신):** 이 인계의 Phase 3(Oracle A1.Flex 배포)·Phase 4(프론트 Vercel 이전)는 모두 완료됨. 서비스 URL — 백엔드 `http://144.24.67.225/`, 프론트 `https://tailorplay.vercel.app/`. 상세 체크리스트는 루트 `CLAUDE.md`. 아래 "Phase 3 작업 목록"은 당시 계획이며 이미 전부 소화됨.
 
 ### 현재 상태 스냅샷
 
