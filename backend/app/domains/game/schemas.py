@@ -2,6 +2,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Dict, Any, Union
 
 
+class GameCard(BaseModel):
+    app_id: int
+    name: Optional[str] = None
+    header_image: Optional[str] = None
+    short_description_kr: Optional[str] = None
+    genres_kr: Optional[List[str]] = None
+    price: Optional[int] = None
+    release_date: Optional[str] = None
+    score: Optional[float] = None
+
 
 class GameInfo(BaseModel):
     """

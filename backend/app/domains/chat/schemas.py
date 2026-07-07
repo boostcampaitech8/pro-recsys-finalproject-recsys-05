@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Any
 from enum import Enum
 from uuid import UUID
+from app.domains.game.schemas import GameCard
 
 class EchoRequest(BaseModel):
     message: str = Field(
@@ -95,6 +96,7 @@ class MultiTurnChatResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
     assistant_message_id: int = Field(..., description="생성된 AI 메시지 ID")
     text: str = Field(..., description="AI 응답 텍스트")
+    games: List[GameCard] = Field(default_factory=list, description="응답에 딸린 게임 카드 목록")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="응답 생성 시간")
     
 class ChatTurnRequest(BaseModel):
@@ -107,5 +109,6 @@ class ChatTurnResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
     assistant_message_id: int = Field(..., description="AI 메시지 ID")
     text: str = Field(..., description="AI 응답 텍스트")
+    games: List[GameCard] = Field(default_factory=list, description="응답에 딸린 게임 카드 목록")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="응답 시간")
     debug: Optional[dict[str, Any]] = Field(None, description="디버그 정보")
