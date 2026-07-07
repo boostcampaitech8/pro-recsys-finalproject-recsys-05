@@ -8,14 +8,14 @@ services:
     environment:
       - PYTHONPATH=/app/backend:/app
       - PYTHONUNBUFFERED=1
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/backend/app/gcs_key.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/configs/gcs/gcs_key.json
     volumes:
       - ./backend:/app/backend
       - ./ml_rec:/app/ml_rec
       - ./configs:/app/configs
     ports:
       - "8000:8000" # API 포트
-      - "5678:5678" # 디버깅 포트
+      - "127.0.0.1:5679:5678" # 디버깅 포트 (호스트 5678은 n8n이 사용 중이라 5679로 매핑)
     command: >
       python -m debugpy --listen 0.0.0.0:5678 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 

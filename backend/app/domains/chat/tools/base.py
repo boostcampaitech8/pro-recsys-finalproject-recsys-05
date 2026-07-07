@@ -51,12 +51,16 @@ class Tool(ABC):
     
     def to_schema(self) -> dict[str, Any]:
         """Convert tool to OpenAI function schema format."""
+        # 일부 도구가 최상위 "type": "object"를 누락 — Gemini는 이 경우 스키마를
+        # 무시하고 빈 인자로 호출하므로 여기서 일괄 보정한다.
+        parameters = dict(self.parameters)
+        parameters.setdefault("type", "object")
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.parameters,
+                "parameters": parameters,
             }
         }
 

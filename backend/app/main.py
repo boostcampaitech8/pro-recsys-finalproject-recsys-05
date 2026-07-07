@@ -57,7 +57,7 @@ async def init_db_and_load_data():
             if data_file.exists() and model_file.exists():
                 logger.info("✅ Data files already exist locally, skipping GCS download")
             # GCS에서 다운로드 (gcs_key.json이 있으면)
-            elif os.path.exists(Path(__file__).parent / "gcs_key.json"):
+            elif os.path.exists(Path(__file__).parent.parent.parent / "configs" / "gcs" / "gcs_key.json"):
                 logger.info("📥 Attempting to download data and models from GCS...")
                 try:
                     # manage_data.py를 subprocess로 실행 - 게임 데이터
@@ -97,17 +97,25 @@ async def init_db_and_load_data():
                 except Exception as e:
                     logger.warning(f"⚠️ Could not download ML model from GCS: {e}")
 
-            # 3단계: 데이터 파일이 있으면 로드
+            # 3단계: 데이터 파일이 있으면 로드 (games 테이블이 비어있을 때만)
             if data_file.exists():
-                logger.info(f"📊 Loading game data from {data_file}...")
-                # load_games.py의 insert_games 함수 호출
-                parent_dir = Path(__file__).parent.parent
-                if str(parent_dir) not in sys.path:
-                    sys.path.insert(0, str(parent_dir))
+                # 이미 적재된 DB면 전량 재삽입(중복키 에러 폭탄 + 수 분 소요)을 건너뛴다.
+                # 강제 재적재가 필요하면 backend/scripts/load_games.py --reset 사용.
+                async with engine.connect() as conn:
+                    existing_count = (await conn.execute(text("SELECT count(*) FROM games"))).scalar()
 
-                from scripts.load_games import insert_games
-                await insert_games(str(data_file))
-                logger.info("✅ Game data loaded successfully")
+                if existing_count:
+                    logger.info(f"✅ Games table already populated ({existing_count:,} rows), skipping data load")
+                else:
+                    logger.info(f"📊 Loading game data from {data_file}...")
+                    # load_games.py의 insert_games 함수 호출
+                    parent_dir = Path(__file__).parent.parent
+                    if str(parent_dir) not in sys.path:
+                        sys.path.insert(0, str(parent_dir))
+
+                    from scripts.load_games import insert_games
+                    await insert_games(str(data_file))
+                    logger.info("✅ Game data loaded successfully")
             else:
                 logger.info("💡 No game data file found. Starting with empty database.")
 
@@ -132,9 +140,10 @@ async def lifespan(app: FastAPI):
     chatbot = get_chatbot()
     await chatbot.initialize(
         engine=engine,
-        clova_api_key=os.getenv("CLOVA_API_KEY"),
-        clova_base_url=os.getenv("CLOVA_BASE_URL") or "https://clovastudio.stream.ntruss.com/v1/openai/",
-        model_name="HCX-DASH-001",
+        api_key=os.getenv("GEMINI_API_KEY"),
+        base_url=os.getenv("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai/",
+        model_name=os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"),
+        fallback_model=os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash,gemini-3.5-flash"),
     )
     
     yield

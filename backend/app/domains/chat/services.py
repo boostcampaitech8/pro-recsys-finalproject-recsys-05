@@ -21,7 +21,7 @@ from app.domains.user.schemas import UserCreate
 
 
 from app.domains.chat.orchestrator import SteamBotOrchestrator
-from app.domains.chat.providers.clova import ClovaProvider
+from app.domains.chat.providers.gemini import GeminiProvider
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 chat_cache = ChatCache()
@@ -37,12 +37,8 @@ def get_orchestrator() -> SteamBotOrchestrator:
     """
     global GLOBAL_ORCHESTRATOR
     if GLOBAL_ORCHESTRATOR is None:
-        # TODO: API Key 등은 환경변수에서 로드
-        provider = ClovaProvider(
-            api_key=os.getenv("CLOVA_API_KEY"),
-            api_base=os.getenv("CLOVA_BASE_URL"),
-            default_model="HCX-007"
-        )
+        # 키·모델은 GEMINI_* 환경변수에서 로드 (GeminiProvider 내부 기본값)
+        provider = GeminiProvider()
         GLOBAL_ORCHESTRATOR = SteamBotOrchestrator(provider=provider)
     return GLOBAL_ORCHESTRATOR
 
@@ -537,8 +533,14 @@ async def process_chat_turn_llm_only(
     messages.append(HumanMessage(content=user_content))
 
     start_gen = time.time()
-    response_msg = await bot.llm.ainvoke(messages)
-    response_text = getattr(response_msg, "content", str(response_msg))
+    try:
+        response_msg = await bot.llm.ainvoke(messages)
+        response_text = getattr(response_msg, "content", str(response_msg))
+    except Exception as e:
+        # 버그 #6: LLM 예외 미처리로 이 엔드포인트만 HTTP 500이 나던 문제 —
+        # 에이전트 경로와 동일하게 사과 메시지로 우아하게 처리한다.
+        logger.error("[Multi-turn][LLM-only] LLM 호출 실패: %s", e)
+        response_text = "죄송합니다. 답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
     metrics = {
         "generation_time": time.time() - start_gen,
         "total_time": time.time() - start_gen,

@@ -18,7 +18,7 @@ local:
     item_similarity.pkl:
       local_path: "item_similarity.pkl"
       upload_path: "ml_rec/item_similarity.pkl"
-      download_path: "ml_rec/item_similarity.pkl"
+      download_path: "ml_rec/models/item_similarity.pkl"
 
 # BentoML 모델 및 후보 데이터 백업
 ml_rec:
