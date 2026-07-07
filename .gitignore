@@ -33,3 +33,8 @@ ml_rec/scripts/log_tensorboard/
 log/
 logs/
 log_tensorboard/
+
+# Vercel CLI link metadata
+.vercel/
+# 전역 *.json 규칙(16행) 예외 — Vercel 라우팅 설정은 커밋 대상
+!frontend/vercel.json
