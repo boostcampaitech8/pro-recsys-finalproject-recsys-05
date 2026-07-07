@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RecommendedGame } from "@/api/gameApi";
+import { decodeHtmlEntities } from "@/utils/html";
 
 interface LLMAnwerBoxProps {
   searchQuery: string;
@@ -46,7 +47,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                   {game.header_image ? (
                     <img
                       src={game.header_image}
-                      alt={game.name ?? ""}
+                      alt={decodeHtmlEntities(game.name)}
                       className="w-16 h-12 object-cover rounded"
                     />
                   ) : (
@@ -55,7 +56,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                 </div>
                 <div className="text-center">
                   <h4 className="text-xs font-bold text-white leading-tight line-clamp-2">
-                    {game.name}
+                    {decodeHtmlEntities(game.name)}
                   </h4>
                   {game.score != null && (
                     <p className="text-xs text-slate-300 mt-0.5">
@@ -83,7 +84,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                 {selectedGame.header_image ? (
                   <img
                     src={selectedGame.header_image}
-                    alt={selectedGame.name ?? ""}
+                    alt={decodeHtmlEntities(selectedGame.name)}
                     className="w-64 h-40 object-cover rounded"
                   />
                 ) : (
@@ -96,7 +97,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                 {/* 제목 */}
                 <div>
                   <h2 className="text-2xl font-bold text-emerald-400 leading-tight">
-                    {selectedGame.name}
+                    {decodeHtmlEntities(selectedGame.name)}
                   </h2>
                 </div>
 
@@ -116,7 +117,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                       key={idx}
                       className="text-xs font-semibold text-emerald-400 bg-emerald-900/40 px-3 py-1 rounded-full border border-emerald-500/30"
                     >
-                      {genre}
+                      {decodeHtmlEntities(genre)}
                     </span>
                   ))}
                 </div>
@@ -124,7 +125,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                 {/* 설명 */}
                 <div className="pt-2">
                   <p className="text-slate-200 text-sm leading-relaxed">
-                    {selectedGame.short_description_kr}
+                    {decodeHtmlEntities(selectedGame.short_description_kr)}
                   </p>
                 </div>
 
