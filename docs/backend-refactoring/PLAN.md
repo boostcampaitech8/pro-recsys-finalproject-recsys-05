@@ -12,7 +12,7 @@
 |---|---|
 | **A. 구조 정리 (동작 불변)** | ✅ **완료** |
 | **B. 카드화 (백엔드, 구조화출력 캡처)** | ✅ **완료** (B1~B4, pytest 45 passed·1 skipped) |
-| **C. 프론트 배선** | ⏳ **다음 세션** |
+| **C. 프론트 배선** | ✅ **완료** (2026-07-07, src 4파일·tsc+build green) |
 
 **브랜치 전략**: PR은 `dev`로 → dev 테스트 → dev→main. main 직행 금지. 현재 미푸시.
 
@@ -69,7 +69,11 @@ REDIS_URL="redis://localhost:6379" PYTHONPATH="$PWD" uv run pytest test/
 
 ---
 
-## Phase C — 프론트 배선 (다음 세션, 2026-07-07 실측 기준)
+## Phase C — 프론트 배선 ✅ 완료 (2026-07-07)
+
+> **완료 (2026-07-07).** codex 사전조사·diff 2회 코드리뷰 병행. 결정 **(a) 프론트 타입 정합 + 가드 / score null이면 ⭐라인 숨김**. **플랜 확장(핵심)**: 런타임 null 크래시가 `score`(:61,:104)뿐 아니라 `genres_kr`(:110)·`price`(:129)도였음 → 3종 모두 가드. `RecommendedGame`을 백엔드 `GameCard`와 정합(app_id 외 전부 nullable, 단일 소스)하자 **strict tsc가 가드 누락을 컴파일 단계에서 강제**(예: `img alt`가 `string|null` 거부) → 빌드가 안전망. 커밋 `e04923e`(src 4파일: userApi·gameApi·MainPage·LLMAnswerBox). 검증 **`tsc && vite build` green**. Known-nit(무해): price=null·release_date有 시 `justify-between` 좌측 정렬.
+>
+> 아래는 실행 스펙(참고용).
 
 **엔드포인트 확인**: 프론트 `sendChatMessage`(`userApi.ts:14`)는 `POST /chat/chat/messages` = `chat_unified` = **에이전트 경로**(B3a에서 카드 배선함). SSE 미사용, 단발 fetch. → 카드가 흐른다.
 
@@ -79,7 +83,7 @@ REDIS_URL="redis://localhost:6379" PYTHONPATH="$PWD" uv run pytest test/
 1. `src/api/userApi.ts:7-10` — `UserChatResponse`에 `games: RecommendedGame[]` 추가(`import type { RecommendedGame } from "./gameApi"`).
 2. `src/pages/MainPage.tsx:173-176` — 성공 응답 분기의 `games: []`(**175행**)만 `games: response.games ?? []`로. 나머지 `games: []`(92·104·134·146·194행)는 로컬 시스템/에러 메시지라 그대로 둠.
 
-**⚠️ 결정 필요 (score null 크래시)**: `LLMAnswerBox.tsx:61`(`game.score.toFixed(1)`)·`:104`(`selectedGame.score.toFixed(2)`)가 score를 non-null로 가정. 백엔드 chat 카드는 score=null 가능(검색/RAG) → **null이면 런타임 크래시**. "컴포넌트 무변경" 가정 깨짐. 택1: (a) `LLMAnswerBox`에 null 가드(`score != null ? ... : ''`, ⭐ 라인 숨김) + `RecommendedGame.score`를 `number | null`로, (b) 백엔드가 score 없을 때 기본값(0 등) 부여(0이 최저점처럼 보이는 부작용), (c) chat 전용 카드 타입 분리. → (a) 권장.
+**✅ 결정됨 (null 크래시 — score/genres_kr/price)**: `LLMAnswerBox.tsx:61`(`game.score.toFixed(1)`)·`:104`(`selectedGame.score.toFixed(2)`)·`:110`(`genres_kr.map`)·`:129`(`price.toLocaleString`)가 non-null로 가정. 백엔드 chat 카드는 검색/RAG일 때 score=null(그 외 필드도 DB 결측 시 null 가능) → **null이면 런타임 크래시**. "컴포넌트 무변경" 가정 깨짐. 택1: (a) `LLMAnswerBox`에 null 가드(score/price는 `!= null`로 0 보존·⭐라인 숨김, genres_kr `?? []`) + `RecommendedGame`을 전부 nullable로, (b) 백엔드가 기본값(0 등) 부여(0이 최저점처럼 보이는 부작용), (c) chat 전용 카드 타입 분리. → **(a) 채택** (score만이 아니라 genres_kr·price까지 동일 가드). 구현·검증 완료.
 
 **검증**: 프론트는 pytest 대신 `tsc`/빌드(`npm run build` 등)로 타입 확인. `dev` PR 전 `origin/dev` 재머지(현재 behind 6).
 
