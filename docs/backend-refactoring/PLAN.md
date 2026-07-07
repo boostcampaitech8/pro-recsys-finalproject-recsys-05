@@ -10,9 +10,9 @@
 
 | Phase | 상태 |
 |---|---|
-| **A. 구조 정리 (동작 불변)** | ✅ **완료** (아래 커밋들) |
-| **B. 카드화 (백엔드, 파싱 방식)** | ⏳ 대기 (Phase B 전 pytest 체크포인트) |
-| **C. 프론트 배선** | ⏳ 대기 |
+| **A. 구조 정리 (동작 불변)** | ✅ **완료** |
+| **B. 카드화 (백엔드, 구조화출력 캡처)** | ✅ **완료** (B1~B4, pytest 45 passed·1 skipped) |
+| **C. 프론트 배선** | ⏳ **다음 세션** |
 
 **브랜치 전략**: PR은 `dev`로 → dev 테스트 → dev→main. main 직행 금지. 현재 미푸시.
 
@@ -47,9 +47,11 @@ REDIS_URL="redis://localhost:6379" PYTHONPATH="$PWD" uv run pytest test/
 
 ---
 
-## Phase B — 카드화 (백엔드, **파싱 방식**)
+## Phase B — 카드화 (백엔드) ✅ 완료
 
-> ⚠️ 제미나이 구조화 출력(response_format)은 **다른 브랜치 담당** — 여기서 안 함. 이 브랜치는 **파싱 방식**으로 game_id를 확보한다.
+> **완료 (2026-07-07).** codex 흐름조사 결과 "텍스트 파싱"은 불안정이라 폐기하고, **도구/추천 파이프라인의 구조화 출력을 engine이 최종 답변으로 뭉개기 전에 캡처**하는 방식(Option B)으로 구현. 커밋: B1 `d554925`(GameCard+games 필드), B2 `8749886`(검색툴 3종·RAG SQL에 app_id 노출 + maybe_save app_id=None 버그수정), B3a `8f70e17`(에이전트 경로: `engine.run_turn`→`(text, collected)`, `services._build_game_cards`가 `get_games_by_app_ids`로 재조회), B3b `9b0eec6`(RAG 경로 opt-in `return_game_cards`), B4 `9340d37`(`_collect_games` 단위테스트). **pytest 45 passed·1 skipped**, `_build_game_cards` 라이브 DB 검증. 핵심 함정: `Game.id`(내부PK)≠`Game.app_id`(Steam) — 카드 조회는 app_id 기준. RAG 카드 score=None(similarity와 recommendation score 구분).
+>
+> 아래는 설계 당시 메모(참고용).
 
 **핵심 근거 (Phase A 완료 후 실측)**
 - recommendation 파이프라인이 이미 카드 형태를 생산: `integrated_service.py:~218`의 `recommended_games` = `{app_id, name, score, header_image, short_description_kr, genres_kr, price, release_date}`.
