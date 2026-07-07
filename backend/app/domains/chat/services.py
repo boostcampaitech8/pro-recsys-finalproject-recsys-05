@@ -256,8 +256,9 @@ async def process_chat_turn(
     bot: chatbot,
     conversation_id: int,
     user_id: UUID,
-    user_content: str
-) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
+    user_content: str,
+    return_game_cards: bool = False,
+) -> Tuple[Message, list[GameCard] | Optional[list[Any]], Optional[dict]]:
     """
     Multi-turn 대화 한 턴을 처리합니다.
     
@@ -269,7 +270,7 @@ async def process_chat_turn(
     
     Returns:
       - ai_msg (Message): 생성된 AI 메시지
-      - retrieved_docs (Optional[list]): 검색된 문서(게임) 리스트
+      - retrieved_docs or games: 검색된 문서 리스트, or GameCard 리스트 when return_game_cards=True
       - debug (Optional[dict]): 디버그 메트릭
     """
     await verify_conversation_owner(db, conversation_id, user_id)
@@ -316,7 +317,15 @@ async def process_chat_turn(
 
         await maybe_save_recommendation(db, user_id=user_id, recommended_games_payload=recommended_payload, model_type="rag")
 
-    return ai_msg, retrieved_docs, ({"metrics": metrics} if metrics else None)
+    games: list[GameCard] = []
+    if return_game_cards:
+        games = await _build_game_cards(db, [
+            {"app_id": d["app_id"], "score": None}
+            for d in (retrieved_docs or [])
+            if isinstance(d, dict) and d.get("app_id")
+        ])
+
+    return ai_msg, (games if return_game_cards else retrieved_docs), ({"metrics": metrics} if metrics else None)
 
 async def process_chat_turn_agent(
     db: AsyncSession,

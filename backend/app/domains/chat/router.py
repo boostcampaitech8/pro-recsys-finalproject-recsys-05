@@ -283,18 +283,20 @@ async def send_message(
 
 
     try:
-        ai_msg, _retrieved_docs, debug = await services.process_chat_turn(
+        ai_msg, games, debug = await services.process_chat_turn(
             db=db,
             bot=bot,
             conversation_id=conversation_id,
             user_id=user_id,
-            user_content=request.content
+            user_content=request.content,
+            return_game_cards=True,
         )
 
         return MultiTurnChatResponse(
             conversation_id=conversation_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
+            games=games,
             timestamp=datetime.now(timezone.utc),
             debug=debug if DEBUG_MODE else None
         )
