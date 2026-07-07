@@ -69,13 +69,19 @@ REDIS_URL="redis://localhost:6379" PYTHONPATH="$PWD" uv run pytest test/
 
 ---
 
-## Phase C — 프론트 배선 (수정 2곳)
+## Phase C — 프론트 배선 (다음 세션, 2026-07-07 실측 기준)
 
-카드 UI는 이미 완성(`LLMAnswerBox.tsx`가 `games: RecommendedGame[]`를 카드+모달 렌더, `ChatMessage`·`ChatHistory` 전달까지).
-1. `src/api/userApi.ts` `UserChatResponse`에 `games` 추가(`gameApi.ts`의 `RecommendedGame` 타입 재사용).
-2. `MainPage.tsx`의 `games: []` 하드코딩 → 응답값 매핑.
+**엔드포인트 확인**: 프론트 `sendChatMessage`(`userApi.ts:14`)는 `POST /chat/chat/messages` = `chat_unified` = **에이전트 경로**(B3a에서 카드 배선함). SSE 미사용, 단발 fetch. → 카드가 흐른다.
 
-프론트는 SSE 미사용, `POST /chat/chat/messages` 단발 fetch. 스키마 동일하면 컴포넌트 무변경.
+**타입 대조 (거의 일치)**: 백엔드 `GameCard` vs 프론트 `RecommendedGame`(`gameApi.ts:6-15`) 필드명·타입 동일(app_id·name·score·header_image·short_description_kr·genres_kr:string[]·price:number·release_date). **차이**: 백엔드는 전부 nullable(특히 **검색/RAG 카드는 score=None**, 추천툴 카드만 score 有), 프론트 `RecommendedGame`은 대부분 non-null.
+
+**수정 위치 (실측)**
+1. `src/api/userApi.ts:7-10` — `UserChatResponse`에 `games: RecommendedGame[]` 추가(`import type { RecommendedGame } from "./gameApi"`).
+2. `src/pages/MainPage.tsx:173-176` — 성공 응답 분기의 `games: []`(**175행**)만 `games: response.games ?? []`로. 나머지 `games: []`(92·104·134·146·194행)는 로컬 시스템/에러 메시지라 그대로 둠.
+
+**⚠️ 결정 필요 (score null 크래시)**: `LLMAnswerBox.tsx:61`(`game.score.toFixed(1)`)·`:104`(`selectedGame.score.toFixed(2)`)가 score를 non-null로 가정. 백엔드 chat 카드는 score=null 가능(검색/RAG) → **null이면 런타임 크래시**. "컴포넌트 무변경" 가정 깨짐. 택1: (a) `LLMAnswerBox`에 null 가드(`score != null ? ... : ''`, ⭐ 라인 숨김) + `RecommendedGame.score`를 `number | null`로, (b) 백엔드가 score 없을 때 기본값(0 등) 부여(0이 최저점처럼 보이는 부작용), (c) chat 전용 카드 타입 분리. → (a) 권장.
+
+**검증**: 프론트는 pytest 대신 `tsc`/빌드(`npm run build` 등)로 타입 확인. `dev` PR 전 `origin/dev` 재머지(현재 behind 6).
 
 ---
 
