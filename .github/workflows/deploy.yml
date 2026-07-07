@@ -1,7 +1,8 @@
 ﻿# CI/CD — 테스트(전 브랜치) + PR 빌드 검증 + main 자동 배포(Oracle A1.Flex arm64)
 # 배포 경로: arm64 네이티브 러너 빌드 → Docker Hub 푸시 → Tailscale(OAuth, tag:ci) → SSH deploy.sh
 # 앱 시크릿은 서버측 .env 로 관리 (계약: .env.example) — CI에는 인프라 시크릿만 둔다:
-#   secrets: DOCKER_USERNAME, DOCKER_PASSWORD, TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET, SSH_KEY
+#   secrets: DOCKER_USERNAME, DOCKER_PASSWORD, TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET, SSH_KEY,
+#            VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (프론트 Vercel 배포)
 #   vars:    SSH_HOST(테일넷 IP), SSH_USERNAME
 name: CI
 
@@ -225,3 +226,56 @@ jobs:
           script: |
             cd ~/pro-recsys-finalproject-recsys-05
             ./deploy.sh "$IMAGE_TAG"
+
+  # ---------------------------------------------------
+  # [프론트 배포: Vercel CLI prebuilt]
+  # Hobby 플랜은 org 리포 Git 연동이 불가해 CLI 방식 사용.
+  # 백엔드 배포 성공 후 같은 커밋으로 배포 — 프론트/백 버전 스큐 방지.
+  # push는 frontend 변경시에만, dispatch는 무조건 배포.
+  # ---------------------------------------------------
+  deploy_frontend_vercel:
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Preflight VERCEL_TOKEN
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "::error::VERCEL_TOKEN secret 미등록 — Vercel 대시보드(Account Settings→Tokens)에서 발급 후 gh secret set VERCEL_TOKEN 으로 등록하세요."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # HEAD^ diff용
+
+      - name: Detect frontend changes
+        id: diff
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet HEAD^ HEAD -- frontend configs/frontend; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "frontend 변경 없음 — 배포 생략"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22   # vite 7 engines: ^20.19 || >=22.12
+
+      - name: Deploy to Vercel (prebuilt)
+        if: steps.diff.outputs.changed == 'true'
+        working-directory: frontend
+        run: |
+          npm i -g vercel@54
+          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
