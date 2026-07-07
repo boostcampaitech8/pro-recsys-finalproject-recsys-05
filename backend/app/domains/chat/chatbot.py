@@ -165,6 +165,7 @@ class chatbot:
         
         search_sql = text("""
         SELECT 
+            app_id,
             name,
             context,
             genres_kr::text as genres,
@@ -209,6 +210,7 @@ class chatbot:
             retrieved_docs = []
             for row in retrieved_games:
                 retrieved_docs.append({
+                    "app_id": row.app_id,
                     "name": row.name,
                     "genres": row.genres,
                     "price": float(row.price) if row.price else 0.0,

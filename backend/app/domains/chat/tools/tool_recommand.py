@@ -82,6 +82,7 @@ class PersonalizedRecommendationTool(Tool):
             for game in recommended_games[:top_k]:
                 enriched.append({
                     "game_id": game["app_id"],
+                    "app_id": game["app_id"],
                     "name": game["name"],
                     "score": float(game.get("score", 0.0)),
                     "reason": self._generate_recommendation_reason(game),

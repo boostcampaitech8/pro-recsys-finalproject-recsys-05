@@ -8,7 +8,13 @@ import pytest
 from app.domains.chat.agent.engine import AgentEngine
 from app.domains.chat.interfaces import UserIntent
 from app.domains.chat.orchestrator import SteamBotOrchestrator
+from app.domains.chat.providers.base import LLMResponse
 from app.domains.chat.providers.clova import ClovaProvider
+
+
+@pytest.fixture(scope="session", autouse=True)
+def prepare_database():
+    """이 파일은 DB를 쓰지 않는 LLM failure-path 단위 테스트다."""
 
 
 class FailingProvider:
@@ -18,6 +24,13 @@ class FailingProvider:
 
     async def chat(self, *args, **kwargs):
         raise RuntimeError("LLM unavailable")
+
+
+class ChatProvider:
+    """정상 잡담 응답을 반환하는 LLM Provider 스텁."""
+
+    async def chat(self, *args, **kwargs):
+        return LLMResponse(content="안녕하세요!")
 
 
 @pytest.mark.asyncio
@@ -53,17 +66,28 @@ async def test_classify_intent_falls_back_to_heuristic():
 async def test_chitchat_returns_guidance_message_on_llm_error():
     orchestrator = SteamBotOrchestrator(provider=FailingProvider())
 
-    reply = await orchestrator._run_chitchat("안녕!", history=[])
+    reply, cards = await orchestrator._run_chitchat("안녕!", history=[])
 
     assert "오류" in reply
     assert "Error" not in reply
+    assert cards == []
+
+
+@pytest.mark.asyncio
+async def test_chitchat_returns_no_cards_on_success():
+    orchestrator = SteamBotOrchestrator(provider=ChatProvider())
+
+    reply, cards = await orchestrator._run_chitchat("안녕!", history=[])
+
+    assert reply == "안녕하세요!"
+    assert cards == []
 
 
 @pytest.mark.asyncio
 async def test_agent_engine_returns_guidance_message_on_llm_error():
     engine = AgentEngine(llm_provider=FailingProvider(), tools={})
 
-    reply = await engine.run_turn("게임 추천해줘", history=[])
+    reply, _cards = await engine.run_turn("게임 추천해줘", history=[])
 
     assert "죄송합니다" in reply
     assert "Error" not in reply

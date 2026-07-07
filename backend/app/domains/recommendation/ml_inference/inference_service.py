@@ -6,10 +6,10 @@
 """
 
 import numpy as np
-import pandas as pd
 import pickle
 from typing import List, Dict, Tuple
 import os
+from app.core.logger import logger
 from .config import get_model_path
 
 
@@ -28,7 +28,7 @@ class GameRecommendationService:
         Args:
             similarity_data_path: 아이템 유사도 데이터 파일 경로 (None이면 자동 감지)
         """
-        print("추천 서비스 초기화 중...")
+        logger.info("추천 서비스 초기화 중...")
 
         # 경로가 지정되지 않으면 자동 감지
         if similarity_data_path is None:
@@ -43,9 +43,9 @@ class GameRecommendationService:
         self.id2token = data['id2token']
         self.token2id = data['token2id']
 
-        print(f"✓ 서비스 준비 완료")
-        print(f"  - 아이템 수: {self.item_num}")
-        print(f"  - 유사도 행렬 크기: {self.similarity_matrix.shape}")
+        logger.info("✓ 서비스 준비 완료")
+        logger.info(f"  - 아이템 수: {self.item_num}")
+        logger.info(f"  - 유사도 행렬 크기: {self.similarity_matrix.shape}")
 
     def recommend_for_new_user(
         self,
@@ -78,10 +78,10 @@ class GameRecommendationService:
                 unknown_games.append(game_id)
 
         if unknown_games:
-            print(f"경고: 알 수 없는 게임 ID {len(unknown_games)}개 (무시됨)")
+            logger.warning(f"경고: 알 수 없는 게임 ID {len(unknown_games)}개 (무시됨)")
 
         if not played_item_ids:
-            print("오류: 유효한 게임 ID가 없습니다.")
+            logger.error("오류: 유효한 게임 ID가 없습니다.")
             return []
 
         # 2. 각 플레이한 게임에 대해 유사한 게임 점수 계산
@@ -140,7 +140,7 @@ class GameRecommendationService:
             유사한 게임 리스트 [{'item_id': str, 'score': float}, ...]
         """
         if game_id not in self.token2id:
-            print(f"오류: 게임 ID '{game_id}'를 찾을 수 없습니다.")
+            logger.error(f"오류: 게임 ID '{game_id}'를 찾을 수 없습니다.")
             return []
 
         item_id = self.token2id[game_id]
@@ -190,136 +190,3 @@ class GameRecommendationService:
             results[user_id] = recommendations
 
         return results
-
-
-def demo():
-    """데모 실행"""
-    print("="*60)
-    print("게임 추천 서비스 데모")
-    print("="*60)
-
-    # 서비스 초기화 (경로 자동 감지)
-    service = GameRecommendationService()
-
-    # 아이템 매핑 정보 로드 (실제 게임 ID 확인용)
-    mapping_df = pd.read_csv('saved/item_mapping.csv')
-    available_games = mapping_df['original_id'].tolist()
-
-    print(f"\n사용 가능한 게임 수: {len(available_games)}")
-    print(f"샘플 게임 ID: {available_games[:10]}")
-
-    # 예시 1: 새로운 사용자 추천
-    print("\n" + "="*60)
-    print("예시 1: 새로운 사용자에게 추천")
-    print("="*60)
-
-    # 무작위로 몇 개 게임 선택 (실제로는 사용자 입력)
-    sample_games = np.random.choice(available_games, size=min(5, len(available_games)), replace=False).tolist()
-
-    print(f"\n사용자가 플레이한 게임: {sample_games}")
-
-    recommendations = service.recommend_for_new_user(
-        played_games=sample_games,
-        top_k=10,
-        aggregation='weighted_sum'
-    )
-
-    print(f"\n추천 게임 Top-10:")
-    for i, rec in enumerate(recommendations, 1):
-        print(f"  {i}. 게임 {rec['item_id']} (점수: {rec['score']:.4f})")
-
-    # 예시 2: 특정 게임과 유사한 게임 추천
-    if available_games:
-        print("\n" + "="*60)
-        print("예시 2: 특정 게임과 유사한 게임 추천")
-        print("="*60)
-
-        target_game = available_games[0]
-        print(f"\n기준 게임: {target_game}")
-
-        similar_games = service.recommend_similar_games(
-            game_id=target_game,
-            top_k=10
-        )
-
-        print(f"\n유사한 게임 Top-10:")
-        for i, rec in enumerate(similar_games, 1):
-            print(f"  {i}. 게임 {rec['item_id']} (유사도: {rec['score']:.4f})")
-
-    # 예시 3: 배치 추천
-    print("\n" + "="*60)
-    print("예시 3: 여러 사용자 일괄 추천")
-    print("="*60)
-
-    users_data = [
-        {
-            'user_id': 'new_user_1',
-            'played_games': sample_games[:3]
-        },
-        {
-            'user_id': 'new_user_2',
-            'played_games': sample_games[2:]
-        }
-    ]
-
-    batch_results = service.batch_recommend(users_data, top_k=5)
-
-    for user_id, recs in batch_results.items():
-        print(f"\n{user_id}:")
-        for i, rec in enumerate(recs[:3], 1):
-            print(f"  {i}. 게임 {rec['item_id']} (점수: {rec['score']:.4f})")
-
-
-def main():
-    """메인 함수 - 실제 서비스 사용 예시"""
-
-    # 서비스 초기화 (경로 자동 감지)
-    service = GameRecommendationService()
-
-    # 사용자 입력 (예시)
-    print("\n" + "="*60)
-    print("사용자 입력 기반 추천")
-    print("="*60)
-
-    # 실제로는 API 요청이나 사용자 입력에서 받아옴
-    # 여기서는 예시로 하드코딩
-    user_played_games = [
-        # 사용자가 플레이한 게임 ID들을 여기에 입력
-        # 예: ['10', '20', '30', '40', '50']
-    ]
-
-    # 매핑 파일에서 실제 게임 ID 가져오기
-    mapping_df = pd.read_csv('saved/item_mapping.csv')
-    available_games = mapping_df['original_id'].tolist()
-
-    # 예시로 일부 게임 선택
-    if not user_played_games:
-        user_played_games = available_games[:5]
-
-    print(f"\n입력된 게임 기록: {user_played_games}")
-
-    # 추천 생성
-    recommendations = service.recommend_for_new_user(
-        played_games=user_played_games,
-        top_k=20,
-        aggregation='weighted_sum'
-    )
-
-    # 결과 출력
-    print(f"\n추천 결과 (Top-20):")
-    for i, rec in enumerate(recommendations, 1):
-        print(f"{i:2d}. 게임 ID: {rec['item_id']:10s} | 점수: {rec['score']:.4f}")
-
-    # CSV로 저장
-    output_df = pd.DataFrame(recommendations)
-    output_file = 'saved/new_user_recommendations.csv'
-    output_df.to_csv(output_file, index=False)
-    print(f"\n✓ 결과 저장: {output_file}")
-
-
-if __name__ == "__main__":
-    # 데모 실행
-    demo()
-
-    # 또는 실제 서비스 사용
-    # main()

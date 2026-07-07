@@ -46,7 +46,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                   {game.header_image ? (
                     <img
                       src={game.header_image}
-                      alt={game.name}
+                      alt={game.name ?? ""}
                       className="w-16 h-12 object-cover rounded"
                     />
                   ) : (
@@ -57,9 +57,11 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                   <h4 className="text-xs font-bold text-white leading-tight line-clamp-2">
                     {game.name}
                   </h4>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    ⭐ {game.score.toFixed(1)}
-                  </p>
+                  {game.score != null && (
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      ⭐ {game.score.toFixed(1)}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -81,7 +83,7 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                 {selectedGame.header_image ? (
                   <img
                     src={selectedGame.header_image}
-                    alt={selectedGame.name}
+                    alt={selectedGame.name ?? ""}
                     className="w-64 h-40 object-cover rounded"
                   />
                 ) : (
@@ -99,15 +101,17 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
                 </div>
 
                 {/* 추천 점수 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-yellow-400">
-                    ⭐ {selectedGame.score.toFixed(2)}
-                  </span>
-                </div>
+                {selectedGame.score != null && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-yellow-400">
+                      ⭐ {selectedGame.score.toFixed(2)}
+                    </span>
+                  </div>
+                )}
 
                 {/* 장르 */}
                 <div className="flex flex-wrap gap-2">
-                  {selectedGame.genres_kr.map((genre, idx) => (
+                  {(selectedGame.genres_kr ?? []).map((genre, idx) => (
                     <span
                       key={idx}
                       className="text-xs font-semibold text-emerald-400 bg-emerald-900/40 px-3 py-1 rounded-full border border-emerald-500/30"
@@ -126,8 +130,12 @@ export function LLMAnswerBox({ searchQuery, games, message }: LLMAnwerBoxProps) 
 
                 {/* 가격 및 출시일 */}
                 <div className="flex justify-between text-sm text-slate-300">
-                  <span>💰 {selectedGame.price.toLocaleString()} KRW</span>
-                  <span>📅 {selectedGame.release_date}</span>
+                  {selectedGame.price != null && (
+                    <span>💰 {selectedGame.price.toLocaleString()} KRW</span>
+                  )}
+                  {selectedGame.release_date && (
+                    <span>📅 {selectedGame.release_date}</span>
+                  )}
                 </div>
               </div>
 

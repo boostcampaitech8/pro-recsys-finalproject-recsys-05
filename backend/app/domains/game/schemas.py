@@ -2,10 +2,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Dict, Any, Union
 
 
+class GameCard(BaseModel):
+    app_id: int
+    name: Optional[str] = None
+    header_image: Optional[str] = None
+    short_description_kr: Optional[str] = None
+    genres_kr: Optional[List[str]] = None
+    price: Optional[int] = None
+    release_date: Optional[str] = None
+    score: Optional[float] = None
+
 
 class GameInfo(BaseModel):
     """
-    개별 게임 정보 (for Chat Response)
+    개별 게임 정보 DTO
     """
     name: str = Field(..., description="게임 이름")
     description: str = Field(..., description="게임 설명")
@@ -15,8 +25,8 @@ class GameInfo(BaseModel):
     similarity_score: Optional[float] = Field(None, ge=0, le=1, description="유사도 점수 (0~1)")
     release_year: Optional[int] = Field(None, ge=1970, le=2030, description="출시 년도")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "The Witcher 3: Wild Hunt",
                 "description": "오픈 월드 판타지 RPG",
@@ -27,6 +37,7 @@ class GameInfo(BaseModel):
                 "release_year": 2015
             }
         }
+    )
 
 
 class GameDetailResponse(BaseModel):

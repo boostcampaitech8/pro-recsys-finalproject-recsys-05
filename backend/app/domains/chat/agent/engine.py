@@ -2,15 +2,10 @@
 
 import inspect
 import json
-import logging
-import sys
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-logger = logging.getLogger("steambot")
 
 from typing import Any, List, Optional
 
+from app.core.logger import logger
 from app.domains.chat.agent.context import ContextBuilder
 
 class AgentEngine:
@@ -42,7 +37,7 @@ class AgentEngine:
         self,
         user_message: str,
         history: List[dict[str, Any]]
-    ) -> str:
+    ) -> tuple[str, list[dict]]:
         """
         Run a single turn of the agent loop.
         
@@ -51,7 +46,7 @@ class AgentEngine:
             history: Conversation history.
             
         Returns:
-            The final response from the agent.
+            The final response from the agent and collected game card refs.
         """
         logger.info(f"Starting agent turn for message: {user_message[:100]}...")
         
@@ -63,6 +58,8 @@ class AgentEngine:
         
         iteration = 0
         final_content = None
+        collected: list[dict] = []
+        seen: set[int] = set()
         
         while iteration < self.max_iterations:
             iteration += 1
@@ -80,7 +77,7 @@ class AgentEngine:
                 )
             except Exception as e:
                 logger.error(f"LLM Error: {e}")
-                return "죄송합니다. 처리 중에 오류가 발생했습니다."
+                return "죄송합니다. 처리 중에 오류가 발생했습니다.", collected
 
             # 2. Decide (Tool Call or Final Answer)
             if response.tool_calls:
@@ -132,7 +129,8 @@ class AgentEngine:
                             # Execute (Strict Tool Interface)
                             # All tools must inherit from Tool(ABC) and implement execute()
                             result = await tool_func.execute(**args)
-                                
+                            self._collect_games(result, collected, seen)
+
                             logger.info(f"Tool Result: {str(result)[:50]}...")
                         except Exception as e:
                             logger.error(f"Tool Execution Error: {e}")
@@ -154,8 +152,45 @@ class AgentEngine:
         
         if final_content is None:
             final_content = "죄송합니다. 답변을 생성하는 데 실패했습니다. (Too many iterations)"
-            
-        return final_content
+
+        return final_content, collected
+
+    def _collect_games(self, result: Any, collected: list[dict], seen: set[int]) -> None:
+        """Collect app IDs surfaced by tool results without affecting the agent loop."""
+        try:
+            payload = result
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except Exception:
+                    return
+
+            candidates: list[Any] = []
+            if isinstance(payload, list):
+                candidates.extend(payload)
+            elif isinstance(payload, dict):
+                candidates.append(payload)
+                for value in payload.values():
+                    if isinstance(value, list):
+                        candidates.extend(value)
+                    elif isinstance(value, dict):
+                        candidates.append(value)
+            else:
+                return
+
+            for item in candidates:
+                if not isinstance(item, dict) or "app_id" not in item:
+                    continue
+                try:
+                    app_id = int(item["app_id"])
+                except (TypeError, ValueError):
+                    continue
+                if app_id in seen:
+                    continue
+                seen.add(app_id)
+                collected.append({"app_id": app_id, "score": item.get("score")})
+        except Exception as e:
+            logger.debug(f"Failed to collect games from tool result: {e}")
 
     @staticmethod
     def _tool_accepts_param(tool: Any, param_name: str) -> bool:

@@ -1,3 +1,5 @@
+import type { RecommendedGame } from "./gameApi";
+
 interface UserChatRequest {
   content: string;
   user_id: string | null;
@@ -7,6 +9,7 @@ interface UserChatRequest {
 export interface UserChatResponse {
   text: string;
   user_id: string;
+  games: RecommendedGame[];
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
