@@ -114,6 +114,55 @@ class CandidateMerger:
         if not ease_model or not user_games:
             return []
 
+        # 포맷 A: 백엔드 서빙 dict {similarity_matrix, item_num, id2token, token2id}
+        # (RecBole EASE 체크포인트를 convert_ease_checkpoint.py로 변환한 신규-유저용 모델)
+        # backend inference_service.recommend_for_new_user와 동일한 유사도 가중합.
+        if isinstance(ease_model, dict) and 'similarity_matrix' in ease_model:
+            try:
+                sim = ease_model['similarity_matrix']          # (N, N) float32
+                item_num = int(ease_model['item_num'])
+                id2token = ease_model['id2token']              # 내부 idx -> 원본 appid(str)
+                token2id = ease_model['token2id']              # 원본 appid(str) -> 내부 idx
+
+                # 원본 game id(문자열) -> 내부 index
+                played_internal = []
+                for g in user_games:
+                    idx = token2id.get(str(g))
+                    if idx is not None:
+                        played_internal.append(int(idx))
+                if not played_internal:
+                    logger.warning("⚠️ EASE(dict-matrix): 알려진 플레이 게임 없음 - 후보 없음")
+                    return []
+
+                # 유사도 가중합 (weighted_sum)
+                scores = np.zeros(item_num, dtype=np.float64)
+                for pid in played_internal:
+                    scores += np.asarray(sim[pid]).ravel()
+
+                # 이미 플레이한 게임 + padding(0) 제외
+                for pid in played_internal:
+                    scores[pid] = -np.inf
+                scores[0] = -np.inf
+
+                top_idx = np.argsort(scores)[::-1][:top_k]
+                candidates = []
+                for idx in top_idx:
+                    if not np.isfinite(scores[idx]):
+                        continue
+                    try:
+                        item_id = int(id2token[idx])
+                    except (ValueError, TypeError):
+                        continue
+                    candidates.append({"item_id": item_id, "score": float(scores[idx])})
+
+                logger.info(f"✓ EASE 후보 생성(dict-matrix): {len(candidates)}개 (새 사용자)")
+                return candidates
+
+            except Exception as e:
+                logger.warning(f"⚠️ EASE(dict-matrix) 후보 생성 실패: {e}")
+                return []
+
+        # 포맷 B(레거시): {item_id: {유사item_id: score, ...}} dict-of-dicts
         try:
             # EASE 모델은 보통 dict 형태: {item_id: {similar_item_id: score, ...}}
             candidate_scores = {}

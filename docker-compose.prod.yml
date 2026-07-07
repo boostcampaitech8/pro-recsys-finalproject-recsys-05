@@ -1,9 +1,12 @@
 # 운영 구성 (Oracle A1.Flex 2 OCPU/12GB arm64, Always Free)
 # - 단독 실행 파일: docker compose -f docker-compose.prod.yml up -d  (base compose와 병합하지 않음)
-# - 최소 구성: bentoml/cadvisor 제외 (12GB 한도. 추천 요청마다 bentoml 연결 시도가 먼저 실패한 뒤
-#   로컬 EASE로 폴백 — 호스트 미해석이라 실패는 즉각적, 30s 타임아웃은 걸리지 않음)
+# - 3-stage 구성: bentoml 포함 (실측 여유 8GB+, mem 4G 제한). bentoml 미기동/장애 시 backend가
+#   로컬 EASE로 자동 폴백 (backend는 bentoml을 depends_on 하지 않아 로딩 180s 동안 즉시 기동).
+#   cadvisor는 여전히 제외 (모니터링은 서버 네이티브 Grafana).
 # - 앱 시크릿은 서버의 ./.env 에서 공급 (계약: .env.example)
 # - backend 데이터(games_metadata.jsonl, item_similarity.pkl)는 호스트 bind-mount로 공급
+# - bentoml 아티팩트(EASE backend-format 1.27GB·dcn·xgb·lightgcn)도 호스트 bind-mount로 공급
+#   (이미지엔 없음 — .dockerignore가 saved_models/candidates/dataset 제외). deploy.sh preflight가 상주 검증.
 services:
   frontend:
     image: ${DOCKER_USERNAME:-rlaqudwn}/rec-frontend:${IMAGE_TAG:-latest}
@@ -109,6 +112,35 @@ services:
       resources:
         limits:
           memory: 256M
+
+  # BentoML 3-Stage 추천 서비스 (retrieval→ranking→scoring)
+  # - 이미지는 CI(build_push)가 ml_rec/Dockerfile.bentoml로 arm64 빌드/푸시
+  # - 아티팩트는 호스트 bind-mount (이미지엔 미포함). GCS 부트스트랩은 스킵 (BENTOML_SKIP_GCS_BOOTSTRAP)
+  # - backend는 이 서비스를 depends_on 하지 않음: 미기동/장애 시 EASE 폴백 (무중단)
+  bentoml:
+    image: ${DOCKER_USERNAME:-rlaqudwn}/rec-bentoml:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      - BENTOML_SKIP_GCS_BOOTSTRAP=true   # 아티팩트는 bind-mount로 공급 — GCS 다운로드 불필요
+      - ML_REC_ROOT=/app/ml_rec
+    volumes:
+      - ./ml_rec/saved_models:/app/ml_rec/saved_models
+      - ./ml_rec/candidates:/app/ml_rec/candidates
+      - ./ml_rec/dataset:/app/ml_rec/dataset
+      - ./ml_rec/logs:/app/ml_rec/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      # EASE backend-format(1.27GB) + dcn/xgb/lightgcn 로드 시간 감안
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
 
 volumes:
   postgres_data:

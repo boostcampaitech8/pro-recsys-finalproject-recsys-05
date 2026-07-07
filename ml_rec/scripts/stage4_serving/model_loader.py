@@ -36,16 +36,40 @@ def find_latest_model(model_pattern):
 
 
 def load_ease_model():
-    """EASE 모델 로드 (새로운 사용자 처리용)"""
-    model_path = SAVED_MODELS_DIR / EASE_MODEL_FILE
+    """EASE 모델 로드 (새로운 사용자 처리용)
+
+    우선순위:
+      1) saved_models/item_similarity_backend_format.pkl  (backend 서빙 dict — 신규-유저 EASE 후보 생성용)
+      2) saved_models/item_similarity.pkl                 (구 파일; RecBole 체크포인트면 사용 불가)
+
+    RecBole EASE 체크포인트(torch.save=ZIP)는 candidate_merger가 요구하는 포맷이 아니라
+    pickle.load가 실패한다. 그 경우 조용히 None을 반환하지 않고 원인을 명확히 로깅한다.
+    변환: backend/scripts/convert_ease_checkpoint.py → item_similarity_backend_format.pkl
+    """
+    backend_fmt = SAVED_MODELS_DIR / 'item_similarity_backend_format.pkl'
+    model_path = backend_fmt if backend_fmt.exists() else (SAVED_MODELS_DIR / EASE_MODEL_FILE)
     if not model_path.exists():
         logger.warning(f"⚠️ EASE 모델 없음: {model_path} (새 사용자 처리 불가)")
         return None
 
+    # torch.save(ZIP) 체크포인트 조기 감지 — pickle.load로는 읽을 수 없다
+    try:
+        with open(model_path, 'rb') as f:
+            magic = f.read(2)
+        if magic == b'PK':
+            logger.error(
+                f"❌ EASE 모델이 torch 체크포인트(ZIP)입니다: {model_path.name}. "
+                f"backend/scripts/convert_ease_checkpoint.py로 변환한 "
+                f"item_similarity_backend_format.pkl을 saved_models/에 두세요. (새 사용자 처리 불가)"
+            )
+            return None
+    except Exception as e:
+        logger.warning(f"⚠️ EASE 모델 매직바이트 확인 실패: {e}")
+
     try:
         with open(model_path, 'rb') as f:
             ease_model = pickle.load(f)
-        logger.info(f"✓ EASE 모델 로드")
+        logger.info(f"✓ EASE 모델 로드: {model_path.name}")
         return ease_model
     except Exception as e:
         logger.warning(f"⚠️ EASE 모델 로드 실패: {e}")
