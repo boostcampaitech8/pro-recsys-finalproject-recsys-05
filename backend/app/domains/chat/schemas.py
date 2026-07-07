@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, field_validator, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Any
 from enum import Enum
 from uuid import UUID
@@ -95,7 +95,7 @@ class MultiTurnChatResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
     assistant_message_id: int = Field(..., description="생성된 AI 메시지 ID")
     text: str = Field(..., description="AI 응답 텍스트")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="응답 생성 시간")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="응답 생성 시간")
     
 class ChatTurnRequest(BaseModel):
     user_id: Optional[UUID] = Field(None, description="사용자 ID (첫 방문 시 null, 재방문 시 LocalStorage 값)")
@@ -107,5 +107,5 @@ class ChatTurnResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
     assistant_message_id: int = Field(..., description="AI 메시지 ID")
     text: str = Field(..., description="AI 응답 텍스트")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="응답 시간")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="응답 시간")
     debug: Optional[dict[str, Any]] = Field(None, description="디버그 정보")

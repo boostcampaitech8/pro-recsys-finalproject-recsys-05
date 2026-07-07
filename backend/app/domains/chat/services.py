@@ -174,13 +174,10 @@ async def maybe_save_recommendation(
     model_type: str = "rag"
 ) -> None:
     """
-    추천 결과(Recommendation)를 DB에 저장합니다.
-    
-    - Chat History와 별개로 추천 이력을 관리하기 위함입니다.
-    - 프로젝트 내 Recommendation 모델 경로가 다를 수 있어 import 오류 시 skip합니다.
+    추천 결과(Recommendation)를 DB에 best-effort로 저장합니다.
     """
     try:
-        from app.domains.recommendation.models import Recommendation  # 너 프로젝트 경로에 맞게 수정
+        from app.domains.recommendation.models import Recommendation
         rec = Recommendation(
             user_id=user_id,
             recommended_games=recommended_games_payload,
@@ -188,9 +185,10 @@ async def maybe_save_recommendation(
         )
         db.add(rec)
         await db.commit()
-    except Exception:
-        # MVP: recommendation 저장이 아직 wiring 안 되어 있으면 그냥 패스
+    except Exception as e:
+        # 추천 이력 저장 실패가 채팅 응답을 막지 않도록 best-effort로 처리합니다.
         await db.rollback()
+        logger.warning(f"추천 이력 저장 실패(무시하고 계속): {e}")
 
 async def verify_conversation_owner(db: AsyncSession, conversation_id: int, user_id: UUID) -> Conversation:
     """

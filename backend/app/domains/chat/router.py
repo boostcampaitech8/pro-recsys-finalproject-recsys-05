@@ -125,7 +125,7 @@ async def chat_unified(
             conversation_id=conv_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             debug=debug if DEBUG_MODE else None
         )
 
@@ -175,7 +175,7 @@ async def chat_unified_llm_only(
             conversation_id=conv_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             debug=debug if DEBUG_MODE else None
         )
 
@@ -294,7 +294,7 @@ async def send_message(
             conversation_id=conversation_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             debug=debug if DEBUG_MODE else None
         )
     except Exception as e:
@@ -333,7 +333,7 @@ async def send_message_llm_only(
             conversation_id=conversation_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             debug=debug if DEBUG_MODE else None,
         )
     except Exception as e:
