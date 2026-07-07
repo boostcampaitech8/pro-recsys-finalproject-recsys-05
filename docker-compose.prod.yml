@@ -1,7 +1,12 @@
+# 운영 구성 (Oracle A1.Flex 2 OCPU/12GB arm64, Always Free)
+# - 단독 실행 파일: docker compose -f docker-compose.prod.yml up -d  (base compose와 병합하지 않음)
+# - 최소 구성: bentoml/cadvisor 제외 (12GB 한도. 추천 요청마다 bentoml 연결 시도가 먼저 실패한 뒤
+#   로컬 EASE로 폴백 — 호스트 미해석이라 실패는 즉각적, 30s 타임아웃은 걸리지 않음)
+# - 앱 시크릿은 서버의 ./.env 에서 공급 (계약: .env.example)
+# - backend 데이터(games_metadata.jsonl, item_similarity.pkl)는 호스트 bind-mount로 공급
 services:
-  # Production frontend image
   frontend:
-    image: ${DOCKER_USERNAME:-your-registry}/rec-frontend:${IMAGE_TAG:-latest}
+    image: ${DOCKER_USERNAME:-rlaqudwn}/rec-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - backend
@@ -12,6 +17,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   nginx:
     image: nginx:alpine
@@ -25,12 +34,18 @@ services:
       - app-network
     volumes:
       - ./backend/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   backend:
-    image: ${DOCKER_USERNAME:-your-registry}/rec-server:${IMAGE_TAG:-latest}
+    image: ${DOCKER_USERNAME:-rlaqudwn}/rec-server:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
-      bentoml:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
@@ -39,48 +54,64 @@ services:
     environment:
       - ENV=prod
       - DEBUG_MODE=False
-      - BENTOML_SERVICE_URL=${BENTOML_SERVICE_URL:-http://bentoml:3000}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/configs/gcs/gcs_key.json
+      # bge-m3(~2.3GB)를 재배포 간 재다운로드하지 않도록 HF 캐시를 볼륨에 고정
+      - HF_HOME=/data/hf-cache
     volumes:
       - ./configs/gcs:/app/configs/gcs:ro
-
-  bentoml:
-    image: ${DOCKER_USERNAME:-your-registry}/rec-bentoml:${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    networks:
-      - app-network
-    environment:
-      - ML_REC_ROOT=/app/ml_rec
-      - GCS_CONFIG_PATH=/app/configs/gcs_config.yaml
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/configs/gcs/gcs_key.json
-    volumes:
-      - ./configs:/app/configs:ro
-      - ./ml_rec/saved_models:/app/ml_rec/saved_models
-      - ./ml_rec/candidates:/app/ml_rec/candidates
-      - ./ml_rec/dataset:/app/ml_rec/dataset
-      - ./ml_rec/logs:/app/ml_rec/logs
+      - ./backend/app/data:/app/backend/app/data
+      - hf_cache:/data/hf-cache
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
-      interval: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
       timeout: 10s
-      retries: 10
-      start_period: 180s
+      retries: 20
+      # 최초 부팅: bge-m3 다운로드 + DB 시드(테이블 비었을 때만) 감안
+      start_period: 300s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
 
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
-    command: ["/usr/bin/cadvisor", "--url_base_prefix=/monitor"]
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
-    devices:
-      - /dev/kmsg
+  db:
+    image: pgvector/pgvector:pg15
     restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-myuser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mypassword}
+      - POSTGRES_DB=${POSTGRES_DB:-mydatabase}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-mydatabase}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  postgres_data:
+  hf_cache:
 
 networks:
   app-network:

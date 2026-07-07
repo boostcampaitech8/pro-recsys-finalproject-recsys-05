@@ -43,6 +43,13 @@ backend/test/data/
 ml_rec/candidates/*.json
 ml_rec/dataset/*.json
 
+# Secrets — 빌드 컨텍스트/이미지에 절대 포함 금지 (런타임엔 env_file·볼륨 마운트로 공급)
+.env
+**/.env*
+**/*.env
+configs/gcs/
+**/gcs_key.json
+
 # Other
 Dockerfile
 README.md
