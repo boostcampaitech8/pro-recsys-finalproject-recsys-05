@@ -26,6 +26,16 @@ def _ensure_parsed(value: Any) -> Any:
     return None
 
 
+def _flatten_list(lst):
+    result = []
+    for item in lst:
+        if isinstance(item, list):
+            result.extend(_flatten_list(item))
+        else:
+            result.append(item)
+    return result
+
+
 class SearchByEmbeddingTool(Tool):
     """의미 유사도 기반 게임 검색 (RAG) 도구 - 2단계 파이프라인 (벡터 검색 → Reranking)"""
 
@@ -292,17 +302,7 @@ class SearchGamesByFilterTool(Tool):
                 if not isinstance(genres, list):
                     genres = [genres]
 
-                # 재귀적으로 모든 중첩된 리스트 펼치기
-                def flatten_list(lst):
-                    result = []
-                    for item in lst:
-                        if isinstance(item, list):
-                            result.extend(flatten_list(item))
-                        else:
-                            result.append(item)
-                    return result
-
-                genres = flatten_list(genres)
+                genres = _flatten_list(genres)
                 logger.info(f"✅ 처리된 genres: {genres}")
 
                 for i, genre in enumerate(genres):
@@ -335,17 +335,7 @@ class SearchGamesByFilterTool(Tool):
                 if not isinstance(tags, list):
                     tags = [tags]
 
-                # 재귀적으로 모든 중첩된 리스트 펼치기
-                def flatten_list(lst):
-                    result = []
-                    for item in lst:
-                        if isinstance(item, list):
-                            result.extend(flatten_list(item))
-                        else:
-                            result.append(item)
-                    return result
-
-                tags = flatten_list(tags)
+                tags = _flatten_list(tags)
                 logger.info(f"✅ 처리된 tags: {tags}")
 
                 for i, tag in enumerate(tags):

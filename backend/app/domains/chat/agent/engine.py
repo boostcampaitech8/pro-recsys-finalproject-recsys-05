@@ -2,15 +2,10 @@
 
 import inspect
 import json
-import logging
-import sys
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-logger = logging.getLogger("steambot")
 
 from typing import Any, List, Optional
 
+from app.core.logger import logger
 from app.domains.chat.agent.context import ContextBuilder
 
 class AgentEngine:
