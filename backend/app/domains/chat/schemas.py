@@ -105,15 +105,6 @@ class ConversationResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# Restored Classes
-class ChatRequest(BaseModel):
-    text: str = Field(..., description="사용자 질문 텍스트")
-
-class ChatResponse(BaseModel):
-    text: str = Field(..., description="AI 응답 텍스트")
-    game_list: Optional[List[GameInfo]] = Field(None, description="추천 게임 목록")
-    debug: Optional[dict[str, Any]] = Field(None, description="디버그 정보 (실행 시간, 검색 문서 등)")
-
 class ErrorResponse(BaseModel):
     error: str = Field(..., description="에러 메시지")
 

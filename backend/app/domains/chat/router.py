@@ -1,6 +1,6 @@
 import os
 import json
-from fastapi import APIRouter, Depends, HTTPException, Header, Response
+from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from datetime import datetime, timezone
 
@@ -11,9 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domains.chat.schemas import (
     EchoRequest,
     EchoResponse,
-    ChatResponse,
     ErrorResponse,
-    ChatRequest,
     ConversationResponse,
     MessageResponse,
     MessageCreate,
@@ -62,126 +60,6 @@ async def echo(request: EchoRequest):
         message=f"echo: {request.message}",
         timestamp=datetime.now(timezone.utc)
     )
-    
-@router.post(
-    "/single_chat",
-    response_model=ChatResponse,
-    responses={
-        200: {"description": "성공"},
-        400: {"model": ErrorResponse, "description": "잘못된 요청"},
-        422: {"model": ErrorResponse, "description": "입력 데이터 유효성 검사 실패"},
-        500: {"model": ErrorResponse, "description": "서버 내부 오류 (챗봇 준비 안됨 등)"}
-    },
-    summary="게임 추천 (Single-turn)",
-    description="""
-    **[v1] RAG 기반 Steam 게임 추천 챗봇 API**
-    
-    단건(Single-turn) 질문에 대해 RAG 검색을 수행하고 LLM 답변을 생성합니다.
-    
-    - **제약 사항**:
-        - Single-turn 대화만 지원 (이전 대화 기억 안함)
-        - 모든 질문을 RAG 검색으로 처리
-        - 추천 모델 미사용 (LLM이 검색된 문서 기반으로만 응답)
-    """
-)
-async def single_chat_recommend(
-    request: ChatRequest,
-    response: Response,
-    user_id: str = Header(..., alias="id", description="사용자 또는 세션 ID"),
-    bot: chatbot = Depends(get_chatbot)
-):
-    """
-    Single-turn 챗봇 게임 추천 핸들러
-    
-    Args:
-        request (ChatRequest): 사용자 질문
-        response (Response): 헤더 설정을 위한 Response 객체
-        user_id (str): HTTP 헤더 'id'로 전달받는 사용자 ID
-        bot (chatbot): 의존성 주입된 챗봇 인스턴스
-    
-    Raises:
-        HTTPException(500): 챗봇이 준비되지 않았거나 내부 처리 중 오류 발생 시
-    """
-    
-    if not bot.is_ready():
-        logger.error(f"Chatbot not ready for user {user_id}")
-        raise HTTPException(
-            status_code=500,
-            detail="챗봇 서비스가 준비되지 않았습니다."
-        )
-    
-    try:
-        logger.info(f"[v1][{user_id}] Single-turn request: {request.text[:50]}...")
-        
-        # 챗봇 응답 생성 (History 없이 호출)
-        response_text, retrieved_docs, formatted_prompt, metrics = await bot.generate_response_with_details(
-            request.text
-        )
-        
-        logger.info(f"[v1][{user_id}] Response generated in {metrics.get('total_time', 0):.2f}s")
-        
-        # Response Header 설정
-        response.headers["id"] = user_id
-        
-        # 기본 응답 데이터
-        response_data = {
-            "text": response_text,
-            "game_list": None
-        }
-        
-        # DEBUG_MODE일 때만 디버그 정보 추가
-        if DEBUG_MODE:
-            response_data["debug"] = {
-                "metrics": {
-                    "total_ms": metrics.get("total_time", 0) * 1000,
-                    "embedding_time_ms": metrics.get("embedding_time", 0) * 1000,
-                    "retrieval_time_ms": metrics.get("retrieval_time", 0) * 1000,
-                    "llm_api_time_ms": metrics.get("generation_time", 0) * 1000
-                },
-                "retrieved_docs": [
-                    {
-                        "name": doc.get("name"),
-                        "similarity": doc.get("similarity"),
-                        "price": doc.get("price"),
-                        "genres": doc.get("genres")
-                    }
-                    for doc in retrieved_docs
-                ]
-            }
-            logger.debug(f"[v1][{user_id}] Debug info included in response")
-        
-        return ChatResponse(**response_data)
-    
-    except Exception as e:
-        logger.error(f"[v1][{user_id}] Chat error: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"챗봇 처리 중 오류가 발생했습니다: {str(e)}"
-        )
-        
-@router.post(
-    "/chat",
-    response_model=TestResponse,
-    responses={
-        200: {"description": "성공"},
-        400: {"model": ErrorResponse, "description": "잘못된 요청"},
-        500: {"model": ErrorResponse, "description": "서버 에러"}
-    },
-    summary="챗봇 orchestrator test",
-    description="""
-        챗봇 orchestrator test
-    """
-)
-async def create_chat_response(
-    request: ChatRequest,
-):
-    orchestrator = services.get_orchestrator()
-    intent_analysis = await orchestrator.classify_intent(request.text)
-
-    return TestResponse(
-        message=intent_analysis.model_dump_json(indent=2)  # JSON 문자열로 변환
-    )
-
 
 @router.post(
     "/test/agent",
