@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.domains.chat.models import Conversation, Message
 
@@ -40,7 +40,7 @@ class ChatRepository:
 
         conversation = await self.get_conversation(conversation_id)
         if conversation:
-            conversation.updated_at = datetime.utcnow()
+            conversation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await self.db.commit()
         await self.db.refresh(db_message)

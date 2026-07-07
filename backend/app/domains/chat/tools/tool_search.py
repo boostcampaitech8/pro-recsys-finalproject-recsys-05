@@ -26,6 +26,16 @@ def _ensure_parsed(value: Any) -> Any:
     return None
 
 
+def _flatten_list(lst):
+    result = []
+    for item in lst:
+        if isinstance(item, list):
+            result.extend(_flatten_list(item))
+        else:
+            result.append(item)
+    return result
+
+
 class SearchByEmbeddingTool(Tool):
     """의미 유사도 기반 게임 검색 (RAG) 도구 - 2단계 파이프라인 (벡터 검색 → Reranking)"""
 
@@ -93,7 +103,7 @@ class SearchByEmbeddingTool(Tool):
             # 3. pgvector 코사인 유사도 검색 (1단계: Retrieval)
             sql = """
             SELECT
-                id, name, short_description_kr, short_description_en,
+                id, app_id, name, short_description_kr, short_description_en,
                 genres_kr, price, header_image, context,
                 (embedding <=> CAST(:query_embedding AS vector)) AS distance
             FROM games
@@ -147,6 +157,7 @@ class SearchByEmbeddingTool(Tool):
 
                             response.append({
                                 "game_id": row.id,
+                                "app_id": row.app_id,
                                 "name": row.name,
                                 "similarity_score": round(rerank_score, 3),  # Reranker 점수 사용
                                 "short_description_kr": row.short_description_kr or "정보 없음",
@@ -175,6 +186,7 @@ class SearchByEmbeddingTool(Tool):
 
                 response.append({
                     "game_id": row.id,
+                    "app_id": row.app_id,
                     "name": row.name,
                     "similarity_score": round(1.0 - row.distance, 3),  # 거리 -> 유사도
                     "short_description_kr": row.short_description_kr or "정보 없음",
@@ -292,17 +304,7 @@ class SearchGamesByFilterTool(Tool):
                 if not isinstance(genres, list):
                     genres = [genres]
 
-                # 재귀적으로 모든 중첩된 리스트 펼치기
-                def flatten_list(lst):
-                    result = []
-                    for item in lst:
-                        if isinstance(item, list):
-                            result.extend(flatten_list(item))
-                        else:
-                            result.append(item)
-                    return result
-
-                genres = flatten_list(genres)
+                genres = _flatten_list(genres)
                 logger.info(f"✅ 처리된 genres: {genres}")
 
                 for i, genre in enumerate(genres):
@@ -335,17 +337,7 @@ class SearchGamesByFilterTool(Tool):
                 if not isinstance(tags, list):
                     tags = [tags]
 
-                # 재귀적으로 모든 중첩된 리스트 펼치기
-                def flatten_list(lst):
-                    result = []
-                    for item in lst:
-                        if isinstance(item, list):
-                            result.extend(flatten_list(item))
-                        else:
-                            result.append(item)
-                    return result
-
-                tags = flatten_list(tags)
+                tags = _flatten_list(tags)
                 logger.info(f"✅ 처리된 tags: {tags}")
 
                 for i, tag in enumerate(tags):
@@ -368,7 +360,7 @@ class SearchGamesByFilterTool(Tool):
 
             query_sql = f"""
             SELECT
-                id, name, price, genres_kr, release_date, header_image
+                id, app_id, name, price, genres_kr, release_date, header_image
             FROM games
             WHERE {where_sql}
             ORDER BY price ASC
@@ -398,6 +390,7 @@ class SearchGamesByFilterTool(Tool):
 
                 response.append({
                     "game_id": game.id,
+                    "app_id": game.app_id,
                     "name": game.name,
                     "price": int(game.price) if game.price else 0,
                     "genres_kr": genres_kr,
@@ -463,7 +456,7 @@ class GameInfoTool(Tool):
             # 1. 게임 검색 (ILIKE)
             query = """
             SELECT
-                id, name, price, short_description_kr, genres_kr,
+                id, app_id, name, price, short_description_kr, genres_kr,
                 specs, header_image, release_date, screenshots
             FROM games
             WHERE name ILIKE :game_name
@@ -487,6 +480,7 @@ class GameInfoTool(Tool):
             full_response = {
                 "title": game.name,
                 "game_id": game.id,
+                "app_id": game.app_id,
                 "price": {
                     "current": int(game.price) if game.price else 0,
                     "original": int(game.price) if game.price else 0
@@ -510,7 +504,11 @@ class GameInfoTool(Tool):
 
             # 3. wanted 필터링 적용
             if wanted:
-                filtered = {"title": full_response["title"], "game_id": full_response["game_id"]}
+                filtered = {
+                    "title": full_response["title"],
+                    "game_id": full_response["game_id"],
+                    "app_id": full_response["app_id"]
+                }
                 for field in wanted:
                     if field in full_response:
                         filtered[field] = full_response[field]

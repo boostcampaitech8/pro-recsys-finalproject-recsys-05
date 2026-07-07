@@ -5,13 +5,13 @@ interface RecommendationRequest {
 
 export interface RecommendedGame {
   app_id: number;
-  name: string;
-  score: number;
+  name: string | null;
+  score: number | null;
   header_image: string | null;
-  short_description_kr: string;
-  genres_kr: string[];
-  price: number;
-  release_date: string;
+  short_description_kr: string | null;
+  genres_kr: string[] | null;
+  price: number | null;
+  release_date: string | null;
 }
 
 interface RecommendationResponse {

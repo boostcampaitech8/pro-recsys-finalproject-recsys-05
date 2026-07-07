@@ -1,5 +1,5 @@
 from app.domains.steam.service import SteamService
-from app.services.ml_inference import GameRecommendationService, get_model_path
+from app.domains.recommendation.ml_inference import GameRecommendationService, get_model_path
 from app.domains.game.repository import GameRepository
 from app.domains.recommendation.repository import RecommendationRepository
 from app.domains.user.repository import UserRepository

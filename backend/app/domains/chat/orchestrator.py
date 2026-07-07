@@ -463,7 +463,7 @@ class SteamBotOrchestrator:
                 tools=None,
                 max_tokens=100
             )
-            return response.content
+            return response.content, []
         except Exception as e:
             logger.error(f"Chitchat LLM Error: {e}")
-            return "죄송합니다. 처리 중에 오류가 발생했습니다."
+            return "죄송합니다. 처리 중에 오류가 발생했습니다.", []
