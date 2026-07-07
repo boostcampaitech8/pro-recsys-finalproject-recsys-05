@@ -5,6 +5,8 @@
 > 이 문서는 `feature → dev → main` 경로로 올려 **main에 상주**시킨다 (main 직행 금지).
 >
 > 목적은 "잔여 N건 처리"가 아니라 **그 처리 과정에서 재사용 가능한 운영 체계를 유지**하는 것. 새 작업은 티켓으로 등록되고 step으로 묶여 계속 이어진다.
+>
+> **문서 역할(ADR-0002)**: 결정=`docs/adr/`, 제품 방향=`docs/PRD.md`, 구조·티켓 정의=이 문서, **라이브 진행상태(status·현재 step)=GitHub Issues/Projects**. 이 문서는 구조·티켓 정의(durable)만 담고, 아래 `[status]`·§4 step 보드는 예시·초기값이다.
 
 ---
 
@@ -19,6 +21,7 @@
 
 ### 티켓 lifecycle
 `open`(문제만) → `scoped`(조사·요약 완료 = 위임 가능) → `doing`(위임 중) → `done`(검증 통과). 외부 의존/미결정은 `blocked`.
+> 정본 status·현재 step은 **GitHub Issues**가 관리(ADR-0002). 이 문서의 `[status]`·§4 보드는 초기값/예시.
 
 ### 티켓·위임 프로토콜
 - **조사 게이트**: 티켓은 `scoped` 되기 전엔 codex 위임 금지.
@@ -147,18 +150,25 @@
 - 근거: 실제 트리 = `ml_rec/scripts/{preprocessing,stage1_retrieval,stage2_ranking,stage3_scoring,stage4_serving}` + §1 컴포넌트 지도.
 - seam: —
 
+#### T8 · PRD 작성(역설계)  [docs/product] [med] [open]
+- 문제: 제품 방향성 문서(PRD)가 스텁뿐 → 티켓의 제품 정합성 판단 기준 부재.
+- 근거: `docs/PRD.md` 스텁. 코드·현행 서비스(챗 기반 Steam 추천) 역설계로 초안.
+- 제안: 현행 유즈케이스·범위·지표 정리 → 이후 티켓 정합성 체크 기준으로 사용.
+- seam: —
+
 ---
 
-## §4. Step 보드 (현재)
+## §4. Step 보드 (예시·스냅샷)
 
-> 순서 = risk·severity 우선. step은 완료 시 통합 검증 게이트 통과해야 `done`.
+> ⚠️ **예시다.** 권위 있는 라이브 진행(status·현재 step)은 **GitHub Issues/Projects**(ADR-0002) — 브랜치 충돌 회피를 위해 버전관리 밖에서 관리. 아래는 초기 배치 예시.
+> 순서 = risk·severity 우선. step done 게이트 = 소속 티켓 전부 done + 통합 검증 통과.
 
-| Step | 목표 | 티켓 | 통합 검증 게이트 | 상태 |
-|---|---|---|---|---|
-| **1** 🔥 | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) | open |
-| **2** | 백엔드 견고성 | T2, T1 | pytest green | open |
-| **3** | orchestration 안정화 | T6 | 에이전트 경로 반복 호출 무실패 | open |
-| **4** | 위생 | T3, T4 | 해당 없음(문서/조사) | open |
+| Step | 목표 | 티켓 | 통합 검증 게이트 |
+|---|---|---|---|
+| **1** 🔥 | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) |
+| **2** | 백엔드 견고성 | T2, T1 | pytest green |
+| **3** | orchestration 안정화 | T6 | 에이전트 경로 반복 호출 무실패 |
+| **4** | 위생·문서 | T3, T4, T8 | 해당 없음(문서/조사) |
 
 ---
 
