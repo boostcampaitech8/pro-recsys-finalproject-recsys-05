@@ -13,7 +13,8 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      # busybox wget이 localhost를 ::1로 선해석하는데 nginx는 IPv4만 리스닝 → 127.0.0.1 명시
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
       interval: 30s
       timeout: 10s
       retries: 3
