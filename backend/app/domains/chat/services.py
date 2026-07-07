@@ -22,6 +22,8 @@ from app.domains.user.schemas import UserCreate
 
 from app.domains.chat.orchestrator import SteamBotOrchestrator
 from app.domains.chat.providers.gemini import GeminiProvider
+from app.domains.game.repository import GameRepository
+from app.domains.game.schemas import GameCard
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ("true", "1", "yes")
 chat_cache = ChatCache()
@@ -160,6 +162,49 @@ async def _invalidate_chat_cache(user_id: UUID, conversation_id: int) -> None:
     await chat_cache.invalidate_user_conversations(user_id)
     await chat_cache.invalidate_conversation_messages(conversation_id)
 
+
+async def _build_game_cards(db: AsyncSession, collected: list[dict]) -> list["GameCard"]:
+    app_ids: list[int] = []
+    score_by_app_id: dict[int, Any] = {}
+    seen: set[int] = set()
+
+    for item in collected:
+        if not isinstance(item, dict) or "app_id" not in item:
+            continue
+        try:
+            app_id = int(item["app_id"])
+        except (TypeError, ValueError):
+            continue
+        if app_id in seen:
+            continue
+        seen.add(app_id)
+        app_ids.append(app_id)
+        score_by_app_id[app_id] = item.get("score")
+
+    if not app_ids:
+        return []
+
+    rows = await GameRepository(db).get_games_by_app_ids(app_ids)
+    row_by_app_id = {row.app_id: row for row in rows}
+
+    games: list[GameCard] = []
+    for app_id in app_ids:
+        row = row_by_app_id.get(app_id)
+        if row is None:
+            continue
+        games.append(GameCard(
+            app_id=row.app_id,
+            name=row.name,
+            header_image=row.header_image,
+            short_description_kr=row.short_description_kr,
+            genres_kr=row.genres_kr,
+            price=row.price,
+            release_date=row.release_date,
+            score=score_by_app_id.get(app_id),
+        ))
+
+    return games
+
 def format_history(messages: List[Message]) -> str:
     formatted = []
     for msg in messages:
@@ -280,7 +325,7 @@ async def process_chat_turn_agent(
     user_id: UUID,
     user_content: str,
     steam_id: Optional[str] = None
-) -> Tuple[Message, Optional[list[Any]], Optional[dict]]:
+) -> Tuple[Message, list[GameCard], Optional[dict]]:
     """
     Multi-turn 대화 한 턴을 처리합니다. (Agent Orchestrator 사용)
     
@@ -291,7 +336,7 @@ async def process_chat_turn_agent(
     
     Returns:
       - ai_msg (Message): 생성된 AI 메시지
-      - retrieved_docs (Optional[list]): (Agent가 검색한 정보가 있다면 매핑 가능하겠지만, 현재는 None)
+      - games (list[GameCard]): Agent 도구가 표면화한 게임 카드 목록
       - debug (Optional[dict]): 디버그 메트릭 (Agent 실행 시간 등)
     """
     repo = ChatRepository(db)
@@ -327,7 +372,7 @@ async def process_chat_turn_agent(
     start_time = time.time()
     
     # DB 세션과 임베딩 모델(bot.embeddings)을 주입하여 도구가 사용할 수 있게 함
-    response_text = await orchestrator.handle_request(
+    response_text, collected = await orchestrator.handle_request(
         user_message=user_content,
         history=history_structured,
         db_session=db,
@@ -342,10 +387,10 @@ async def process_chat_turn_agent(
     ai_msg = await repo.add_message(conversation_id, "assistant", response_text)
     await _invalidate_chat_cache(user_id, conversation_id)
 
-    # 5) 추천 결과 처리 (현재 Agent는 text만 반환하므로 생략)
-    retrieved_docs = None
+    # 5) 도구 결과에서 수집한 app_id를 canonical game card로 변환
+    games = await _build_game_cards(db, collected)
 
-    return ai_msg, retrieved_docs, ({"metrics": metrics} if metrics else None)
+    return ai_msg, games, ({"metrics": metrics} if metrics else None)
 
 
 async def process_chat_by_user(
@@ -354,7 +399,7 @@ async def process_chat_by_user(
     user_id: Optional[UUID],
     user_content: str,
     steam_id: Optional[str] = None
-) -> Tuple[Message, Optional[list[Any]], Optional[dict], int, UUID]:
+) -> Tuple[Message, list[GameCard], Optional[dict], int, UUID]:
     """
     User ID 기반으로 챗봇 턴을 처리하는 오케스트레이션 함수.
     
@@ -363,7 +408,7 @@ async def process_chat_by_user(
     3. process_chat_turn 호출
     
     Returns:
-        (ai_msg, retrieved_docs, debug, conversation_id, user_id)
+        (ai_msg, games, debug, conversation_id, user_id)
     """
     user_repo = UserRepository(db)
     
@@ -404,7 +449,7 @@ async def process_chat_by_user(
                 conversation_id = conversation.conversation_id
     
     # 2. Chat Logic 실행
-    ai_msg, retrieved_docs, debug = await process_chat_turn_agent(
+    ai_msg, games, debug = await process_chat_turn_agent(
         db=db,
         bot=bot,
         conversation_id=conversation_id,
@@ -413,7 +458,7 @@ async def process_chat_by_user(
         steam_id=steam_id
     )
     
-    return ai_msg, retrieved_docs, debug, conversation_id, current_user_id
+    return ai_msg, games, debug, conversation_id, current_user_id
 
 async def process_chat_by_user_llm_only(
     db: AsyncSession,

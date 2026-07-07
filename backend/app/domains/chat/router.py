@@ -74,7 +74,7 @@ async def agent_endpoint(
     orchestrator = services.get_orchestrator()
 
     try:
-        response_text = await orchestrator.handle_request(
+        response_text, _collected = await orchestrator.handle_request(
             user_message=request.message,
             history=[],
             db_session=db,
@@ -112,7 +112,7 @@ async def chat_unified(
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
     try:
-        ai_msg, _retrieved_docs, debug, conv_id, resolved_user_id = await services.process_chat_by_user(
+        ai_msg, games, debug, conv_id, resolved_user_id = await services.process_chat_by_user(
             db=db,
             bot=bot,
             user_id=request.user_id,
@@ -125,6 +125,7 @@ async def chat_unified(
             conversation_id=conv_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
+            games=games,
             timestamp=datetime.now(timezone.utc),
             debug=debug if DEBUG_MODE else None
         )

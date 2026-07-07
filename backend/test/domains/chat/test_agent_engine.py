@@ -87,7 +87,7 @@ async def test_run_turn_injects_context_into_kwargs_tool():
         embedding_model=embedding_model,
     )
 
-    reply = await engine.run_turn("추천해줘", history=[])
+    reply, _cards = await engine.run_turn("추천해줘", history=[])
 
     assert reply == "최종 답변"
     assert kwargs_tool.received["steam_id"] == "76561198000000000"
@@ -105,7 +105,7 @@ async def test_run_turn_does_not_break_explicit_signature_tool():
         embedding_model=object(),
     )
 
-    reply = await engine.run_turn("추천해줘", history=[])
+    reply, _cards = await engine.run_turn("추천해줘", history=[])
 
     assert reply == "최종 답변"
     assert explicit_tool.received == {"steam_id": "123"}

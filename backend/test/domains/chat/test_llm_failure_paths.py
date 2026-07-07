@@ -53,7 +53,7 @@ async def test_classify_intent_falls_back_to_heuristic():
 async def test_chitchat_returns_guidance_message_on_llm_error():
     orchestrator = SteamBotOrchestrator(provider=FailingProvider())
 
-    reply = await orchestrator._run_chitchat("안녕!", history=[])
+    reply, _cards = await orchestrator._run_chitchat("안녕!", history=[])
 
     assert "오류" in reply
     assert "Error" not in reply
@@ -63,7 +63,7 @@ async def test_chitchat_returns_guidance_message_on_llm_error():
 async def test_agent_engine_returns_guidance_message_on_llm_error():
     engine = AgentEngine(llm_provider=FailingProvider(), tools={})
 
-    reply = await engine.run_turn("게임 추천해줘", history=[])
+    reply, _cards = await engine.run_turn("게임 추천해줘", history=[])
 
     assert "죄송합니다" in reply
     assert "Error" not in reply
