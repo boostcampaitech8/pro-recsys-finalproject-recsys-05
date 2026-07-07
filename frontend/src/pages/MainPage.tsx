@@ -172,7 +172,7 @@ export default function MainPage() {
         role: "assistant",
         content: query,
         message: response.text,
-        games: [],
+        games: response.games ?? [],
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMessage]);
