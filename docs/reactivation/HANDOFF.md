@@ -1,8 +1,32 @@
 # 인계 문서 (HANDOFF)
 
 > 전체 맥락: 루트 `CLAUDE.md`(진행 상태) + `docs/reactivation/PLAN.md`(마스터 플랜) 먼저 읽을 것.
-> - §A: **Phase 3 세션 인계** (2026-07-07 작성, 현행)
+> - §0: **BentoML 3-stage 영구화** (2026-07-07 최신 — 여기부터 읽을 것)
+> - §A: Phase 3 세션 인계 (2026-07-07, 배포 완료되어 기록용)
 > - §B 이하: Phase 1 노트북→메인컴 인계 (2026-07-06, 완료되어 기록용)
+
+---
+
+## §0. BentoML 3-stage 영구화 (2026-07-07 최신)
+
+### 무엇을 했나
+로컬 검증까지 통과한 3-stage 실추천(근본원인=EASE torch 체크포인트 pickle 불가로 신규-유저 후보 생성 실패, 배경: `BENTOML_VERIFY.md`)을 **CI 재배포에도 유지되도록 dev에 정식 통합**. 이 커밋셋:
+1. **ml_rec 2파일 fix** (revive `1e6421b` 이식): `candidate_merger.generate_ease_candidates` backend-format(`{similarity_matrix,...}`) 분기, `model_loader.load_ease_model` `_backend_format.pkl` 우선·torch(ZIP) 감지. → **CI가 이 소스로 rec-bentoml 이미지를 빌드**하므로 fix가 이미지에 상주.
+2. **`docker-compose.prod.yml`**: bentoml 서비스 추가 (mem 4G, `BENTOML_SKIP_GCS_BOOTSTRAP=true`, ml_rec bind-mount, healthcheck start_period 180s). backend는 `depends_on` 안 함 → 미기동/장애 시 EASE 폴백(무중단), 기본 `BENTOML_SERVICE_URL=http://bentoml:3000`이라 서비스만 뜨면 자동 연결.
+3. **`.github/workflows/deploy.yml`**: `build_push` 잡에 arm64 `rec-bentoml` 빌드/푸시 스텝(context `./ml_rec`, `Dockerfile.bentoml`). `.dockerignore`가 saved_models/candidates/dataset 제외 → 아티팩트 없는 경량 이미지.
+4. **`deploy.sh` preflight**: bentoml 아티팩트 4종 상주 하드체크 — 없으면 abort(조용한 EASE 저하 방지). 비상 EASE-only는 `ALLOW_MISSING_BENTOML=1`.
+
+### 아티팩트 상주 전략 (결정됨)
+서버 고정경로 **bind-mount** (`~/pro-recsys-finalproject-recsys-05/ml_rec/{saved_models,candidates}`) — 이미지에 안 굽고(1.3GB+ arm 빌드/푸시 회피), 재배포에도 유지. preflight가 존재 검증. 필요 파일: `saved_models/{item_similarity_backend_format.pkl(1.27GB), dcn_v2_steam.pth, xgb_final_scorer.pkl}`, `candidates/lightgcn_embeddings.npz` (file-ID·docker cp 추출: `BENTOML_VERIFY.md`).
+
+### ⚠️ 남은 사용자 액션 (병합 전/후)
+- **B1 (병합 전 필수)**: 서버 checkout이 dirty(미커밋 `docker-compose.bentoml.yml` 오버레이 + ml_rec dirty)라, 병합 후 CI auto-deploy의 `git pull --ff-only`가 실패 → 배포 abort. **병합 전에** 서버에서 오버레이 제거 + `git checkout -- ml_rec/...`로 tree 정리. 실행 중인 (수동)bentoml 컨테이너는 안 내려도 됨 — deploy.sh가 새 이미지로 recreate.
+- **B2**: 서버 아티팩트 4종 상주 확인(이미 scp됨). preflight가 검사.
+- **B3**: GitHub secrets `DOCKER_USERNAME/PASSWORD`로 `rec-bentoml` 리포 푸시(같은 계정이면 첫 푸시 시 자동 생성).
+- **B4**: PR dev→main 병합 → CI가 rec-bentoml arm64 빌드→deploy.sh→3-stage 상시화. 병합 후 prod `http://144.24.67.225/rec/recommend-from-steam`가 `model_type: bentoml_3stage`+score>0 반환하는지 검증.
+
+### 롤백
+서버 `docker rm -f recsys-bentoml-1` → backend 자동 EASE 폴백(무중단). 영구 롤백은 prod.yml에서 bentoml 제거하는 revert PR.
 
 ---
 
