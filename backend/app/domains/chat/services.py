@@ -273,9 +273,6 @@ async def process_chat_turn(
 
         await maybe_save_recommendation(db, user_id=user_id, recommended_games_payload=recommended_payload, model_type="rag")
 
-    # 6) API 응답용 game_list는 router에서 변환하거나,
-    #    여기서 변환하고 싶으면 GameInfo import해서 매핑하면 됨.
-    #    (일단 MVP는 router에서 그대로 쓰거나 None 처리 가능)
     return ai_msg, retrieved_docs, ({"metrics": metrics} if metrics else None)
 
 async def process_chat_turn_agent(

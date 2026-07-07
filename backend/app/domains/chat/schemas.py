@@ -4,29 +4,6 @@ from typing import List, Optional, Any
 from enum import Enum
 from uuid import UUID
 
-class GameInfo(BaseModel):
-    name: str = Field(..., description="게임 이름")
-    description: str = Field(..., description="게임 설명 (요약)")
-    tags: List[str] = Field(default_factory=list, description="게임 태그 목록 (예: RPG, Action)")
-    image_url: Optional[str] = Field(None, description="게임 대표 이미지 URL")
-    price: float = Field(..., ge=0, description="가격 (USD 기준)")
-    similarity_score: Optional[float] = Field(None, ge=0, le=1, description="질문과의 유사도 점수 (0~1 사이)")
-    release_year: Optional[int] = Field(None, ge=1970, le=2030, description="출시 연도")
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "Elden Ring",
-                "description": "Tarnished가 되어 Elden Ring을 찾아 떠나는 여정...",
-                "tags": ["RPG", "Open World", "Fantasy"],
-                "image_url": "https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg",
-                "price": 59.99,
-                "similarity_score": 0.89,
-                "release_year": 2022
-            }
-        }
-    )
-
 class EchoRequest(BaseModel):
     message: str = Field(
         ..., 
@@ -118,7 +95,6 @@ class MultiTurnChatResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
     assistant_message_id: int = Field(..., description="생성된 AI 메시지 ID")
     text: str = Field(..., description="AI 응답 텍스트")
-    game_list: Optional[List[GameInfo]] = Field(None, description="추천 게임 목록")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="응답 생성 시간")
     
 class ChatTurnRequest(BaseModel):
@@ -131,6 +107,5 @@ class ChatTurnResponse(BaseModel):
     conversation_id: int = Field(..., description="대화방 ID")
     assistant_message_id: int = Field(..., description="AI 메시지 ID")
     text: str = Field(..., description="AI 응답 텍스트")
-    game_list: Optional[List[GameInfo]] = Field(None, description="추천 게임 목록")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="응답 시간")
     debug: Optional[dict[str, Any]] = Field(None, description="디버그 정보")

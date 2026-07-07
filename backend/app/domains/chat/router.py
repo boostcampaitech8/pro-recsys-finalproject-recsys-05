@@ -112,35 +112,19 @@ async def chat_unified(
         raise HTTPException(status_code=500, detail="Chatbot not ready")
 
     try:
-        ai_msg, retrieved_docs, debug, conv_id, resolved_user_id = await services.process_chat_by_user(
+        ai_msg, _retrieved_docs, debug, conv_id, resolved_user_id = await services.process_chat_by_user(
             db=db,
             bot=bot,
             user_id=request.user_id,
             user_content=request.content,
             steam_id=request.steam_id
         )
-        
-        # MVP game list mapping
-        game_list = None
-        if retrieved_docs:
-            game_list = []
-            for d in retrieved_docs:
-                item = {
-                    "name": d.get("name") or d.get("app_name", "Unknown"),
-                    "description": d.get("short_description") or d.get("description", ""),
-                    "price": float(d.get("price") or 0),
-                    "similarity_score": d.get("similarity", 0),
-                    "image_url": d.get("header_image") or d.get("image_url"),
-                    "release_year": None # 필요시 파싱
-                }
-                game_list.append(item)
 
         return ChatTurnResponse(
             user_id=resolved_user_id,
             conversation_id=conv_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            game_list=game_list,
             timestamp=datetime.utcnow(),
             debug=debug if DEBUG_MODE else None
         )
@@ -191,7 +175,6 @@ async def chat_unified_llm_only(
             conversation_id=conv_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            game_list=None,
             timestamp=datetime.utcnow(),
             debug=debug if DEBUG_MODE else None
         )
@@ -267,7 +250,7 @@ async def get_conversations(
     대화방에 메시지를 전송하고 AI 응답을 받습니다.
     
     - 최근 5개 대화 히스토리를 함께 LLM에 전달하여 문맥을 유지합니다.
-    - 관련된 게임이 검색되면 `game_list`에 포함되어 반환될 수 있습니다.
+    - 관련 문서를 검색해 대화 응답 생성에 활용합니다.
     """,
     responses={
         200: {"description": "성공"},
@@ -299,7 +282,7 @@ async def send_message(
 
 
     try:
-        ai_msg, retrieved_docs, debug = await services.process_chat_turn(
+        ai_msg, _retrieved_docs, debug = await services.process_chat_turn(
             db=db,
             bot=bot,
             conversation_id=conversation_id,
@@ -307,18 +290,10 @@ async def send_message(
             user_content=request.content
         )
 
-        # MVP: retrieved_docs -> game_list 변환은 너 bot/doc 포맷에 맞춰서 구현
-        # 일단 None 처리하거나, doc에 필요한 필드가 있으면 매핑
-        game_list = None
-        # 예시(필드 존재할 때만):
-        # from app.domains.game.schemas import GameInfo
-        # game_list = [GameInfo(...매핑...) for d in retrieved_docs] if retrieved_docs else None
-
         return MultiTurnChatResponse(
             conversation_id=conversation_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            game_list=game_list,
             timestamp=datetime.utcnow(),
             debug=debug if DEBUG_MODE else None
         )
@@ -358,7 +333,6 @@ async def send_message_llm_only(
             conversation_id=conversation_id,
             assistant_message_id=ai_msg.message_id,
             text=ai_msg.content,
-            game_list=None,
             timestamp=datetime.utcnow(),
             debug=debug if DEBUG_MODE else None,
         )
