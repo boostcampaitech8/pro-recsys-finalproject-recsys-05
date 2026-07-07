@@ -91,6 +91,12 @@ $COMPOSE pull
 echo "[deploy] starting services..."
 $COMPOSE up -d --no-build --remove-orphans
 
+# nginx는 upstream(backend/frontend) IP를 기동 시 1회만 해석해 캐시한다. 이번 배포에서 backend/
+# frontend 컨테이너가 recreate되면 IP가 바뀌는데, nginx 컨테이너는 config 무변경이라 recreate되지
+# 않아 stale IP로 502(connection refused)를 낸다. up 이후 nginx를 재시작해 현재 IP를 재해석시킨다.
+echo "[deploy] restarting nginx to re-resolve upstream IPs..."
+$COMPOSE restart nginx
+
 # ---------- healthcheck ----------
 echo "[health] waiting for $HEALTH_URL (timeout ${HEALTH_TIMEOUT}s)..."
 elapsed=0
