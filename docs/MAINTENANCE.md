@@ -122,12 +122,11 @@
 - 제안 방향: chat → recommendation service 경유로 위임.
 - scope 경계: 저장 동작 결과 불변(회귀 금지).
 
-#### T2 · llm-only 예외 → HTTP 500  [backend] [med] [open]
-- 문제: llm-only 경로에서 `bot.llm.ainvoke` 예외 무방비 → 사용자에게 HTTP 500 (리뷰 버그 #6).
-- 근거 앵커: `backend/app/domains/chat/services.py` (`bot.llm.ainvoke` 호출부) — *scoping 시 라인·재현 확정*
+#### T2 · llm-only 예외 → HTTP 500  [backend] [med] [done]  (stale-open, 코드감사 2026-07-08)
+- 문제(해소): 수정이 티켓 생성 이전 커밋 `5bf92d5`(2026-07-07)에 이미 반영된 phantom 티켓. dev·main 상주.
+- 근거 앵커: `services.py:585-592` `bot.llm.ainvoke` try/except(주석 "버그 #6") + `chatbot.py:237` 경로도 가드. Issue #87.
 - seam: —
-- 제안 방향: 예외 캐치 → 사용자향 폴백 메시지 + 적절한 상태코드.
-- 검증: 예외 유발 요청이 500 아닌 우아한 응답.
+- 한계: 코드/배포 레벨 확인. 실제 예외 주입 행위검증은 미수행.
 
 #### T3 · 코드리뷰 F1~F4·F8·F9 처리기록 유실  [backend] [unknown] [open]
 - 문제: 과거 리뷰 지적(F1~F4, F8, F9)의 처리 기록이 리포 어디에도 없음. 리뷰 원본이 세션에만 존재.
