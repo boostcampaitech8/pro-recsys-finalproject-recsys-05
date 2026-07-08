@@ -17,3 +17,4 @@
 - [0001](0001-maintenance-harness.md) — 유지보수 하네스 도입
 - [0002](0002-doc-architecture.md) — 유지보수 문서 아키텍처
 - [0003](0003-ops-execution-lane.md) — 운영(ops) 티켓 실행 레인
+- [0004](0004-harness-admission-gate.md) — 하네스 admission gate(intake·DoD·sweep)
