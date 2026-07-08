@@ -108,8 +108,11 @@ def run(cmd, *, shell=False, timeout=None, check=False, capture=True):
     )
 
 
-def git(*args) -> str:
-    return run(["git", *args]).stdout or ""
+def git(*args, check=False) -> str:
+    r = run(["git", *args])
+    if check and r.returncode != 0:  # 코덱스 리뷰 P2: 실패를 삼키지 않는다
+        raise RuntimeError(f"git {' '.join(args)} 실패(rc={r.returncode}):\n{(r.stdout or '').strip()}")
+    return r.stdout or ""
 
 
 def current_branch() -> str:
@@ -118,6 +121,33 @@ def current_branch() -> str:
 
 def short_sha() -> str:
     return git("rev-parse", "--short", "HEAD").strip()
+
+
+def step_num(p: Path) -> int:
+    """stepN → N (자연 정렬용; 코덱스 미검출 + 내 CL-2: step10 사전순 오류 방지)."""
+    m = re.search(r"(\d+)", p.stem)
+    return int(m.group(1)) if m else 0
+
+
+def load_prior_summaries(ticket, want_num, current_run_dir, out):
+    """--from 재개 시 가장 최근 이전 run에서 want_num 미만 step 요약 복원 (코덱스 P2)."""
+    dirs = sorted((d for d in RUNS_DIR.glob(f"{ticket}-*")
+                   if d.is_dir() and d != current_run_dir), reverse=True)
+    if not dirs:
+        log("--from 재개: 이전 run 없음 — 요약 복원 스킵")
+        return
+    prev = dirs[0]
+    for sp in prev.glob("step*.summary.json"):
+        name = sp.name.split(".")[0]
+        if step_num(Path(name)) >= want_num:
+            continue
+        try:
+            data = json.loads(sp.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        out.append({"step": name, **(data if isinstance(data, dict) else {"summary": data})})
+    out.sort(key=lambda d: step_num(Path(d["step"])))
+    log(f"--from 재개: {prev.name}에서 요약 {len(out)}건 복원")
 
 
 # --------------------------------------------------------------------------- #
@@ -250,7 +280,7 @@ def run_verify(cmd: str, timeout: int):
 def discover_steps(task_dir: Path, meta: dict) -> list[Path]:
     if meta.get("steps"):
         return [task_dir / s for s in meta["steps"]]
-    return sorted(task_dir.glob("step*.md"))
+    return sorted(task_dir.glob("step*.md"), key=step_num)
 
 
 def main():
@@ -260,6 +290,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="프롬프트·명령만 출력, codex/git 미실행")
     ap.add_argument("--no-branch", action="store_true", help="브랜치 전환 안 함(현재 위치에서)")
     ap.add_argument("--no-commit", action="store_true", help="step 커밋 안 함")
+    ap.add_argument("--allow-dirty", action="store_true", help="dirty 워킹트리에서도 실행(무관 변경 커밋 위험 감수)")
     ap.add_argument("--no-push", action="store_true")
     ap.add_argument("--no-pr", action="store_true")
     ap.add_argument("--no-review", action="store_true", help="교차 리뷰(codex exec review) 생략")
@@ -280,13 +311,18 @@ def main():
         sys.exit("[execute] step*.md 를 찾지 못했습니다.")
 
     if args.from_step:
-        want = args.from_step if args.from_step.endswith(".md") else args.from_step + ".md"
-        steps = [s for s in steps if s.name >= want] or steps
+        want_num = step_num(Path(args.from_step))
+        steps = [s for s in steps if step_num(s) >= want_num] or steps
 
     runid = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = RUNS_DIR / f"{ticket}-{runid}"
     run_dir.mkdir(parents=True, exist_ok=True)
     codex = None if args.dry_run else find_codex()
+
+    # clean 베이스라인 보장 — git add -A가 무관한 워킹트리 변경을 커밋하지 않도록 (코덱스 리뷰 P2)
+    if not args.dry_run and not args.no_commit and not args.allow_dirty:
+        if git("status", "--porcelain").strip():
+            sys.exit("[execute] 워킹트리 dirty — clean 상태에서 실행하거나 --allow-dirty 사용")
 
     log(f"티켓 {ticket} · steps={[s.name for s in steps]} · base={base} · run={run_dir.name}")
 
@@ -294,11 +330,16 @@ def main():
     branch = meta.get("branch") or f"feature/{ticket}-exec"
     if not args.no_branch and not args.dry_run:
         exists = branch in git("branch", "--list", branch)
-        git("checkout", branch) if exists else git("checkout", "-b", branch, base)
+        try:
+            git("checkout", branch, check=True) if exists else git("checkout", "-b", branch, base, check=True)
+        except RuntimeError as e:
+            sys.exit(f"[execute] 브랜치 전환 실패: {e}")
         log(f"브랜치: {current_branch()}")
 
     state = {"ticket": ticket, "runid": runid, "base": base, "branch": branch, "steps": []}
     prior_summaries = []
+    if args.from_step:
+        load_prior_summaries(ticket, step_num(Path(args.from_step)), run_dir, prior_summaries)
 
     for step_path in steps:
         smeta, sbody = read_md(step_path)
@@ -335,6 +376,11 @@ def main():
                 log(f"   ! {failure}")
                 break
             step_rec["tokens"] = tokens
+            step_rec["codex_rc"] = rc
+            if rc != 0:  # 코덱스 P1 = 내 CL-1: codex 실패를 verify 성공이 가리지 못하게
+                failure = f"codex exec 비정상 종료(rc={rc}) — {events_path.name} 참조"
+                log(f"   ! codex rc={rc} (시도 {attempt}/{attempts})")
+                continue
             ok, vout = run_verify(verify_cmd, args.timeout)
             step_rec["verify"] = "pass" if ok else "fail"
             if ok:
@@ -352,7 +398,7 @@ def main():
         if step_rec["status"] == "done" and not args.no_commit:
             git("add", "-A")
             if git("status", "--porcelain").strip():
-                git("commit", "-m", f"{ticket} {name}: {title}")
+                git("commit", "-m", f"{ticket} {name}: {title}", check=True)
                 step_rec["sha"] = short_sha()
                 log(f"   commit {step_rec['sha']}")
             else:
@@ -377,8 +423,13 @@ def main():
 
     # push / PR (CodeAct — 토큰 0)
     if not args.no_push:
-        git("push", "-u", "origin", branch)
-        log(f"push → origin/{branch}")
+        try:
+            git("push", "-u", "origin", branch, check=True)
+            log(f"push → origin/{branch}")
+        except RuntimeError as e:
+            log(f"!! push 실패 — PR 생략: {e}")
+            _finish(state, run_dir, halted=True)
+            return
     if not args.no_pr:
         body = _pr_body(state, prior_summaries)
         r = run(["gh", "pr", "create", "--base", base, "--head", branch,
