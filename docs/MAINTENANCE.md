@@ -23,15 +23,30 @@
 `open`(문제만) → `scoped`(조사·요약 완료 = 위임 가능) → `doing`(위임 중) → `done`(검증 통과). 외부 의존/미결정은 `blocked`.
 > 정본 status·현재 step은 **GitHub Issues**가 관리(ADR-0002). 이 문서의 `[status]`·§4 보드는 초기값/예시.
 
+### 티켓 kind — 실행 레인 결정 (ADR-0003)
+티켓은 두 부류다. scoping 시 `kind`를 판정한다(미표기 = `code`).
+- **`code`** — 리포 코드/설정 변경. 실행 = codex-rescue 위임(기본, 아래 code 레인).
+- **`ops`** — live 인프라·검증 액션(서버·배포·prod 조사). 리포 diff 없음. 실행 = 클로드 직접(`ssh a1`·docker·`gh`·`curl`·doppler), codex 위임 불가(리포 샌드박스 밖).
+> ops 작업 중 리포 코드 수정이 필요해지면 → `code` 서브티켓으로 분리해 code 레인으로.
+
 ### 티켓·위임 프로토콜
-- **조사 게이트**: 티켓은 `scoped` 되기 전엔 codex 위임 금지.
-- **조사 주체(하이브리드)**: 작은·명확한 건 클로드가 인라인 조사(Grep/Glob); 크고 불확실한 건 `Explore`/`codex 진단`에 조사 위임 후 클로드가 `scoped` 확정.
-- **실행 위임(기본)**: `scoped` 티켓의 `[위임 요약]` 블록을 `codex:codex-rescue`에 bounded task로 전달. **scope 경계·seam guard를 위임 프롬프트에 반드시 포함.**
+- **조사 게이트**(공통): 티켓은 `scoped` 되기 전엔 실행(위임·mutate) 금지.
+- **조사 주체(하이브리드)**: 작은·명확한 건 클로드가 인라인 조사(Grep/Glob·ssh read-only probe); 크고 불확실한 건 `Explore`/`codex 진단`에 조사 위임 후 클로드가 `scoped` 확정.
+
+**code 레인 (기본)**
+- **실행 위임**: `scoped` 티켓의 `[위임 요약]` 블록을 `codex:codex-rescue`에 bounded task로 전달. **scope 경계·seam guard를 위임 프롬프트에 반드시 포함.**
 - **리뷰**: 클로드가 diff 리뷰 → 커밋 → 티켓에 위임 로그(시각·커밋·노트) 기재.
+
+**ops 레인 (ADR-0003)**
+- **실행 주체 = 클로드 직접** (`ssh a1`·docker/compose·`gh`·`curl`·doppler). codex 위임 안 함.
+- **read-only 선(先)실측 → mutate**: mutate 전 상태를 먼저 관측(git status·docker ps·아티팩트·health)한다. 이 실측이 code 레인의 diff 리뷰 대응물 — 근거 없이 mutate 금지.
+- **seam guard 확인**: 걸린 seam(§2) guard를 실행 전 확인(예: S3 서버 dirty 정리).
+- **실행 로그 = Issue에**: diff/커밋이 없으므로 명령 + 관측결과를 해당 GitHub Issue에 남긴다(감사추적).
+- **done 게이트 = 관측된 prod 동작**: seam 통합 게이트를 실제 관측으로 충족하고 Issue에 캡처(예: T5 = `bentoml_3stage`+score>0, health 200).
 
 ### 티켓 스키마
 ```
-#### T# · 제목   [component] [severity] [status]
+#### T# · 제목   [component] [kind] [severity] [status]   (kind 미표기 = code)
 - 문제 / 영향
 - 근거 앵커: file:line · 심볼 · 관련 PR#   (조사 시점 SHA 병기; 위임 직전 유효성 재확인)
 - seam: S#(guard 요약)   ← §2에서 복사
@@ -42,7 +57,7 @@
 - 위임 로그: (위임 시각 · diff 커밋 · 리뷰 노트)
 ```
 
-### [위임 요약] 블록 (codex 전달용 — 자기완결)
+### [위임 요약] 블록 (code 레인 전용 — codex 전달용, 자기완결)
 `codex:codex-rescue`는 격리 컨텍스트에서 돈다. 아래만 읽고 일할 수 있어야 한다.
 ```
 [위임 요약] T#  (기준 SHA: <short-sha>)
@@ -107,12 +122,11 @@
 - 제안 방향: chat → recommendation service 경유로 위임.
 - scope 경계: 저장 동작 결과 불변(회귀 금지).
 
-#### T2 · llm-only 예외 → HTTP 500  [backend] [med] [open]
-- 문제: llm-only 경로에서 `bot.llm.ainvoke` 예외 무방비 → 사용자에게 HTTP 500 (리뷰 버그 #6).
-- 근거 앵커: `backend/app/domains/chat/services.py` (`bot.llm.ainvoke` 호출부) — *scoping 시 라인·재현 확정*
+#### T2 · llm-only 예외 → HTTP 500  [backend] [med] [done]  (stale-open, 코드감사 2026-07-08)
+- 문제(해소): 수정이 티켓 생성 이전 커밋 `5bf92d5`(2026-07-07)에 이미 반영된 phantom 티켓. dev·main 상주.
+- 근거 앵커: `services.py:585-592` `bot.llm.ainvoke` try/except(주석 "버그 #6") + `chatbot.py:237` 경로도 가드. Issue #87.
 - seam: —
-- 제안 방향: 예외 캐치 → 사용자향 폴백 메시지 + 적절한 상태코드.
-- 검증: 예외 유발 요청이 500 아닌 우아한 응답.
+- 한계: 코드/배포 레벨 확인. 실제 예외 주입 행위검증은 미수행.
 
 #### T3 · 코드리뷰 F1~F4·F8·F9 처리기록 유실  [backend] [unknown] [open]
 - 문제: 과거 리뷰 지적(F1~F4, F8, F9)의 처리 기록이 리포 어디에도 없음. 리뷰 원본이 세션에만 존재.
@@ -128,17 +142,17 @@
 
 ### ai-recsys
 
-#### T5 🔥 · BentoML 3-stage 영구화  [ai-recsys] [high] [open]  → **PR #83 (dev→main, OPEN)**
-- 문제: 실추천(3-stage)은 검증 완료됐으나 정식 통합 전. 현 prod는 EASE 폴백(score=0)이 기본. 영구화 PR #83 열림.
+#### T5 🔥 · BentoML 3-stage 영구화  [ai-recsys] [ops] [high] [done]  → **PR #83 (dev→main, MERGED)** · 검증완료 2026-07-08
+- 문제(해소): 실추천(3-stage)을 CI 재배포에도 유지되도록 정식 통합. **PR #83 병합 + 서버 검증까지 완료** — 현 prod는 EASE 폴백이 아니라 3-stage 실추천을 서빙 중.
 - 근거 앵커: PR #83 커밋 `20cd4e0` (ml_rec 2파일 fix, `docker-compose.prod.yml` bentoml, `deploy.yml` arm64 `rec-bentoml`, `deploy.sh` 아티팩트 preflight).
-- seam: **S3 (병합 전 서버 dirty 정리 필수)**.
+- seam: **S3 (병합 전 서버 dirty 정리 필수)** — 검증 시 이미 clean(HEAD `main@8ff19a2`), 아티팩트 4종 상주, `recsys-bentoml-1` healthy 확인.
 - scope 경계: **S2**(후보 스킵 유지), 기본 URL `bentoml:3000` 자동연결(backend depends_on 금지 — EASE 폴백 무중단).
-- 검증: 병합 후 `curl http://144.24.67.225/rec/recommend-from-steam` → `model_type: bentoml_3stage` + score>0.
+- 검증(통과, 2026-07-08): 공인 IP·localhost 양쪽 `curl .../rec/recommend-from-steam` → `model_type: bentoml_3stage` + score>0(0.78~0.71), health 200. 상세 로그 = Issue #90.
 - 참고: 미병합 시 EASE 폴백 유지가 정상(의도된 폴백).
 
 ### ci-cd / infra
 
-#### T7 · 백엔드 로컬 .env Doppler 업로드  [ci-cd/infra] [low] [open]
+#### T7 · 백엔드 로컬 .env Doppler 업로드  [ci-cd/infra] [ops] [low] [open]
 - 문제: 메인컴 `configs/backend/.env`가 Doppler에 없음(메인컴에만 존재). 핵심 키는 이미 `prd`에 있어 급하진 않음.
 - 근거: `doppler secrets upload configs/backend/.env -p tailorplay -c dev` (메인컴에서 1줄).
 - seam: —
@@ -175,7 +189,7 @@
 ---
 
 ## 부록 — 운영 참조 포인트
-- 서버: `ssh a1` (테일넷 전용, 공인 SSH 차단). ops 런북 = `~/dev/oci-ops/README.md` (리포 밖).
+- 서버: `ssh a1` (테일넷 전용, 공인 SSH 차단). **alias·키·호스트 등 구체 접속정보는 로컬 ssh config + 리포 밖 런북에만 둔다** (공개 리포이므로 미기재). ops 런북 = `~/dev/oci-ops/README.md` (리포 밖).
 - 시크릿: Doppler 프로젝트 `tailorplay` (`prd`=서버 .env 전체, `dev`=GCS_KEY_JSON). 복원 `doppler secrets download --no-file --format env -p tailorplay -c prd`.
 - 로컬 스택: `docker compose up -d db redis` → `docker compose up -d --no-deps backend frontend` (backend가 bentoml healthy 의존이라 `--no-deps` 필수). 테스트는 `docs/reactivation/HANDOFF.md §A` 치트시트.
 - 브랜치 전략: 유지보수도 `feature → dev → main` (main 직행 금지, dev 스테이징).
