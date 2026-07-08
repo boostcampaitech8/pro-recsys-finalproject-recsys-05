@@ -14,10 +14,30 @@
 
 ### 세션 진입 ritual
 1. `CLAUDE.md` 헌법(불변식) 확인.
-2. §4 Step 보드에서 현재 step, 또는 §3 백로그에서 대상 티켓 선택.
-3. 티켓이 걸친 **seam(§2)의 guard를 확인**.
+2. **대상 확보**:
+   - 기존 티켓 → §4 step / §3 백로그에서 선택.
+   - **신규 작업 → intake 게이트(아래)로 먼저 등록** — 곧장 실행 금지.
+3. 티켓이 걸친 **seam(§2)의 guard 확인**.
 4. 티켓을 `doing`으로 표시.
-5. 실행 → **검증** → 커밋 → `done`.
+5. 실행 → **검증** → **확장 DoD 체크(아래)** → 커밋 → `done`.
+6. 세션 종료 시 **sweep(아래)** 로 정합 확인.
+
+### intake 게이트 (신규 작업 진입 — front door · ADR-0004)
+세션 중 새 일이 생기면 **실행 전** 반드시 통과한다. 목적: durable(§3)↔live(Issues) 분리(ADR-0002)가 낳는 등록 누락(T9류 갭) 차단.
+- **threshold** — 관문 필수: 코드/인프라/prod 변경 · seam 접촉 · 2개+ 컴포넌트 횡단. 인라인 허용(로그만): 읽기전용 조사 · 문서 오타 · 단일파일 자명 수정.
+- **산출물(5)**: ① §3에 티켓 정의 추가 + ② GitHub Issue 생성(동시) → ③ `kind`(code/ops) 판정 → ④ 걸린 seam(§2) 확인 → ⑤ **step 배치**(§4 편입 또는 신규 개설) + **ADR 필요성 판정**(프로세스·아키텍처 급이면 ADR).
+- 산출물이 다 채워져야 `scoped`. 그 전엔 실행·위임 금지.
+
+### 확장 DoD (완결 정의 — back door · ADR-0004)
+`done` 전 5종 모두 만족:
+1. 작업 검증(pytest/tsc/curl/prod 관측).
+2. **§3 티켓 status = done** 갱신.
+3. **걸린 seam(§2) registry 갱신**(guard·사례 반영).
+4. **GitHub Issue close**(검증 로그 코멘트).
+5. **ADR 판단 완료**(신규 결정이면 ADR 추가, 아니면 티켓/이슈에 근거 기록).
+
+### 세션 종료 sweep (안전망 · ADR-0004)
+세션에서 건드린(생성·수정·close) 모든 Issue ↔ §3 정의가 **1:1** 인지 확인하고, 불일치(§3 없는 Issue 또는 그 반대)를 그 자리에서 메운다. intake를 놓쳐도 drift를 여기서 검출.
 
 ### 티켓 lifecycle
 `open`(문제만) → `scoped`(조사·요약 완료 = 위임 가능) → `doing`(위임 중) → `done`(검증 통과). 외부 의존/미결정은 `blocked`.
@@ -104,13 +124,13 @@
 | **S4** | Vercel rewrite ↔ FastAPI 307 | frontend × backend × ci-cd | `/rec`·`/chat`만 rewrite, 시큐어존·`/health`류 제외 | 절대URL 리다이렉트 함정 |
 | **S5** | GameCard nullable 계약 | frontend × backend | 프론트 `RecommendedGame`을 backend `GameCard`와 정합(전부 nullable, strict tsc가 안전망) | score/genres_kr/price null 런타임 크래시 |
 | **S6** | bge-m3 1024차원 | backend × ai-recsys | 임베딩 모델 교체 금지 | 차원 불일치 |
-| **S7** | Gemini 클라이언트 timeout | backend/chat | 신설 클라이언트에 timeout 필수(현 30s) | 과부하 모델 hang → 폴백 무의미 |
+| **S7** | Gemini 클라이언트 timeout | backend/chat | **폴백 포함 모든** Gemini 클라이언트에 timeout 필수(현 30s·max_retries=1) — 무료·유료(T9) 2개 클라이언트 공통 | 과부하 모델 hang → 폴백 무의미 |
 
 ---
 
 ## §3. 컴포넌트별 백로그 (티켓)
 
-> **라이브 이슈 매핑** (정본 status·진행은 GitHub Issues): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`. 아래는 티켓 **정의**(durable).
+> **라이브 이슈 매핑** (정본 status·진행은 GitHub Issues): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`. 아래는 티켓 **정의**(durable).
 
 ### backend
 > 불변식(가벼움): `Game.id`(내부 PK) ≠ `Game.app_id`(Steam) — 카드/조회는 app_id 기준. Pydantic v2. `game.schemas`가 게임 DTO 정본.
@@ -139,6 +159,23 @@
 - 근거 앵커: `backend/app/domains/chat/providers/gemini.py` (히스토리 직렬화부) — *scoping 필요*
 - seam: S7(timeout 유지).
 - 제안 방향: 도구 호출 메시지에 thought_signature 보존·재전송, 또는 우아 폴백 강화.
+
+#### T9 · Gemini 유료 키 폴백  [backend/chat] [code] [med] [done]  (intake 소급 · 2026-07-08)
+- 문제(해소): 무료 키 모델 체인 전부 실패 시 유료 키(`GEMINI_FALLBACK_API_KEY`)로 폴백. 무료 쿼터 소진(429) 대비.
+- 결정(설계 ⓐ): Pass1 무료키 [default+fallback 모델] → Pass2 유료키 default 1회(유료 쿼터 절약). Issue #96 · PR #97.
+- 근거 앵커: `backend/app/domains/chat/providers/gemini.py` `fallback_client`·`chat()` 2단 폴백.
+- seam: **S7**(폴백 포함 2 클라이언트 모두 timeout=30·retry=1).
+- 시크릿 배선(ops): 서버 루트 `.env` + Doppler prd에 유료 키(둘 다 HTTP 200 검증, value-safe).
+- step: 3(orchestration 안정화, T6와 인접).
+- 범위 한정(codex 리뷰 #96): 유료 폴백은 **에이전트/도구 경로(GeminiProvider) 한정** — llm-only·RAG(`bot.llm`=ChatOpenAI)는 미커버였고 **T11로 완결**.
+- 검증: 실행 컨테이너 `fallback_client` 반영 확인(에이전트 경로).
+
+#### T11 · Gemini 유료 폴백 전 채팅 경로 확장  [backend/chat] [code] [med] [done]  (codex 리뷰 후속 · 2026-07-08)
+- 문제(해소): T9 유료 폴백이 GeminiProvider(에이전트)만 커버 → llm-only·RAG(`bot.llm`=ChatOpenAI)는 무료 키 단일. codex `review`가 발견([P2], CONFIRMED).
+- 근거 앵커: `chatbot.py` `initialize()` `with_fallbacks` 체인에 유료 키 ChatOpenAI(default 모델) 추가, `main.py` `GEMINI_FALLBACK_API_KEY` 주입. Issue #101 · PR #102.
+- seam: **S7**(유료 ChatOpenAI도 timeout=30·retry=1).
+- step: 3.
+- 검증: 폴백 체인 [free,free,paid]·하위호환·중복방지 로직 통과; prod 부팅로그 `Fallback configured … + paid-key` 확인(배포 후).
 
 ### ai-recsys
 
@@ -171,6 +208,14 @@
 - 근거: `docs/PRD.md` 스텁. 코드·현행 서비스(챗 기반 Steam 추천) 역설계로 초안.
 - 제안: 현행 유즈케이스·범위·지표 정리 → 이후 티켓 정합성 체크 기준으로 사용.
 - seam: —
+
+#### T10 · 하네스 admission gate (intake·DoD·sweep)  [docs] [code] [med] [done]  (2026-07-08)
+- 문제(해소): T9 갭(Issue만 있고 §3 정의 없음)을 만든 워크플로 결함 — 진입점이 수동 포인터, 신규작업 intake 경로·확장 DoD·정합 sweep 부재.
+- 결정: **ADR-0004** — CLAUDE.md 진입점=admission gate, threshold, intake(front door)·확장 DoD(back door)·세션 sweep(안전망).
+- 근거 앵커: `docs/adr/0004-harness-admission-gate.md`, `CLAUDE.md` 진입점, `MAINTENANCE.md` §0.
+- seam: —
+- step: H(하네스 진화 — 신규).
+- 검증: 이 티켓 자체가 새 intake(front door)로 등록됨(Issue #99) + T9 갭 소급 패치가 새 DoD 첫 적용.
 
 ---
 
