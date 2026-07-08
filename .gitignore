@@ -43,3 +43,9 @@ log_tensorboard/
 ml_rec/candidates/
 # Claude Code 로컬 tooling
 .claude/
+
+# execplan run 산출물 — 커밋 금지 (T13/ADR-0005)
+.exec/
+# execplan 하네스 스키마는 커밋 대상 (전역 *.json 예외 · 코드 자산, 불변식 6 무관)
+!docs/execplan/_schemas/handoff.schema.json
+!docs/execplan/_schemas/findings.schema.json

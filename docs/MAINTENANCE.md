@@ -136,7 +136,7 @@
 
 ## §3. 컴포넌트별 백로그 (티켓)
 
-> **라이브 이슈 매핑** (정본 status·진행은 GitHub Issues): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`. 아래는 티켓 **정의**(durable).
+> **라이브 이슈 매핑** (정본 status·진행은 GitHub Issues): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104 · T13 (Issue 생성 예정). 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`. 아래는 티켓 **정의**(durable).
 
 ### backend
 > 불변식(가벼움): `Game.id`(내부 PK) ≠ `Game.app_id`(Steam) — 카드/조회는 app_id 기준. Pydantic v2. `game.schemas`가 게임 DTO 정본.
@@ -229,6 +229,17 @@
 - 근거 앵커: `MAINTENANCE.md` §0 자율 실행 경계. Issue #104.
 - seam: —
 - step: H(하네스 진화).
+
+#### T13 · codex exec 다단계 실행기 (execute.py)  [docs=하네스/tooling] [code] [med] [doing]  (intake 2026-07-08)
+- 문제: code 레인 위임이 수작업 — 다단계 티켓의 컨텍스트 이관·git/gh/verify가 대화형에 섞여 재현·감사·토큰효율 저하.
+- 결정: **ADR-0005** — `scripts/execute.py`가 `codex exec` 헤드리스로 step 실행. **이관=summary 재주입(B1)**,
+  **AI(codex exec·review)/CodeAct(git·gh·verify=0토큰) 분리**, self-repair K=2, step별 커밋→push→PR→교차리뷰(codex exec review + 클로드 판정).
+- 근거 앵커: `scripts/execute.py`, `docs/execplan/`(README·_schemas·T4), `docs/adr/0005-codex-exec-orchestration.md`.
+- seam: — (신규 tooling; 리포 코드만, prod 무영향)
+- scope 경계: 기존 티켓/seam/DoD 체계 소비 — 새 티켓 시스템 신설 금지. `.exec/`·`*.json`/`*.jsonl` 커밋 금지(불변식 6), 스키마 2종만 예외.
+- step: H(하네스 진화).
+- 검증: (1) `--dry-run` 결정론 프롬프트 조립 (2) T4 파일럿 1회 실측 — codex 헤드리스 동작·AI/CodeAct 토큰 분리 관측.
+- 파일럿: **T4**(루트 README 구조도, 최저위험 문서 티켓)를 execute.py 최초 실증 대상으로 사용.
 
 ---
 
