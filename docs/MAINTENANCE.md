@@ -130,7 +130,7 @@
 
 ## §3. 컴포넌트별 백로그 (티켓)
 
-> **라이브 이슈 매핑** (정본 status·진행은 GitHub Issues): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`. 아래는 티켓 **정의**(durable).
+> **라이브 이슈 매핑** (정본 status·진행은 GitHub Issues): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`. 아래는 티켓 **정의**(durable).
 
 ### backend
 > 불변식(가벼움): `Game.id`(내부 PK) ≠ `Game.app_id`(Steam) — 카드/조회는 app_id 기준. Pydantic v2. `game.schemas`가 게임 DTO 정본.
@@ -167,7 +167,15 @@
 - seam: **S7**(폴백 포함 2 클라이언트 모두 timeout=30·retry=1).
 - 시크릿 배선(ops): 서버 루트 `.env` + Doppler prd에 유료 키(둘 다 HTTP 200 검증, value-safe).
 - step: 3(orchestration 안정화, T6와 인접).
-- 검증: prod 채팅 llm-only 200 + 실행 컨테이너 `fallback_client` 반영 확인.
+- 범위 한정(codex 리뷰 #96): 유료 폴백은 **에이전트/도구 경로(GeminiProvider) 한정** — llm-only·RAG(`bot.llm`=ChatOpenAI)는 미커버였고 **T11로 완결**.
+- 검증: 실행 컨테이너 `fallback_client` 반영 확인(에이전트 경로).
+
+#### T11 · Gemini 유료 폴백 전 채팅 경로 확장  [backend/chat] [code] [med] [done]  (codex 리뷰 후속 · 2026-07-08)
+- 문제(해소): T9 유료 폴백이 GeminiProvider(에이전트)만 커버 → llm-only·RAG(`bot.llm`=ChatOpenAI)는 무료 키 단일. codex `review`가 발견([P2], CONFIRMED).
+- 근거 앵커: `chatbot.py` `initialize()` `with_fallbacks` 체인에 유료 키 ChatOpenAI(default 모델) 추가, `main.py` `GEMINI_FALLBACK_API_KEY` 주입. Issue #101 · PR #102.
+- seam: **S7**(유료 ChatOpenAI도 timeout=30·retry=1).
+- step: 3.
+- 검증: 폴백 체인 [free,free,paid]·하위호환·중복방지 로직 통과; prod 부팅로그 `Fallback configured … + paid-key` 확인(배포 후).
 
 ### ai-recsys
 
