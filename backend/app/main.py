@@ -144,6 +144,7 @@ async def lifespan(app: FastAPI):
         base_url=os.getenv("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai/",
         model_name=os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"),
         fallback_model=os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash,gemini-3.5-flash"),
+        fallback_api_key=os.getenv("GEMINI_FALLBACK_API_KEY"),
     )
     
     yield

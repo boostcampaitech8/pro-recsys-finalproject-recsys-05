@@ -32,6 +32,7 @@ class chatbot:
         base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/",
         model_name: str = "gemini-flash-lite-latest",
         fallback_model: Optional[str] = None,  # 주력 모델 실패 시 폴백 (콤마 구분 다중 지정 가능)
+        fallback_api_key: Optional[str] = None,  # (선택) 유료 키 — 무료 체인 소진 시 default 모델 재시도 (T11)
         temperature: float = 0.5,     # 추천 시스템은 할루시네이션 방지를 위해 낮게 설정 권장
         max_tokens: int = 1024,
         # collection_name: str = "steam_games_bge_m3",
@@ -76,26 +77,45 @@ class chatbot:
                 max_retries=1,
             )
 
-            # 주력 모델 실패(쿼터 초과 등) 시 폴백 모델들로 순서대로 자동 재시도
+            # 주력 모델 실패(쿼터 초과 등) 시 폴백 모델들로 순서대로 자동 재시도.
+            # 무료(메인) 키로 폴백 모델들 → (설정 시) 유료 키로 default 모델 1회 (T11, 무료 쿼터 소진 대비).
             fallback_models = [
                 m.strip() for m in (fallback_model or "").split(",")
                 if m.strip() and m.strip() != model_name
             ]
-            if fallback_models:
-                fallback_llms = [
+            fallback_llms = [
+                ChatOpenAI(
+                    base_url=base_url,
+                    api_key=api_key,
+                    model=fb,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    timeout=30,
+                    max_retries=1,
+                )
+                for fb in fallback_models
+            ]
+            # 유료(폴백) 키: 무료 체인 전부 실패 시 default 모델을 유료 키로 1회 더. seam S7: timeout 유지.
+            use_paid_fallback = bool(fallback_api_key) and fallback_api_key != api_key
+            if use_paid_fallback:
+                fallback_llms.append(
                     ChatOpenAI(
                         base_url=base_url,
-                        api_key=api_key,
-                        model=fb,
+                        api_key=fallback_api_key,
+                        model=model_name,
                         temperature=temperature,
                         max_tokens=max_tokens,
                         timeout=30,
                         max_retries=1,
                     )
-                    for fb in fallback_models
-                ]
+                )
+            if fallback_llms:
                 self.llm = self.llm.with_fallbacks(fallback_llms)
-                logger.info(f"🔁 Fallback models configured: {fallback_models}")
+                logger.info(
+                    "🔁 Fallback configured: models=%s%s",
+                    fallback_models,
+                    " + paid-key" if use_paid_fallback else "",
+                )
 
             # 5. Prompt Template 설정
             self._setup_prompt()
