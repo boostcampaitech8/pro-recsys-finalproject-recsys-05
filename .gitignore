@@ -38,3 +38,8 @@ log_tensorboard/
 .vercel/
 # 전역 *.json 규칙(16행) 예외 — Vercel 라우팅 설정은 커밋 대상
 !frontend/vercel.json
+
+# 데이터/모델 아티팩트 — 커밋 금지 (CLAUDE.md 헌법 불변식 6)
+ml_rec/candidates/
+# Claude Code 로컬 tooling
+.claude/
