@@ -42,8 +42,20 @@ executor: claude-session   # execute.py 아님 — 세션 컨텍스트(결정 D1
 
 **[실행 요약]**
 - PR: #118 (feature/spec-governance → dev). 이후 dev → main 승격 PR로 발효.
-- 교차 리뷰: codex 서브에이전트 위임 — findings는 아래 메모로만 기록(즉시 수정 금지, 사용자 판정 대기 · SPEC §4.7).
+- 교차 리뷰: codex 헤드리스(task-mrd7l7cw-2xqnnm, 2026-07-09) 완료 — findings 7건(high 0 · med 4 · low 3), 아래 메모로만 기록(즉시 수정 금지, 사용자 판정 대기 · SPEC §4.7). 클로드 셀프 체크가 F1을 독립 재현(교차 확인됨).
 
 ## [교차 리뷰 메모] (미수정 — 사용자 판정 대기)
 
-> step5 리뷰 완료 후 기재.
+codex verdict: *"high 블로커 없음, 단 med 4건은 T14 거버넌스 취지를 흔들므로 병합 전 수정 권고."* 클로드 판정 병기:
+
+| # | sev | 위치 | 발견 | 클로드 판정 | 수정 후보 |
+|---|---|---|---|---|---|
+| F1 | med | `docs/adr/0003:12,16`·`0004:21` | Accepted ADR들이 사라진 `MAINTENANCE §0`(및 구 §2 seam)을 참조 | **CONFIRMED** (셀프 체크로 독립 재현). 단 "ADR 본문 재작성 금지" 원칙과 충돌 | 본문 불변 + 상태줄에 1줄 주석 "(구 §0/§2 → 현행 SPEC §4 · MAINTENANCE §1, ADR-0006)" |
+| F2 | low | `docs/execplan/T4/task.md:24` | 컴포넌트 지도를 `MAINTENANCE §1`로 지시(현행 §1=seam, 지도=SPEC §2) | CONFIRMED | 참조 1줄 교체 |
+| F3 | low | `docs/execplan/README.md:38` | `seam_guards`가 "seam(§2)" 지시(현행 seam=§1) | CONFIRMED | 참조 교체 |
+| F4 | med | `docs/execplan/README.md:32` | `issue` 키 설명이 "GitHub Issue 번호 (live status)" — ADR-0006(status 정본=MAINTENANCE §3)과 모순 | CONFIRMED | "(미러 — status 정본=MAINTENANCE §3)"로 교체 |
+| F5 | med | `docs/SPEC.md` §4.4 | 구 §0의 "ops 작업 중 코드 수정 필요 → code 서브티켓 분리" 규칙이 이관에서 누락(내용 손실) | **CONFIRMED — 실질 손실, 우선 수정 권고** | §4.4 ops 레인에 1줄 복원 |
+| F6 | med | `docs/adr/0005:39`·`execplan/README.md:68`·`findings.schema.json:4` | ADR-0005 fix-forward 서술이 SPEC §4.7(메모·사용자 판정)과 충돌 | 부분 완화됨(SPEC §4.7에 한정 조항 기작성). ADR 본문 잔존 서술은 CONFIRMED drift | ADR-0005 상태줄 주석 + README:68·schema description 문구 정합화 |
+| F7 | low | `docs/execplan/T14/task.md:25` | "merge-base가 직전 dev tip(aad8ace)" 표현 — step1 이후 dev tip은 3a0f6ef라 모호 | PLAUSIBLE(표현 문제 — aad8ace는 step1 역병합 *이전*의 dev tip. 내용상 참, 문구 모호) | "(step1 이전 dev tip)"으로 명확화 |
+
+처리 방침: 사용자 판정 후 반영. F5(내용 손실) > F1·F4·F6(정합 drift) > F2·F3·F7(참조/문구) 순 권고.
