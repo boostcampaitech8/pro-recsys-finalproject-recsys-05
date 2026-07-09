@@ -218,12 +218,12 @@
 - 검증: (1) `--dry-run` 결정론 프롬프트 조립 (2) T4 파일럿 1회 실측 — codex 헤드리스 동작·AI/CodeAct 토큰 분리 관측.
 - 이력: 2026-07-09 `feature/T13-execute-py` → `feature/spec-governance` 흡수(T14 경유 main 승격).
 
-#### T14 · 문서 거버넌스 개편 — SPEC 단일 진입  [docs] [code] [high] [doing]  (**ADR-0006** · 2026-07-09)
+#### T14 · 문서 거버넌스 개편 — SPEC 단일 진입  [docs] [code] [high] [done]  (**ADR-0006** · 2026-07-09)  → main 도달 `4eb606a`, ADR-0006 발효
 - 문제: 거버넌스 문서 브랜치 3분열(main=T11·ADR-0004 stale / dev=T12 / feature=T13·ADR-0005) — Issue가 가리키는 문서가 main에서 404, 진입 문서 이중화(CLAUDE.md 헌법+MAINTENANCE SSOT).
 - 결정: ADR-0006 — `docs/SPEC.md` 신설(단일 진입)·CLAUDE.md 라우터화·이 문서 보드화·T12/T13/ADR-0005 main 승격·docs main 직행(발효=main 도달 후). + ADR-0007(LLM 통신 계층 결정 기록).
 - 근거 앵커: `docs/SPEC.md` · `CLAUDE.md` · `docs/adr/0006-doc-governance-spec.md`. Issue #110.
 - seam: — (문서만)
-- 검증: 문서 상호참조 무결(각 문서가 가리키는 섹션·파일 실존) + codex 교차 리뷰 메모(`docs/execplan/T14/`).
+- 검증(통과): codex 교차 리뷰 findings 7건 → 사용자 판정 2026-07-09 전건 반영(커밋 `c6c0eac`) → PR #118 dev 병합 → PR #119 dev→main 승격(`4eb606a`), main push CI 전 구간 green + prod 관측(`/health/db` 200·Vercel 200·`bentoml_3stage` score 0.78).
 - step: 5. 실행 기록: `docs/execplan/T14/task.md`.
 
 ---
