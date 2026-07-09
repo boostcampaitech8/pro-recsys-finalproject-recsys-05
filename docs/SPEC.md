@@ -66,7 +66,7 @@
 ### 4.4 티켓 lifecycle · 실행 레인 (ADR-0003)
 `open` → `scoped`(조사·요약 완료=위임 가능) → `doing` → `done`(검증 통과). 외부 의존/미결정은 `blocked`. **status 정본 = MAINTENANCE §3** (ADR-0006; Issues는 미러).
 - **`code`** — 리포 코드/설정 변경. 실행 = codex 위임 기본: 단일 step은 `[위임 요약]` 블록(MAINTENANCE §2), **다단계는 `scripts/execute.py`**(ADR-0005 — codex exec 헤드리스, summary 재주입, AI/CodeAct 토큰 분리).
-- **`ops`** — live 인프라·검증 액션(서버·배포·prod 조사), 리포 diff 없음. 실행 = 클로드 직접(`ssh a1`·docker·`gh`·`curl`·doppler). **read-only 선실측 → mutate**, 실행 로그는 Issue에, done 게이트 = 관측된 prod 동작.
+- **`ops`** — live 인프라·검증 액션(서버·배포·prod 조사), 리포 diff 없음. 실행 = 클로드 직접(`ssh a1`·docker·`gh`·`curl`·doppler). **read-only 선실측 → mutate**, 실행 로그는 Issue에, done 게이트 = 관측된 prod 동작. **경계 규칙**: ops 작업 중 리포 코드 수정이 필요하면 `code` 서브티켓으로 분리해 code 레인으로(ADR-0003).
 
 ### 4.5 DoD (확장 · ADR-0004 + 불변식 8)
 `done` 전 전부 만족: ① 작업 검증(**테스트 포함** — test-with, 버그는 실패 재현 선작성) ② MAINTENANCE §3 status 갱신 ③ 걸린 seam registry 갱신 ④ Issue close(검증 로그 코멘트) ⑤ ADR 판단(신규 결정이면 ADR 추가) ⑥ 의존 티켓이 있으면 **인계 요약(4.6)**.

@@ -1,6 +1,6 @@
 # ADR-0005 · codex exec 다단계 실행기 (execute.py)
 
-- **상태**: Accepted (2026-07-08)
+- **상태**: Accepted (2026-07-08) · *정련(T14, 2026-07-09): 아래 결정 7의 "교차 리뷰 → fix-forward"는 **run 내부 verify 게이트(self-repair K=2)에 한정**한다. 교차 리뷰 findings 자체는 즉시 수정하지 않고 execplan 메모로 기록해 **사용자 판정 후** 반영한다 (SPEC §4.7).*
 - **맥락**: code 레인(ADR-0003)의 실행은 "`scoped` → codex-rescue 위임 → diff 리뷰 → 커밋"을
   **수작업**으로 돌렸다. 여러 step으로 이어지는 티켓은 매번 손으로 컨텍스트를 물려줘야 했고,
   기계적 행동(git/gh/verify)까지 대화형 위임에 섞여 재현·감사·토큰 효율이 떨어졌다.

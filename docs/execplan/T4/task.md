@@ -21,6 +21,6 @@ dont_touch:
 권위 있는 실제 구조 기준:
 - `ml_rec/scripts/{preprocessing, stage1_retrieval, stage2_ranking, stage3_scoring, stage4_serving}`
   (README의 `stage1_ease.py`·`stage2_dcn.py` 등 평면 나열은 구식)
-- 컴포넌트 지도는 `docs/MAINTENANCE.md` §1 을 정본으로 참조.
+- 컴포넌트 지도(5축)는 `docs/SPEC.md` §2를 정본으로 참조.
 
 이 task는 execute.py 파일럿(T13)의 최저위험 실증 대상이다.
