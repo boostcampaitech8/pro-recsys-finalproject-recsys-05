@@ -1,6 +1,6 @@
 # ADR-0004 · 하네스 admission gate — intake·확장 DoD·세션 sweep
 
-- **상태**: Accepted (2026-07-08)
+- **상태**: Accepted (2026-07-08) · *참조 주석(T14, 2026-07-09): 본문의 `MAINTENANCE §0`은 문서 재편 전 위치 — 현행 정본은 프로토콜=SPEC §4 (ADR-0006). 결정 내용은 불변.*
 - **맥락**: T9(Gemini 유료키 폴백, Issue #96)가 GitHub Issue·PR·코드로만 존재하고 `MAINTENANCE.md` §3 durable 정의가 없는 갭이 발생. 개별 실수가 아니라 워크플로 결함의 증상이다:
   1. CLAUDE.md 진입점이 **수동 포인터** — 실행 전 §0 통과가 강제되지 않음.
   2. §0 ritual이 **"기존 티켓 선택"형** — 세션 중 생긴 신규 작업의 조사→step→티켓화 경로 부재.

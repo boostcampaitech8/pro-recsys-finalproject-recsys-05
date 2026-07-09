@@ -38,3 +38,14 @@ log_tensorboard/
 .vercel/
 # 전역 *.json 규칙(16행) 예외 — Vercel 라우팅 설정은 커밋 대상
 !frontend/vercel.json
+
+# 데이터/모델 아티팩트 — 커밋 금지 (CLAUDE.md 헌법 불변식 6)
+ml_rec/candidates/
+# Claude Code 로컬 tooling
+.claude/
+
+# execplan run 산출물 — 커밋 금지 (T13/ADR-0005)
+.exec/
+# execplan 하네스 스키마는 커밋 대상 (전역 *.json 예외 · 코드 자산, 불변식 6 무관)
+!docs/execplan/_schemas/handoff.schema.json
+!docs/execplan/_schemas/findings.schema.json
