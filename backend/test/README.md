@@ -1,42 +1,49 @@
 # Backend Testing Guide
 
-이 디렉토리는 백엔드 서비스의 기능 및 통합 테스트 코드를 포함합니다.
+이 디렉토리는 백엔드 서비스의 단위·통합 테스트 코드를 포함합니다.
+정본 규칙은 `docs/SPEC.md` §6(테스트 규칙)입니다.
 
-## 1. 테스트 환경 (Test Environment)
+## 1. 마커 체계 (T16 · SPEC §6)
 
-테스트는 `pgvector` 확장이 설치된 PostgreSQL과 Redis가 필요합니다.
+모든 테스트는 세 마커 중 하나로 분류됩니다 (`pyproject.toml [tool.pytest.ini_options]`에 등록, `--strict-markers`).
 
-### CI/CD 환경 (GitHub Actions)
+| 마커 | 의미 | 외부 의존 |
+|---|---|---|
+| `unit` | 외부 의존 0 — DB·Redis·네트워크 없이 실행 (기본 러너) | 없음 (스텁·fake httpx·monkeypatch) |
+| `integration` | 실제 DB·Redis 필요 | docker compose 선행 |
+| `manual` | 실제 외부 API 호출 — 기본 skip, env 가드로만 실행 | 실 API 키 |
 
-- `deploy.yml`에 정의된 `pgvector/pgvector:pg15` 및 `redis:alpine` 서비스 컨테이너를 자동으로 사용하여 격리된 환경에서 테스트합니다.
-- 별도의 설정 없이 PR이나 Push 시 자동으로 실행됩니다.
+파일 상단에 `pytestmark = pytest.mark.<marker>`로 부착합니다.
 
-### 로컬 개발 환경 (Local)
-
-로컬에서 테스트를 실행하려면 Docker Compose로 DB와 Redis를 먼저 실행해야 합니다.
+## 2. 실행 방법
 
 ```bash
-# 1. 개발용 DB 및 Redis 실행
-docker compose up -d db redis
-
-# 2. 테스트 실행 (backend 디렉토리에서)
-# 주의: 'ModuleNotFoundError: No module named app' 에러 방지를 위해 python -m 모드로 실행해야 합니다.
 cd backend
-uv run python -m pytest test/
+
+# 단위 테스트 — DB/Redis 없이 실행 (가장 빠름, CI 기본 게이트)
+uv run pytest -m unit
+
+# 통합 테스트 — compose 선행 필요
+docker compose up -d db redis
+uv run pytest -m integration
+
+# 전체(단위+통합)
+uv run pytest -m "unit or integration"
 ```
 
-### 특정 테스트 파일 실행 예시
+> `manual` 테스트는 `-m manual` + 해당 env 가드(`RUN_CLOVA_TEST=1`, `RUN_MANUAL_USER_FLOW=1`)를
+> 함께 지정해야 실행됩니다. 기본 러너에서는 선택되지 않습니다.
 
-```bash
-uv run python -m pytest test/domains/game/test_game_flow.py
-```
+## 3. 격리 (conftest.py)
 
-## 2. 테스트 파일 구조
+- DB fixture(`db`)는 **autouse가 아닙니다** — `integration` 테스트가 명시적으로 요청할 때만
+  실제 커넥션이 열립니다. 따라서 `-m unit`은 DB 설정 없이 실행됩니다.
+- `db`는 **트랜잭션 롤백**으로 테스트 간 격리합니다: 스키마는 커밋해 영속화하고,
+  테스트가 만든 데이터(앱 코드의 `commit()` 포함)는 세이브포인트에 갇혀 종료 시 롤백됩니다.
+- `.env`가 없는 개발 머신에서도 단위 테스트가 import되도록, conftest가 실제 `.env`를
+  우선 존중하고 없을 때만 더미 `DATABASE_URL`로 폴백합니다(더미로는 연결하지 않음).
 
-- `test_services.py`: DB(PostgreSQL) 및 Redis 연결 테스트.
-- `test_gcs.py`: Google Cloud Storage 연동 테스트. (실제 요청을 보내므로 GCS 키 필요)
+## 4. CI/CD
 
-## 3. 주의 사항
-
-- `test_gcs.py`는 실제 클라우드 리소스를 사용할 수 있으므로, 로컬 테스트 시 `.env`에 `GCS_KEY_BASE64`가 올바르게 설정되어 있는지 확인하세요.
-- CI 환경에서는 `GCS_KEY_BASE64`가 Secrets로 주입되지 않는 한 GCS 테스트는 실패할 수 있으니 `pytest.mark.skip` 처리가 필요할 수 있습니다.
+- `.github/workflows/deploy.yml`이 `pgvector/pgvector:pg15`·`redis:alpine` 서비스 컨테이너로
+  격리 환경을 구성해 PR·Push 시 자동 실행합니다.

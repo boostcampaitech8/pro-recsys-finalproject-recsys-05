@@ -6,6 +6,8 @@ from app.domains.user.service import UserService
 from app.domains.user.schemas import UserCreate
 from app.core.logger import logger
 
+pytestmark = pytest.mark.integration
+
 # pytest-asyncio가 비동기 테스트를 발견하도록 마킹
 @pytest.mark.asyncio
 async def test_user_flow(db):

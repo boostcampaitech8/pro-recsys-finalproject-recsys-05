@@ -60,3 +60,17 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+# backend/를 import 루트로 추가해 `app`·`scripts`가 보이게 한다
+# (기존 `python -m pytest` 우회를 대체).
+pythonpath = ["."]
+asyncio_mode = "auto"
+# 마커 체계 (T16 · SPEC §6): 미등록 마커 경고를 에러로 승격해 오타를 차단한다.
+addopts = "--strict-markers"
+markers = [
+    "unit: 외부 의존 0 — DB·Redis·네트워크 없이 실행 (기본 러너)",
+    "integration: DB·Redis 등 실제 인프라 필요 (docker compose 선행)",
+    "manual: 실제 외부 API 호출 — 기본 skip, env 가드로만 실행",
+]

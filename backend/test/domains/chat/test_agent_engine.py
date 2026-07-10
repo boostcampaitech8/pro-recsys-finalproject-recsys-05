@@ -10,6 +10,8 @@ import pytest
 from app.domains.chat.agent.engine import AgentEngine
 from app.domains.chat.providers.base import LLMResponse, ToolCallRequest
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(scope="session", autouse=True)
 def prepare_database():

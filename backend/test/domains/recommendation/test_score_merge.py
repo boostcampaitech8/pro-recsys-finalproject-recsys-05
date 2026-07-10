@@ -10,6 +10,8 @@ from app.domains.recommendation.integrated_service import (
     IntegratedRecommendationService,
 )
 
+pytestmark = pytest.mark.unit
+
 
 class FakeGame:
     def __init__(self, app_id, name):

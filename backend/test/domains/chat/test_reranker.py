@@ -4,6 +4,8 @@ import pytest
 from app.domains.chat import reranker as reranker_module
 from app.domains.chat.reranker import ClovaReranker
 
+pytestmark = pytest.mark.unit
+
 
 class FakeResponse:
     def __init__(self, payload):

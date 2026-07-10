@@ -11,6 +11,8 @@ from app.domains.chat.orchestrator import SteamBotOrchestrator
 from app.domains.chat.providers.base import LLMResponse
 from app.domains.chat.providers.clova import ClovaProvider
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(scope="session", autouse=True)
 def prepare_database():

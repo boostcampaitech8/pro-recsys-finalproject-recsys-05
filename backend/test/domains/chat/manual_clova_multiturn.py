@@ -4,6 +4,8 @@ import pytest
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage
 
+pytestmark = pytest.mark.manual
+
 
 @pytest.mark.asyncio
 async def test_clova_multiturn_smoke():

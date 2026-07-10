@@ -5,6 +5,12 @@ from unittest.mock import AsyncMock, MagicMock
 from app.domains.chat import services
 from app.domains.chat.schemas import MessageResponse
 
+pytestmark = pytest.mark.manual
+
+@pytest.mark.skipif(
+    os.getenv("RUN_MANUAL_USER_FLOW") != "1",
+    reason="Set RUN_MANUAL_USER_FLOW=1 to run this manual test.",
+)
 @pytest.mark.asyncio
 async def test_manual_user_flow_logic(db):
     """
