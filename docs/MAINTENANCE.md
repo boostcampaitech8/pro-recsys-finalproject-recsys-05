@@ -58,7 +58,7 @@
 
 ## §3. 컴포넌트별 백로그 (티켓)
 
-> **status 정본 = 이 문서** (ADR-0006). 라이브 이슈 매핑(미러): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104 · T13 #109 · **T14 #110 · T15 #111 · T16 #112 · T17 #113 · T18 #114 · T19 #115 · T20 #116 · T21 #117**. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`.
+> **status 정본 = 이 문서** (ADR-0006). 라이브 이슈 매핑(미러): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104 · T13 #109 · **T14 #110 · T15 #111 · T16 #112 · T17 #113 · T18 #114 · T19 #115 · T20 #116 · T21 #117 · T22 #121 · T23 #120 · T24 #122 · T25 #123 · T26 #124 · T27 #125 · T28 #126**. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`.
 
 ### backend
 > 불변식(가벼움): `Game.id`(내부 PK) ≠ `Game.app_id`(Steam) — 카드/조회는 app_id 기준. Pydantic v2. `game.schemas`가 게임 DTO 정본.
@@ -147,6 +147,25 @@
 - 검증(통과, 2026-07-08): 공인 IP·localhost 양쪽 `curl .../rec/recommend-from-steam` → `model_type: bentoml_3stage` + score>0(0.78~0.71), health 200. 상세 로그 = Issue #90.
 - 참고: 미병합 시 EASE 폴백 유지가 정상(의도된 폴백).
 
+#### T28 · PreferenceSpec 파서 연구 — 한국어 취향·제약 구조화 벤치마크  [backend/chat+ai-recsys] [code] [med] [scoped]  (Issue #126 · 2026-07-10)
+- 문제: 개인화 추천 경로는 사용자 발화의 취향·제약을 추천 모델 입력으로 전달하지 않는다. `IntentAnalysis`는 `intent + keywords`만 추출하고, RECOMMENDATION 경로의 도구 입력은 `top_k`·`steam_id`뿐이라 가격·장르·분위기·제외 조건이 조용히 유실될 수 있다.
+- 근거 앵커(기준 SHA `78007d8`): `backend/app/domains/chat/orchestrator.py:109-112,395-425` · `backend/app/domains/chat/tools/tool_recommand.py:28-42` · SEARCH 전용 필터 `backend/app/domains/chat/tools/tool_search.py:206-257`.
+- 연구 가설: hard-constraint slot micro-F1 ≥ 0.95 · 전체 slot micro-F1 ≥ 0.90 · 부정/범위/충돌/멀티턴 조건 자동 유실 0건 · 모호한 필수 조건은 `needs_clarification`으로 표면화.
+- 제안 방향: Pydantic `PreferenceSpec`(hard/soft/meta) 계약 + 한국어 단일턴·멀티턴 200+ fixture + 외부 의존 0 parser/metric benchmark + `docs/evolution/` 실패 taxonomy.
+- seam: **S7 인접, 변경 없음** — 신규 LLM 클라이언트 생성 금지, 기존 provider/통신 어댑터만 사용하고 timeout·retry·폴백 불변. S2·S3·S6 무접촉.
+- scope 경계: 개인화 추천 도구·IntegratedRecommendationService·BentoML 실제 배선, 후보 fusion, 모델 재학습/교체, 프로덕션 A/B 제외. 현행 응답 스키마와 EASE 폴백 불변.
+- 검증: DB·Redis·실 API 없이 `cd backend && uv run pytest test/domains/chat/test_preference_parser.py -q` green · benchmark case/분포 assertion · schema round-trip/malformed JSON/부정/충돌/멀티턴 회귀 · `git diff --check`.
+- 수용 기준: 문서/코드의 필드 의미·hard/soft·fallback 규칙 일치, seed 고정 재현, 가설 임계치 판정과 미달 failure taxonomy 기록, 프로덕션 추천 결과 무변경, test-with·교차리뷰 포함 DoD.
+- intake 판정: kind=`code` · status=`scoped` · step=**E1(recsys evolution)** · ADR 불필요(연구 계약/벤치마크; 프로덕션 하이브리드 배선은 후속 ADR 판정) · **H2(T22~T27) 완료 후 구현**.
+
+  **[위임 요약] T28 (기준 SHA: `78007d8`)**
+  목표: 한국어 추천 질의를 손실 없이 구조화하는 `PreferenceSpec` 계약과 재현 가능한 parser benchmark를 만든다.
+  컨텍스트: 현재 개인화 도구는 Steam 이력과 `top_k`만 소비해 발화의 명시 조건을 모델에 전달하지 못한다. 이 티켓은 production wiring 전 parser baseline만 확립한다.
+  앵커: `orchestrator.py:109-112,395-425` · `tool_recommand.py:28-42` · `tool_search.py:206-257`.
+  지켜야 할 seam guard: S7(기존 provider/timeout/retry/fallback 유지), S2·S3·S6 무접촉.
+  건드리지 말 것: recommendation/BentoML 서빙·모델/아티팩트·후보 fusion·응답 계약.
+  수용 기준 / 검증: 위 metric 임계치 + 외부 의존 0 pytest + 문서 참조·diff check.
+
 ### frontend
 
 #### T20 · frontend·ml 테스트 러너 도입  [frontend+ai-recsys] [code] [low] [open]  (SPEC §6 · 2026-07-09)
@@ -226,14 +245,53 @@
 - 검증: 문서 상호참조 무결(각 문서가 가리키는 섹션·파일 실존) + codex 교차 리뷰 메모(`docs/execplan/T14/`).
 - step: 5. 실행 기록: `docs/execplan/T14/task.md`.
 
+#### T22 · Codex 저장소 지침 어댑터 — AGENTS.md  [docs=하네스/tooling] [code] [med] [doing]  (Issue #121 · 2026-07-10)
+- 문제: Codex CLI가 `CLAUDE.md`를 자동 로드하지 않아 fresh `codex exec`가 SPEC 불변식·seam·lifecycle을 누락할 수 있다.
+- 제안 방향: 루트 `AGENTS.md`를 SPEC/MAINTENANCE로 라우팅하는 얇은 어댑터로 추가한다.
+- scope 경계: 새 정본·모델 정책·실행기 변경 금지. 제품 코드·배포 설정 무접촉.
+- 검증: `codex debug prompt-input "probe"`에 저장소 지침 포함 + 참조 무결 + 문서 diff만 존재.
+- 수용 기준: 대화형/헤드리스 Codex가 동일한 저장소 계약을 자동 수신. step: **H2(최우선)**.
+
+#### T23 · execute.py hard failure gate·verify 계약  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #120 · 2026-07-10)
+- 문제: 실패 run이 정상 종료코드로 보일 수 있고 빈 verify가 성공 처리된다.
+- 제안 방향: 전 오류 non-zero, code verify 필수, timeout/gh/git rc 처리, 잘못된 `--from` 즉시 실패.
+- scope 경계: handoff=T24, resume=T25, review 판정=T26으로 분리.
+- 검증: fake subprocess 기반 실패 경로 단위 테스트. 의존: T22. step: **H2(최우선)**.
+
+#### T24 · deterministic manifest + semantic handoff 분리  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #122 · 2026-07-10)
+- 문제: changed files·step done·검증 결과가 모델 자기보고여서 실제 diff와 달라도 다음 step에 사실처럼 주입될 수 있다.
+- 제안 방향: 하네스 manifest(SHA·hash·diff·verify 증거)와 모델 semantic handoff(결정·위험·선행조건)를 분리하고 scope 경계를 기계 검증한다.
+- scope 경계: retry/resume=T25, findings=T26, model=T27.
+- 검증: claim/diff 불일치·schema 누락·dont_touch 침범·handoff snapshot 테스트. 의존: T23. step: **H2(최우선)**.
+
+#### T25 · execute.py attempt/resume 상태기계·멱등성  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #123 · 2026-07-10)
+- 문제: retry 산출물 덮어쓰기와 무검증 최신-run 선택으로 stale/wrong-branch handoff를 이어받을 수 있다.
+- 제안 방향: attempt 격리·원자 상태 기록·task hash/branch/base/SHA/schema 호환 검사·동시 실행 잠금.
+- 검증: 중단 재개·stale summary·다른 branch/base·task 변경·동시 run·중복 PR 방지 테스트.
+- 의존: T24. step: **H2(최우선)**.
+
+#### T26 · 교차리뷰 closed loop  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #124 · 2026-07-10)
+- 문제: review rc/verdict가 완료를 막지 않고 findings가 `.exec/`에만 남아 Claude/사용자 판정 흐름이 닫히지 않는다.
+- 제안 방향: draft PR → Codex findings → Claude adjudication → 공유 가능한 기록 → 사용자 판정 → ready/done 상태기계.
+- scope 경계: findings 자동 수정 금지(SPEC §4.7), 모델 정책=T27.
+- 검증: approve/request_changes/error/timeout/malformed/user-pending 상태 테스트. 의존: T23, T24. step: **H2(최우선)**.
+
+#### T27 · phase/risk 모델·reasoning effort 라우팅·관측성  [docs=하네스/tooling+ci-cd] [code] [med] [open]  (Issue #125 · 2026-07-10)
+- 문제: 개인 전역 config를 상속해 모든 step/review가 Sol xhigh로 실행되며 비용·지연·재현성이 불안정하다.
+- 제안 방향: Luna/Terra/Sol과 low~xhigh를 phase/risk로 결정하고 CLI override·escalation·review 별도 설정을 manifest에 기록한다.
+- scope 경계: 모델 slug를 실행기 전역에 산재시키지 않고 정책으로 캡슐화. provider 마이그레이션 제외.
+- 검증: 라우팅 command snapshot·escalation·JSONL usage parser 테스트. 의존: T24, T26. step: **H2(최우선)**.
+
 ---
 
 ## §4. Step 보드 (정본 · ADR-0006)
 
-> 순서 = risk·severity 우선, 의존 선행. step done 게이트 = 소속 티켓 전부 done + 통합 검증 통과.
+> 순서 = risk·severity 우선, 의존 선행. step done 게이트 = 소속 티켓 전부 done + 통합 검증 통과. **H2는 다른 미착수 구현보다 먼저 완료하며, H2 완료 전 `execute.py` 완전자동 실행은 admission하지 않는다.**
 
 | Step | 목표 | 티켓 | 통합 검증 게이트 | 상태 |
 |---|---|---|---|---|
+| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22 doing** |
+| **E1** | recsys 진화 — PreferenceSpec 파서 baseline | T28 | 200+ 한국어 fixture + hard slot F1≥0.95 + 전체 slot F1≥0.90 + 외부 의존 0 | scoped · H2 이후 |
 | **1** | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) | T5 done · T7 잔여 |
 | **2** | 백엔드 견고성 | T2, T1 | pytest green | T2 done · T1 잔여 |
 | **3** | orchestration 안정화 | T6 (T9·T11 done) | 에이전트 경로 반복 호출 무실패 | 진행 전 |

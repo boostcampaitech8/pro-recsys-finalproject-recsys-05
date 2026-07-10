@@ -107,7 +107,7 @@
 
 ---
 
-## §7 이행 로드맵 (2026-07-09 등록 · 정의 정본 = MAINTENANCE §3)
+## §7 이행 로드맵 (2026-07-09 등록 · 2026-07-10 H2 확장 · 정의 정본 = MAINTENANCE §3)
 
 | 티켓 | Issue | 내용 | 의존 |
 |---|---|---|---|
@@ -119,5 +119,12 @@
 | **T19** Langfuse 배선 | #115 | cloud free tier, 어댑터 관문 1곳 | T18 |
 | **T20** frontend·ml 러너 | #116 | vitest·ml pytest 골격 | T17 |
 | **T21** *(후속)* infra/ ops 통합 | #117 | compose·nginx·deploy 집결 — seam S1·S3, 배포 검증 필수 | 안정화 후 |
+| **T22** Codex 지침 어댑터 | #121 | 루트 AGENTS.md → SPEC/MAINTENANCE 라우팅 | — |
+| **T23** 실행 hard gate | #120 | 실패 non-zero · verify 필수 · timeout/gh/git rc 계약 | T22 |
+| **T24** handoff 진실성 | #122 | deterministic manifest + semantic handoff · diff/scope 검증 | T23 |
+| **T25** attempt/resume 상태기계 | #123 | attempt 격리 · 호환 resume · 멱등성 | T24 |
+| **T26** 교차리뷰 closed loop | #124 | Codex findings · Claude 판정 · 사용자 게이트 | T23, T24 |
+| **T27** 모델/effort 라우팅 | #125 | phase/risk 모델 정책 · 명시적 CLI override · usage 관측 | T24, T26 |
+| **T28** PreferenceSpec 파서 연구 | #126 | 한국어 취향·제약 구조화 계약·benchmark · production wiring 제외 | H2 완료 후 |
 
-**실행 순서**: T14 → (T15 · T16 · T17 병행 가능) → T18 → T19. T20은 T17 후. T21은 안정화 후 별도 승인. step 배치 = MAINTENANCE §4 (step 5·6·7·8).
+**실행 순서**: **H2 최우선: T22 → T23 → T24 → (T25 · T26) → T27. H2 완료 전 `execute.py` 완전자동 실행을 admission하지 않는다.** T28(E1)은 H2 이후 parser baseline만 수행한다. 그 뒤 T15 · T16 · T17을 진행하고, T18 → T19로 잇는다. T20은 T17 후. T21은 안정화 후 별도 승인. step 배치 = MAINTENANCE §4.
