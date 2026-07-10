@@ -45,5 +45,7 @@ uv run pytest -m "unit or integration"
 
 ## 4. CI/CD
 
-- `.github/workflows/deploy.yml`이 `pgvector/pgvector:pg15`·`redis:alpine` 서비스 컨테이너로
-  격리 환경을 구성해 PR·Push 시 자동 실행합니다.
+`.github/workflows/deploy.yml`이 마커별 **2단계**로 실행합니다 (PR·Push 자동):
+
+1. `pytest -m unit` — 서비스 없이 빠른 게이트.
+2. `pytest -m integration` — `pgvector/pgvector:pg15`·`redis:alpine` 서비스 컨테이너 위에서.

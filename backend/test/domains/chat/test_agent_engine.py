@@ -13,11 +13,6 @@ from app.domains.chat.providers.base import LLMResponse, ToolCallRequest
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture(scope="session", autouse=True)
-def prepare_database():
-    """이 파일은 DB를 쓰지 않는 AgentEngine 단위 테스트다."""
-
-
 class KwargsTool:
     """**kwargs로 아무 인자나 받는 툴 (현재 리포의 모든 툴이 이 형태)."""
 

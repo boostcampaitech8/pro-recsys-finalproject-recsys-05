@@ -14,11 +14,6 @@ from app.domains.chat.providers.clova import ClovaProvider
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture(scope="session", autouse=True)
-def prepare_database():
-    """이 파일은 DB를 쓰지 않는 LLM failure-path 단위 테스트다."""
-
-
 class FailingProvider:
     """chat() 호출이 항상 실패하는 LLM Provider 스텁."""
 
