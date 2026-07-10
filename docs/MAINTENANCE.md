@@ -239,7 +239,7 @@
 | **3** | orchestration 안정화 | T6 (T9·T11 done) | 에이전트 경로 반복 호출 무실패 | 진행 전 |
 | **4** | 위생·문서 | T3, T4, T8 | 해당 없음(문서/조사) | 진행 전 |
 | **H** | 하네스 진화 | T10, T12, T13 | execute.py T4 파일럿 실측 | T13 잔여 |
-| **5** | SPEC 거버넌스 | T14, T15 | 문서 상호참조 무결 + `compose config`·CI green | **T14 doing** |
+| **5** | SPEC 거버넌스 | T14, T15 | 문서 상호참조 무결 + `compose config`·CI green | T14 done · **T15 잔여** |
 | **6** | SPEC 품질 기반 | T16, T17, T20 | `pytest -m unit` DB 없이 green + CI lint green + 양 러너 green | 진행 전 |
 | **7** | SPEC LLM 계층 | T18, T19 | chat 전 경로 회귀 + prod 트레이스 관측 (S7 해소) | 진행 전 (T16 선행) |
 | **8** | (후속) infra 통합 | T21 | 배포 검증 (S1·S3) | 안정화 후 별도 승인 |
