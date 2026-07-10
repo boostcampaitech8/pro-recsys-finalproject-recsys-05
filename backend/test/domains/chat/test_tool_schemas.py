@@ -1,4 +1,6 @@
 """F6(툴 스키마 type 명시)·F13(JSONB 파싱) 회귀 테스트."""
+import pytest
+
 from app.domains.chat.tools.tool_recommand import PersonalizedRecommendationTool
 from app.domains.chat.tools.tool_search import (
     GameInfoTool,
@@ -7,6 +9,8 @@ from app.domains.chat.tools.tool_search import (
     SearchGamesByFilterTool,
     _ensure_parsed,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def _all_tools():

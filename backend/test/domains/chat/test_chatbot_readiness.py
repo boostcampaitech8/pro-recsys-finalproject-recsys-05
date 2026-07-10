@@ -3,7 +3,11 @@
 is_ready()가 LLM만 확인하면 임베딩이 None인 채 요청을 받다가
 RAG 경로의 embed_query() 시점에 크래시한다.
 """
+import pytest
+
 from app.domains.chat.chatbot import chatbot
+
+pytestmark = pytest.mark.unit
 
 
 def _bot(initialized=True, llm="llm", embeddings="embeddings"):

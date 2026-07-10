@@ -10,10 +10,7 @@ import pytest
 from app.domains.chat.agent.engine import AgentEngine
 from app.domains.chat.providers.base import LLMResponse, ToolCallRequest
 
-
-@pytest.fixture(scope="session", autouse=True)
-def prepare_database():
-    """이 파일은 DB를 쓰지 않는 AgentEngine 단위 테스트다."""
+pytestmark = pytest.mark.unit
 
 
 class KwargsTool:
