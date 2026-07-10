@@ -105,13 +105,14 @@
 - step: 3.
 - 검증: 폴백 체인 [free,free,paid]·하위호환·중복방지 로직 통과; prod 부팅로그 `Fallback configured … + paid-key` 확인(배포 후).
 
-#### T16 · 테스트 기반 공사 (conftest 격리·마커)  [backend] [code] [high] [open]  (SPEC §6 · 2026-07-09)
-- 문제: conftest autouse 세션 DB fixture가 **모든 테스트를 실 DB에 결박** — 단위 테스트 불가. 마커 체계 부재, assert 없는 무늬만 테스트(`test_services.py`·`test_gcs.py`) 존재.
-- 근거 앵커: `backend/test/conftest.py`(autouse `prepare_database`) — *scoping 시 라인 확정*. Issue #112.
+#### T16 · 테스트 기반 공사 (conftest 격리·마커)  [backend] [code] [high] [done]  → **PR #127 (feature→dev, MERGED)** · CI 2단계 green 2026-07-10
+- 문제(해소): conftest autouse 세션 DB fixture가 **모든 테스트를 실 DB에 결박** — 단위 테스트 불가. 마커 체계 부재, assert 없는 무늬만 테스트(`test_services.py`·`test_gcs.py`) 존재.
+- 근거 앵커: `backend/test/conftest.py`(autouse `prepare_database`). Issue #112.
 - seam: —
-- 제안 방향: autouse 제거 → DB는 `integration` 전용·트랜잭션 롤백 격리, `unit`/`integration`/`manual` 마커(기존 env 가드 승격), 무늬만 테스트 퇴출/재작성.
-- 검증: `pytest -m unit`이 DB 없이 green · `-m integration`이 compose 위에서 green.
-- step: 6. **T18의 안전망 선행 조건.**
+- 반영: autouse 제거 → DB는 `integration` 전용·savepoint 롤백 격리(`join_transaction_mode="create_savepoint"`), `unit`/`integration`/`manual` 마커 체계(`pyproject.toml`·`--strict-markers`), 무늬만 2건 삭제, `.env` 폴백으로 DB 없이 import 가능. CI `test` 잡을 `-m unit`+`-m integration` 2단계로 분리.
+- 검증(완료): `pytest -m unit` 34 green(DB 없이) · `-m integration` 7 green(compose 위) — CI 양단계 SUCCESS(run 29085125815).
+- 교차리뷰(§4.7, 저자≠판정자): F1(manual 파일명 `_test` 승격)·F2(CI 2단계 반영)·F5(dead fixture 제거) 반영. F3·F4·F6~F8 보류(PR #127 메모).
+- step: 6. **T18의 안전망 선행 조건(충족).**
 
 #### T17 · 품질 게이트 (ruff·mypy·pre-commit·CI lint)  [backend+frontend+ci-cd] [code] [med] [open]  (SPEC §5 · 2026-07-09)
 - 문제: 파이썬 린터 0, CI lint 게이트 0 — 컨벤션이 사람 기억에만 존재.
@@ -240,8 +241,8 @@
 | **4** | 위생·문서 | T3, T4, T8 | 해당 없음(문서/조사) | 진행 전 |
 | **H** | 하네스 진화 | T10, T12, T13 | execute.py T4 파일럿 실측 | T13 잔여 |
 | **5** | SPEC 거버넌스 | T14, T15 | 문서 상호참조 무결 + `compose config`·CI green | T14 done · **T15 잔여** |
-| **6** | SPEC 품질 기반 | T16, T17, T20 | `pytest -m unit` DB 없이 green + CI lint green + 양 러너 green | 진행 전 |
-| **7** | SPEC LLM 계층 | T18, T19 | chat 전 경로 회귀 + prod 트레이스 관측 (S7 해소) | 진행 전 (T16 선행) |
+| **6** | SPEC 품질 기반 | T16, T17, T20 | `pytest -m unit` DB 없이 green + CI lint green + 양 러너 green | **T16 done** · T17·T20 잔여 |
+| **7** | SPEC LLM 계층 | T18, T19 | chat 전 경로 회귀 + prod 트레이스 관측 (S7 해소) | 진행 전 (T16 선행 충족) |
 | **8** | (후속) infra 통합 | T21 | 배포 검증 (S1·S3) | 안정화 후 별도 승인 |
 
 ---
