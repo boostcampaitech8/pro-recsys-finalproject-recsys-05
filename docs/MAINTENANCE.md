@@ -246,12 +246,11 @@
 - 검증(통과): codex 교차 리뷰 findings 7건 → 사용자 판정 2026-07-09 전건 반영(커밋 `c6c0eac`) → PR #118 dev 병합 → PR #119 dev→main 승격(`4eb606a`), main push CI 전 구간 green + prod 관측(`/health/db` 200·Vercel 200·`bentoml_3stage` score 0.78).
 - step: 5. 실행 기록: `docs/execplan/T14/task.md`.
 
-#### T22 · Codex 저장소 지침 어댑터 — AGENTS.md  [docs=하네스/tooling] [code] [med] [doing]  (Issue #121 · 2026-07-10)
-- 문제: Codex CLI가 `CLAUDE.md`를 자동 로드하지 않아 fresh `codex exec`가 SPEC 불변식·seam·lifecycle을 누락할 수 있다.
-- 제안 방향: 루트 `AGENTS.md`를 SPEC/MAINTENANCE로 라우팅하는 얇은 어댑터로 추가한다.
-- scope 경계: 새 정본·모델 정책·실행기 변경 금지. 제품 코드·배포 설정 무접촉.
-- 검증: `codex debug prompt-input "probe"`에 저장소 지침 포함 + 참조 무결 + 문서 diff만 존재.
-- 수용 기준: 대화형/헤드리스 Codex가 동일한 저장소 계약을 자동 수신. step: **H2(최우선)**.
+#### T22 · Codex 저장소 지침 어댑터 — AGENTS.md  [docs=하네스/tooling] [code] [med] [done]  → main 정합(3920f35) · 검증완료 2026-07-10
+- 문제(해소): Codex CLI가 `CLAUDE.md`를 자동 로드하지 않아 fresh `codex exec`가 SPEC 불변식·seam·lifecycle을 누락할 수 있다.
+- 반영: 루트 `AGENTS.md`(SPEC→MAINTENANCE→ADR→execplan 라우팅 어댑터) 추가. 제품 코드·배포 무접촉(문서 diff-only).
+- 검증(완료): `codex debug prompt-input "probe"`(codex-cli 0.142.3, Windows 네이티브 exit 0) 출력에 AGENTS.md가 `--- project-doc ---` 블록으로 로드됨 — 고유 문자열 전량 확인(제목·"얇은 어댑터"·"저자≠판정자"·EASE 불변식). 참조 무결(SPEC §1/§4·MAINTENANCE §3/§4·seam S2/S3/S6 실존) · 문서 diff-only. **부수: codex-Windows unelevated 샌드박스 수정 end-to-end 실증**.
+- 수용 기준(충족): 대화형/헤드리스 Codex가 동일한 저장소 계약을 project-doc로 자동 수신. step: **H2(최우선)**.
 
 #### T23 · execute.py hard failure gate·verify 계약  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #120 · 2026-07-10)
 - 문제: 실패 run이 정상 종료코드로 보일 수 있고 빈 verify가 성공 처리된다.
@@ -292,7 +291,7 @@
 
 | Step | 목표 | 티켓 | 통합 검증 게이트 | 상태 |
 |---|---|---|---|---|
-| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22 doing** |
+| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22 done · T23 next** |
 | **E1** | recsys 진화 — PreferenceSpec 파서 baseline | T28 | 200+ 한국어 fixture + hard slot F1≥0.95 + 전체 slot F1≥0.90 + 외부 의존 0 | scoped · H2 이후 |
 | **1** | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) | T5 done · T7 잔여 |
 | **2** | 백엔드 견고성 | T2, T1 | pytest green | T2 done · T1 잔여 |
