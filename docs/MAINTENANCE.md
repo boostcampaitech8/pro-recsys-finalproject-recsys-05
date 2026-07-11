@@ -252,7 +252,7 @@
 - 검증(완료): `codex debug prompt-input "probe"`(codex-cli 0.142.3, Windows 네이티브 exit 0) 출력에 AGENTS.md가 `--- project-doc ---` 블록으로 로드됨 — 고유 문자열 전량 확인(제목·"얇은 어댑터"·"저자≠판정자"·EASE 불변식). 참조 무결(SPEC §1/§4·MAINTENANCE §3/§4·seam S2/S3/S6 실존) · 문서 diff-only. **부수: codex-Windows unelevated 샌드박스 수정 end-to-end 실증**.
 - 수용 기준(충족): 대화형/헤드리스 Codex가 동일한 저장소 계약을 project-doc로 자동 수신. step: **H2(최우선)**.
 
-#### T23 · execute.py hard failure gate·verify 계약 (+구조 개편 step1)  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #120 · 2026-07-10 · 구조 편입 판정 2026-07-11)
+#### T23 · execute.py hard failure gate·verify 계약 (+구조 개편 step1)  [docs=하네스/tooling+ci-cd] [code] [high] [scoped]  (Issue #120 · 2026-07-10 · 구조 편입 판정 2026-07-11 · execplan 2026-07-11)
 - 문제: 실패 run이 정상 종료코드로 보일 수 있고 빈 verify가 성공 처리된다. 부가: 로직이 `main()` 168줄에 응집돼 fake subprocess 단위 테스트(DoD)가 현 구조로 불가 → 구조 개편을 step1로 편입(사용자 판정 2026-07-11, 설계 기록=Issue #129 코멘트).
 - 근거 앵커(기준 SHA `ef5cbb0`): `scripts/execute.py:270-274`(빈 verify 성공 처리) · `:457-477`(halted여도 exit 0) · `:286-454`(main 응집).
 - 제안 방향(2-step):
@@ -260,7 +260,8 @@
   - **step2 (행위변경)**: 전 오류 non-zero, code verify 필수(빈 verify=실패), timeout/gh/git rc 처리, 잘못된 `--from` 즉시 실패.
 - scope 경계: handoff=T24, resume=T25, review 판정=T26으로 분리. **worktree 실기능·병렬 스케줄·conflict resolver는 T29 잔류** — T23은 cwd 매개변수화까지만.
 - ADR: **ADR-0005 정련 노트 동반**(step1 커밋 시 — 패키지화+shim은 신규 결정이 아닌 실행기 구현 정련).
-- 검증: step1 characterization + step2 fake subprocess 실패 경로 단위 테스트. 의존: T22(done). step: **H2(최우선 · next)**. 다단계 확정 → `docs/execplan/T23/` 작성 시 `scoped`.
+- 검증: characterization(`--dry-run` 골든) + fake subprocess 실패 경로 단위 테스트 — `cd backend && uv run pytest ../scripts/exec_harness/tests -q` + CI 스텝. 의존: T22(done). step: **H2(최우선 · next)**.
+- **execplan(인계 정본): `docs/execplan/T23/`** — 실행 분해 3 step: ① 테스트 스캐폴드+현행 골든(execute.py 무수정) ② 행위보존 패키지 추출(procio cwd 매개변수화 포함) ③ hard gate 행위변경+실패 경로 테스트. dry-run 파싱 검증 완료(base_sha `29b3757`). **실행 모드: H2 게이트로 execute.py 완전자동 금지 — 클로드가 step별 codex 수동 위임.**
 
 #### T24 · deterministic manifest + semantic handoff 분리  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #122 · 2026-07-10)
 - 문제: changed files·step done·검증 결과가 모델 자기보고여서 실제 diff와 달라도 다음 step에 사실처럼 주입될 수 있다.
