@@ -95,6 +95,8 @@ jobs:
         run: |
           cd backend
           uv run pytest -m unit
+      - name: Run execute harness characterization tests
+        run: cd backend && uv run pytest ../scripts/exec_harness/tests -q
       # 통합: 서비스 컨테이너(localhost) 필요.
       - name: Run Pytest (integration)
         env:
