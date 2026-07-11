@@ -58,7 +58,7 @@
 
 ## §3. 컴포넌트별 백로그 (티켓)
 
-> **status 정본 = 이 문서** (ADR-0006). 라이브 이슈 매핑(미러): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104 · T13 #109 · **T14 #110 · T15 #111 · T16 #112 · T17 #113 · T18 #114 · T19 #115 · T20 #116 · T21 #117 · T22 #121 · T23 #120 · T24 #122 · T25 #123 · T26 #124 · T27 #125 · T28 #126**. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`.
+> **status 정본 = 이 문서** (ADR-0006). 라이브 이슈 매핑(미러): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104 · T13 #109 · **T14 #110 · T15 #111 · T16 #112 · T17 #113 · T18 #114 · T19 #115 · T20 #116 · T21 #117 · T22 #121 · T23 #120 · T24 #122 · T25 #123 · T26 #124 · T27 #125 · T28 #126 · T29 #129**. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`.
 
 ### backend
 > 불변식(가벼움): `Game.id`(내부 PK) ≠ `Game.app_id`(Steam) — 카드/조회는 app_id 기준. Pydantic v2. `game.schemas`가 게임 DTO 정본.
@@ -252,11 +252,15 @@
 - 검증(완료): `codex debug prompt-input "probe"`(codex-cli 0.142.3, Windows 네이티브 exit 0) 출력에 AGENTS.md가 `--- project-doc ---` 블록으로 로드됨 — 고유 문자열 전량 확인(제목·"얇은 어댑터"·"저자≠판정자"·EASE 불변식). 참조 무결(SPEC §1/§4·MAINTENANCE §3/§4·seam S2/S3/S6 실존) · 문서 diff-only. **부수: codex-Windows unelevated 샌드박스 수정 end-to-end 실증**.
 - 수용 기준(충족): 대화형/헤드리스 Codex가 동일한 저장소 계약을 project-doc로 자동 수신. step: **H2(최우선)**.
 
-#### T23 · execute.py hard failure gate·verify 계약  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #120 · 2026-07-10)
-- 문제: 실패 run이 정상 종료코드로 보일 수 있고 빈 verify가 성공 처리된다.
-- 제안 방향: 전 오류 non-zero, code verify 필수, timeout/gh/git rc 처리, 잘못된 `--from` 즉시 실패.
-- scope 경계: handoff=T24, resume=T25, review 판정=T26으로 분리.
-- 검증: fake subprocess 기반 실패 경로 단위 테스트. 의존: T22. step: **H2(최우선)**.
+#### T23 · execute.py hard failure gate·verify 계약 (+구조 개편 step1)  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #120 · 2026-07-10 · 구조 편입 판정 2026-07-11)
+- 문제: 실패 run이 정상 종료코드로 보일 수 있고 빈 verify가 성공 처리된다. 부가: 로직이 `main()` 168줄에 응집돼 fake subprocess 단위 테스트(DoD)가 현 구조로 불가 → 구조 개편을 step1로 편입(사용자 판정 2026-07-11, 설계 기록=Issue #129 코멘트).
+- 근거 앵커(기준 SHA `ef5cbb0`): `scripts/execute.py:270-274`(빈 verify 성공 처리) · `:457-477`(halted여도 exit 0) · `:286-454`(main 응집).
+- 제안 방향(2-step):
+  - **step1 (행위보존)**: `scripts/exec_harness/` 패키지 스캐폴드 + `execute.py` shim(경로 계약 보존 — 문서 3곳 무수정) + `cli/specs/procio/gates` 추출 + `tests/` 골격 + CI 스텝. **T29 선행 준비 = procio cwd 매개변수화(기본값 REPO — 행위 불변)**. 검증 = `--dry-run` 출력 전후 동일(characterization).
+  - **step2 (행위변경)**: 전 오류 non-zero, code verify 필수(빈 verify=실패), timeout/gh/git rc 처리, 잘못된 `--from` 즉시 실패.
+- scope 경계: handoff=T24, resume=T25, review 판정=T26으로 분리. **worktree 실기능·병렬 스케줄·conflict resolver는 T29 잔류** — T23은 cwd 매개변수화까지만.
+- ADR: **ADR-0005 정련 노트 동반**(step1 커밋 시 — 패키지화+shim은 신규 결정이 아닌 실행기 구현 정련).
+- 검증: step1 characterization + step2 fake subprocess 실패 경로 단위 테스트. 의존: T22(done). step: **H2(최우선 · next)**. 다단계 확정 → `docs/execplan/T23/` 작성 시 `scoped`.
 
 #### T24 · deterministic manifest + semantic handoff 분리  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #122 · 2026-07-10)
 - 문제: changed files·step done·검증 결과가 모델 자기보고여서 실제 diff와 달라도 다음 step에 사실처럼 주입될 수 있다.
@@ -283,6 +287,17 @@
 - scope 경계: 모델 slug를 실행기 전역에 산재시키지 않고 정책으로 캡슐화. provider 마이그레이션 제외.
 - 검증: 라우팅 command snapshot·escalation·JSONL usage parser 테스트. 의존: T24, T26. step: **H2(최우선)**.
 
+#### T29 · worktree 병렬 실행·충돌 격리 프로토콜  [docs=하네스/tooling+ci-cd] [code] [med] [open]  (Issue #129 · intake 2026-07-11)
+- 문제: 하네스 실행(`scripts/execute.py`·수동 위임)이 단일 워킹트리를 공유 — 티켓/step 병렬 실행 시 파일 충돌·컨텍스트 오염 위험, 병합 conflict 발생 시 처리 절차 미정의(같은 컨텍스트에서 conflict를 풀면 오염된 상태가 다음 step/handoff에 주입될 수 있음).
+- 근거 앵커(기준 SHA `ef5cbb0`): `scripts/execute.py:44-48`(REPO 단일 루트 — 워크스페이스 추상화 부재) · `:102-108,236,257`(run/codex 서브프로세스 cwd=REPO 고정) · `:322-337`(dirty 가드 + in-place checkout — 단일 트리 배타 점유 가정) · `:398-405`(`git add -A` 전체 스윕 — 병렬 시 타 티켓 변경 오염 커밋) · `:317-319`(초 단위 runid·잠금 부재) · worktree/merge/conflict/lock 관련 코드 0건(grep 부재 증거) · `.gitignore:47-51`(`.exec/` 무시 — `.exec/worktrees/` 거처 시 불변식 6 자동 충족).
+- 제안 방향: git worktree 기반 run 격리(티켓/step당 1 워크트리) → 병렬 안전 규약은 T25(잠금·attempt 상태기계)와 연동 → conflict 발생 시 **오염 없는 fresh 컨텍스트의 독립 resolver**가 처리하는 프로토콜을 `execute.py` 또는 형제 scripts 모듈로 하네스에 편입.
+- seam: — (신규 tooling · prod 무접촉). 단 **seam 접촉 티켓은 병렬 대상에서 제외**(불변식 5 — seam 변경은 한 커밋), 워크트리·`.exec/` 산출물 커밋 금지(불변식 6).
+- scope 경계: T23~T27 신뢰성 계약 재작성 금지 — 그 위에 얹는 실행 토폴로지 계층. 브랜치 거버넌스(feature→dev→main) 불변. **행위보존 구조 준비(procio cwd 매개변수화)는 T23 step1로 이관**(사용자 판정 2026-07-11) — T29는 worktree 생명주기·병렬 스케줄·conflict resolver만.
+- 검증: 워크트리 생성/정리 멱등성 · 병렬 2-run 무간섭 · 인위 충돌 시나리오 resolver 격리 단위 테스트 (test-with).
+- intake 판정: kind=`code` · seam 무접촉 · step=**H3(신설 · H2 이후)** · ADR 필요성 높음(하네스 실행 모델 확장 — scoping 시 판정).
+- 의존: T23(procio cwd 매개변수화가 최소 전제) · T24(resolver에 자기보고 아닌 manifest 증거 제공) · T25(잠금·상태기계와 병렬 스케줄 합성) · T26(저자≠판정자 불변식을 conflict resolver에 재사용) — **H2 말미 배치**, scoped 확정은 T24 완료 후 권장.
+- 설계 노트(2026-07-11 · Plan 서브에이전트, 기록=Issue #129 코멘트): `scripts/exec_harness/` 패키지화 + `execute.py` shim(경로 계약 보존), `worktree.py` 모듈, 초기 병렬 scope는 **unit급(외부 의존 0) verify 티켓만**(공유 인프라 verify는 직렬화), Windows worktree prune 멱등성 테스트 필수.
+
 ---
 
 ## §4. Step 보드 (정본 · ADR-0006)
@@ -293,6 +308,7 @@
 |---|---|---|---|---|
 | **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22 done · T23 next** |
 | **E1** | recsys 진화 — PreferenceSpec 파서 baseline | T28 | 200+ 한국어 fixture + hard slot F1≥0.95 + 전체 slot F1≥0.90 + 외부 의존 0 | scoped · H2 이후 |
+| **H3** | execute.py 병렬화 — worktree 격리·충돌 프로토콜 | T29 | 워크트리 생성/정리 멱등 + 병렬 2-run 무간섭 + 충돌 격리 resolve | open · H2 말미 (T23·T24·T25·T26 선행) |
 | **1** | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) | T5 done · T7 잔여 |
 | **2** | 백엔드 견고성 | T2, T1 | pytest green | T2 done · T1 잔여 |
 | **3** | orchestration 안정화 | T6 (T9·T11 done) | 에이전트 경로 반복 호출 무실패 | 진행 전 |

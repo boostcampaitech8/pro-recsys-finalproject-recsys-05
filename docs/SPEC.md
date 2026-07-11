@@ -126,5 +126,6 @@
 | **T26** 교차리뷰 closed loop | #124 | Codex findings · 독립 판정(저자≠판정자) · 사용자 게이트 | T23, T24 |
 | **T27** 모델/effort 라우팅 | #125 | phase/risk 모델 정책 · 명시적 CLI override · usage 관측 | T24, T26 |
 | **T28** PreferenceSpec 파서 연구 | #126 | 한국어 취향·제약 구조화 계약·benchmark · production wiring 제외 | H2 완료 후 |
+| **T29** worktree 병렬 실행·충돌 격리 | #129 | worktree run 격리 · 병렬 안전 규약 · 오염 없는 독립 conflict resolver | T23, T24, T25, T26 |
 
-**실행 순서**: **H2 최우선: T22 → T23 → T24 → (T25 · T26) → T27. H2 완료 전 `execute.py` 완전자동 실행을 admission하지 않는다.** T28(E1)은 H2 이후 parser baseline만 수행한다. 그 뒤 T15 · T17을 진행하고(T16 done 2026-07-10), T18 → T19로 잇는다. T20은 T17 후. T21은 안정화 후 별도 승인. step 배치 = MAINTENANCE §4.
+**실행 순서**: **H2 최우선: T22 → T23 → T24 → (T25 · T26) → T27. H2 완료 전 `execute.py` 완전자동 실행을 admission하지 않는다.** T28(E1)은 H2 이후 parser baseline만 수행한다. T29(H3 · worktree 병렬화)는 T24 완료 후 scoping, H2 말미(T26 뒤) 실행한다. 그 뒤 T15 · T17을 진행하고(T16 done 2026-07-10), T18 → T19로 잇는다. T20은 T17 후. T21은 안정화 후 별도 승인. step 배치 = MAINTENANCE §4.
