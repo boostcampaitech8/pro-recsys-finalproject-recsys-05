@@ -4,7 +4,6 @@ from __future__ import annotations
 import datetime
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 from .codex import codex_exec, codex_review, find_codex
@@ -64,21 +63,53 @@ def build_prompt(task_meta, task_body, prior_summaries, step_name, step_body, fa
     return "\n".join(p)
 
 
-def run(args):
+def run(args) -> int:
     task_dir = (REPO / args.task).resolve() if not Path(args.task).is_absolute() else Path(args.task)
     task_md = task_dir / "task.md"
     if not task_md.exists():
-        sys.exit(f"[execute] {task_md} 없음")
-    meta, task_body = read_md(task_md)
+        log(f"{task_md} 없음")
+        return 1
+    try:
+        meta, task_body = read_md(task_md)
+    except OSError as e:
+        log(f"task 파일 읽기 실패: {e}")
+        return 1
     ticket = meta.get("ticket", task_dir.name)
     base = args.base or meta.get("base_branch") or "dev"
     steps = discover_steps(task_dir, meta)
     if not steps:
-        sys.exit("[execute] step*.md 를 찾지 못했습니다.")
+        log("step*.md 를 찾지 못했습니다.")
+        return 1
 
     if args.from_step:
-        want_num = step_num(Path(args.from_step))
-        steps = [s for s in steps if step_num(s) >= want_num] or steps
+        matches = [
+            index for index, step in enumerate(steps)
+            if args.from_step in (step.stem, step.name)
+        ]
+        if not matches:
+            log(f"--from {args.from_step!r}와 일치하는 step이 없습니다.")
+            log(f"사용 가능한 step: {', '.join(step.stem for step in steps)}")
+            return 2
+        steps = steps[matches[0]:]
+
+    step_inputs = []
+    for step_path in steps:
+        if not step_path.is_file():
+            log(f"step 파일 없음: {step_path}")
+            return 1
+        try:
+            smeta, sbody = read_md(step_path)
+        except OSError as e:
+            log(f"step 파일 읽기 실패({step_path.name}): {e}")
+            return 1
+        verify_cmd = smeta.get("verify", "")
+        if not isinstance(verify_cmd, str) or not verify_cmd.strip():
+            log(
+                f"{step_path.name} verify 필수 — 빈 값은 허용되지 않습니다. "
+                "스킵은 verify: skip으로 명시하세요."
+            )
+            return 1
+        step_inputs.append((step_path, smeta, sbody, verify_cmd))
 
     runid = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = RUNS_DIR / f"{ticket}-{runid}"
@@ -87,31 +118,37 @@ def run(args):
 
     # clean 베이스라인 보장 — git add -A가 무관한 워킹트리 변경을 커밋하지 않도록 (코덱스 리뷰 P2)
     if not args.dry_run and not args.no_commit and not args.allow_dirty:
-        if git("status", "--porcelain").strip():
-            sys.exit("[execute] 워킹트리 dirty — clean 상태에서 실행하거나 --allow-dirty 사용")
+        try:
+            dirty = git("status", "--porcelain", check=True).strip()
+        except RuntimeError as e:
+            log(f"git 상태 확인 실패: {e}")
+            return 1
+        if dirty:
+            log("워킹트리 dirty — clean 상태에서 실행하거나 --allow-dirty 사용")
+            return 1
 
     log(f"티켓 {ticket} · steps={[s.name for s in steps]} · base={base} · run={run_dir.name}")
 
     # 브랜치
     branch = meta.get("branch") or f"feature/{ticket}-exec"
     if not args.no_branch and not args.dry_run:
-        exists = branch in git("branch", "--list", branch)
         try:
+            exists = branch in git("branch", "--list", branch, check=True)
             git("checkout", branch, check=True) if exists else git("checkout", "-b", branch, base, check=True)
+            active_branch = current_branch()
         except RuntimeError as e:
-            sys.exit(f"[execute] 브랜치 전환 실패: {e}")
-        log(f"브랜치: {current_branch()}")
+            log(f"브랜치 전환 실패: {e}")
+            return 1
+        log(f"브랜치: {active_branch}")
 
     state = {"ticket": ticket, "runid": runid, "base": base, "branch": branch, "steps": []}
     prior_summaries = []
     if args.from_step:
         load_prior_summaries(ticket, step_num(Path(args.from_step)), run_dir, prior_summaries)
 
-    for step_path in steps:
-        smeta, sbody = read_md(step_path)
+    for step_path, smeta, sbody, verify_cmd in step_inputs:
         name = step_path.stem
         title = smeta.get("title", name)
-        verify_cmd = smeta.get("verify", "")
         summary_path = run_dir / f"{name}.summary.json"
         events_path = run_dir / f"{name}.events.jsonl"
         log(f"── {name}: {title}")
@@ -153,7 +190,7 @@ def run(args):
             if ok:
                 step_rec["status"] = "done"
                 step_rec["summary"] = summary
-                log(f"   verify={'skip' if not verify_cmd.strip() else 'pass'} "
+                log(f"   verify={'skip' if verify_cmd.strip().lower() == 'skip' else 'pass'} "
                     f"· tokens(in/out)={tokens['input']}/{tokens['output']}"
                     f"{'' if tokens['found'] else ' (미검출)'}")
                 break
@@ -163,13 +200,18 @@ def run(args):
 
         # commit
         if step_rec["status"] == "done" and not args.no_commit:
-            git("add", "-A")
-            if git("status", "--porcelain").strip():
-                git("commit", "-m", f"{ticket} {name}: {title}", check=True)
-                step_rec["sha"] = short_sha()
-                log(f"   commit {step_rec['sha']}")
-            else:
-                log("   (변경 없음 — 커밋 생략)")
+            try:
+                git("add", "-A", check=True)
+                if git("status", "--porcelain", check=True).strip():
+                    git("commit", "-m", f"{ticket} {name}: {title}", check=True)
+                    step_rec["sha"] = short_sha()
+                    log(f"   commit {step_rec['sha']}")
+                else:
+                    log("   (변경 없음 — 커밋 생략)")
+            except RuntimeError as e:
+                step_rec["status"] = "failed"
+                step_rec["error"] = f"git commit 경로 실패: {e}"
+                log(f"   ! {step_rec['error']}")
 
         state["steps"].append(step_rec)
         (run_dir / "state.json").write_text(
@@ -177,8 +219,7 @@ def run(args):
 
         if step_rec["status"] != "done":
             log(f"!! {name} 실패 — run 중단. 재개: --from {name}")
-            _finish(state, run_dir, halted=True)
-            return
+            return _finish(state, run_dir, halted=True)
 
         if step_rec.get("summary"):
             prior_summaries.append({"step": name, **(step_rec["summary"] if isinstance(
@@ -186,7 +227,7 @@ def run(args):
 
     if args.dry_run:
         log("dry-run 완료 (codex/git 미실행)")
-        return
+        return 0
 
     # push / PR (CodeAct — 토큰 0)
     if not args.no_push:
@@ -195,13 +236,15 @@ def run(args):
             log(f"push → origin/{branch}")
         except RuntimeError as e:
             log(f"!! push 실패 — PR 생략: {e}")
-            _finish(state, run_dir, halted=True)
-            return
+            return _finish(state, run_dir, halted=True)
     if not args.no_pr:
         body = _pr_body(state, prior_summaries)
         r = run_process(["gh", "pr", "create", "--base", base, "--head", branch,
                          "--title", f"{ticket}: {meta.get('title', branch)}", "--body", body])
         log(f"gh pr create: {(r.stdout or '').strip()[:200]}")
+        if r.returncode != 0:
+            log(f"!! gh pr create 실패(rc={r.returncode})")
+            return _finish(state, run_dir, halted=True)
 
     # 교차 리뷰 (AI — 토큰 O)
     if not args.no_review:
@@ -218,7 +261,7 @@ def run(args):
         except subprocess.TimeoutExpired:
             log("   ! review 타임아웃")
 
-    _finish(state, run_dir, halted=False)
+    return _finish(state, run_dir, halted=False)
 
 
 def _pr_body(state, summaries) -> str:
@@ -232,7 +275,7 @@ def _pr_body(state, summaries) -> str:
     return "\n".join(lines)
 
 
-def _finish(state, run_dir, halted):
+def _finish(state, run_dir, halted) -> int:
     (run_dir / "report.json").write_text(
         json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     ai_in = sum(s["tokens"].get("input", 0) for s in state["steps"])
@@ -242,3 +285,4 @@ def _finish(state, run_dir, halted):
         f"{sum(1 for s in state['steps'] if s['status'] == 'done')}/{len(state['steps'])}")
     log(f"AI 토큰 합계 in/out = {ai_in}/{ai_out}  (CodeAct 레이어=git/gh/verify=0)")
     log(f"산출물: {run_dir}")
+    return 1 if halted else 0

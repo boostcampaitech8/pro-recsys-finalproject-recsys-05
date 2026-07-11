@@ -23,7 +23,7 @@ Do not invoke external tools.
 
 codex exec --sandbox workspace-write -c approval_policy=never --output-schema handoff.schema.json -o step1.summary.json --json -
 verify: echo ok
-[execute] ── step2: empty verify fixture
+[execute] ── step2: explicit verify skip fixture
 
 ===== DRY-RUN PROMPT [step2] =====
 당신은 code 레인 하위 실행자입니다. 아래 경계 안에서 '코드 변경'만 수행하세요.
@@ -41,9 +41,10 @@ Use this fixture only for deterministic, dependency-free tests.
 [이번 step: step2]
 Exercise the second dry-run prompt.
 Keep this step after step1 in the declared task order.
-Leave verify empty to characterize the current skip branch.
+Use the explicit verify skip contract.
 
 작업을 마치면 최종 메시지를 제공된 JSON 스키마(handoff)에 맞춰 응답하세요.
 
 codex exec --sandbox workspace-write -c approval_policy=never --output-schema handoff.schema.json -o step2.summary.json --json -
+verify: skip
 [execute] dry-run 완료 (codex/git 미실행)

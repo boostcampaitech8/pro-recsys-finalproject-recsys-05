@@ -32,8 +32,8 @@ def git(*args, check=False) -> str:
 
 
 def current_branch() -> str:
-    return git("rev-parse", "--abbrev-ref", "HEAD").strip()
+    return git("rev-parse", "--abbrev-ref", "HEAD", check=True).strip()
 
 
 def short_sha() -> str:
-    return git("rev-parse", "--short", "HEAD").strip()
+    return git("rev-parse", "--short", "HEAD", check=True).strip()

@@ -15,7 +15,7 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 
-def main():
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="codex exec 기반 다단계 티켓 실행기")
     ap.add_argument("--task", required=True, help="docs/execplan/<TICKET> 디렉터리")
     ap.add_argument("--from", dest="from_step", default=None, help="재개 지점 (예: step2)")
@@ -29,5 +29,5 @@ def main():
     ap.add_argument("--base", default=None, help="base 브랜치(기본: task.md base_branch 또는 dev)")
     ap.add_argument("--self-repair", type=int, default=2, help="verify 실패 시 재시도 횟수(기본 2)")
     ap.add_argument("--timeout", type=int, default=1800, help="codex/verify 개별 타임아웃 초")
-    args = ap.parse_args()
-    run(args)
+    args = ap.parse_args(argv)
+    return run(args)
