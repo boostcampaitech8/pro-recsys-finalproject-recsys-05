@@ -7,6 +7,8 @@ from app.domains.game.service import GameService
 from app.core.logger import logger
 from scripts.load_games import insert_games
 
+pytestmark = pytest.mark.integration
+
 @pytest.mark.asyncio
 async def test_game_flow(db):
     """

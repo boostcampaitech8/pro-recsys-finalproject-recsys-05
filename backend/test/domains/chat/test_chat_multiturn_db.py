@@ -5,6 +5,8 @@ from app.domains.chat.repository import ChatRepository
 from app.domains.chat import services
 from app.domains.user.models import User
 
+pytestmark = pytest.mark.integration
+
 @pytest.mark.asyncio
 async def test_multiturn_chat_history_db(db):
     """

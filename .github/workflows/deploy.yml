@@ -89,16 +89,22 @@ jobs:
           cd backend
           uv sync --frozen
 
-      - name: Run Pytest
-        env:
-          # 서비스 컨테이너(localhost)로 연결
-          DATABASE_URL: postgresql+asyncpg://myuser:mypassword@localhost:5432/mydatabase
-          REDIS_URL: redis://localhost:6379
-          PYTHONPATH: ${{ github.workspace }}/backend
+      # 단위 게이트: 외부 의존 0 — DB/Redis 없이 빠르게 (마커 체계 활용).
+      # import 루트는 pyproject.toml의 pythonpath=["."]가 담당(PYTHONPATH 불필요).
+      - name: Run Pytest (unit)
         run: |
           cd backend
-          # uv run을 통해 가상환경 내에서 실행
-          uv run pytest test/
+          uv run pytest -m unit
+      - name: Run execute harness characterization tests
+        run: cd backend && uv run pytest ../scripts/exec_harness/tests -q
+      # 통합: 서비스 컨테이너(localhost) 필요.
+      - name: Run Pytest (integration)
+        env:
+          DATABASE_URL: postgresql+asyncpg://myuser:mypassword@localhost:5432/mydatabase
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd backend
+          uv run pytest -m integration
 
   # ---------------------------------------------------
   # [PR 이미지 빌드 검증: Docker Compose (override)]

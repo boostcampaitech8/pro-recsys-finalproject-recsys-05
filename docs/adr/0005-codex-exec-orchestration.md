@@ -1,6 +1,7 @@
 # ADR-0005 · codex exec 다단계 실행기 (execute.py)
 
 - **상태**: Accepted (2026-07-08) · *정련(T14, 2026-07-09): 아래 결정 7의 "교차 리뷰 → fix-forward"는 **run 내부 verify 게이트(self-repair K=2)에 한정**한다. 교차 리뷰 findings 자체는 즉시 수정하지 않고 execplan 메모로 기록해 **사용자 판정 후** 반영한다 (SPEC §4.7).*
+- *정련(T23, 2026-07-13 · PR #130): 실행기 구현을 `scripts/exec_harness/` 패키지로 추출하고 `scripts/execute.py`는 얇은 shim으로 축소한다(경로 계약 보존 — 신규 결정이 아닌 구현 정련). **hard failure gate 발효**: 전 오류 경로 non-zero exit · 빈 `verify`=실패(명시적 `verify: skip`만 예외) · push/gh/verify-timeout rc 반영 · 잘못된 `--from`은 즉시 실패. 이로써 결정 6의 "빈 verify=스킵"은 code 레인에서 무효화된다. **부수효과(기록)**: `--from` 재개가 "숫자 임계 필터"에서 "정확 stem 매칭 후 슬라이스"로 바뀌어, 비연속 step 번호(예: steps=[step1,step3,step5]+`--from step2`)에서 원본의 step3 재개 대신 무매칭 exit 2가 된다(의도적). 교차리뷰(저자≠판정자) 판정=수용, 잔여 이월은 MAINTENANCE T23·T26 참조.*
 - **맥락**: code 레인(ADR-0003)의 실행은 "`scoped` → codex-rescue 위임 → diff 리뷰 → 커밋"을
   **수작업**으로 돌렸다. 여러 step으로 이어지는 티켓은 매번 손으로 컨텍스트를 물려줘야 했고,
   기계적 행동(git/gh/verify)까지 대화형 위임에 섞여 재현·감사·토큰 효율이 떨어졌다.

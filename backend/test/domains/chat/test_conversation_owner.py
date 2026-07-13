@@ -8,6 +8,8 @@ from app.domains.chat import services
 from app.domains.chat.repository import ChatRepository
 from app.domains.user.models import User
 
+pytestmark = pytest.mark.integration
+
 
 async def _create_user(db) -> User:
     user = User(steam_id=f"test_user_{uuid.uuid4().hex[:8]}")
