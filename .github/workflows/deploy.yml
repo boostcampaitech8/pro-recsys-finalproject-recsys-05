@@ -114,7 +114,12 @@ jobs:
   # ---------------------------------------------------
   compose_pr:
     needs: test
-    if: github.event_name == 'pull_request'
+    # 배포 이미지 빌드 회귀 검증(Dockerfile only). PR(모든 대상) + dev 직접 push까지 커버해
+    # dev 스테이징에 코드가 닿기 전/직후 자동 검증한다(T30). main push는 build_push(arm64 실빌드)가
+    # 커버하므로 제외. (최적화: paths 필터·gha 캐시는 후속 — 현재는 관련 없는 push도 빌드함.)
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

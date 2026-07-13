@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# T30 배포 사전 검증 pre-push 훅.
+# 활성화: git config core.hooksPath scripts/hooks
+# dev/main 으로 push 할 때만 배포 검증을 돌린다(그 외 브랜치는 통과).
+set -euo pipefail
+
+run_check=0
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/dev|refs/heads/main) run_check=1 ;;
+  esac
+done
+
+if [ "$run_check" = "1" ]; then
+  echo "[pre-push] dev/main 대상 — 배포 사전 검증 실행 (건너뛰기: git push --no-verify)"
+  exec bash "$(git rev-parse --show-toplevel)/scripts/predeploy_check.sh"
+fi
