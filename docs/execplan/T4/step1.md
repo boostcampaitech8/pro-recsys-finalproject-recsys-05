@@ -1,6 +1,6 @@
 ---
 title: README 프로젝트 구조 섹션을 실제 트리로 교체
-verify:
+verify: skip
 ---
 
 루트 `README.md`의 "## 📂 프로젝트 구조" 코드블록을 실제 디렉터리 구조로 갱신한다.
