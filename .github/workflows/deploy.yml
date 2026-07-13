@@ -107,14 +107,16 @@ jobs:
           uv run pytest -m integration
 
   # ---------------------------------------------------
-  # [PR 이미지 빌드 검증: Docker Compose (override)]
-  # Dockerfile 회귀만 잡는다. 부팅/헬스체크 검증은 하지 않음:
-  # CI에는 모델 아티팩트가 없어 bentoml이 뜰 수 없고, backend는
-  # 기동 시 bge-m3(~2.3GB) 로딩이 완료돼야 응답해 CI에 부적합.
+  # [PR 이미지 빌드 검증 + 경량 부팅/헬스 스모크: Docker Compose (override)]
+  # ① Dockerfile 회귀(이미지가 빌드되는가)  ② 빌드된 backend가 실제로 부팅해 DB에 붙고
+  #    /health 200을 주는가(앱 배선·라우팅·DB 연결까지). 모델/외부키 없이 EASE 폴백 부팅:
+  #    - bge-m3(~2.3GB): HF offline로 fast-fail → embeddings=None (chatbot.py 자체 try/except가 흡수)
+  #    - LLM: 더미 GEMINI_API_KEY로 '구성만' (health는 LLM 호출 안 함 · api_key=None이면 부팅이 raise)
+  #    - bentoml/GCS/실추론은 제외(아티팩트 필요 · seam S2·S3 · 불변식 6). arm64 실빌드는 build_push가 커버.
   # ---------------------------------------------------
   compose_pr:
     needs: test
-    # 배포 이미지 빌드 회귀 검증(Dockerfile only). PR(모든 대상) + dev 직접 push까지 커버해
+    # 배포 이미지 빌드+부팅 검증. PR(모든 대상) + dev 직접 push까지 커버해
     # dev 스테이징에 코드가 닿기 전/직후 자동 검증한다(T30). main push는 build_push(arm64 실빌드)가
     # 커버하므로 제외. (최적화: paths 필터·gha 캐시는 후속 — 현재는 관련 없는 push도 빌드함.)
     if: >-
@@ -125,7 +127,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Create dummy backend env (override의 env_file 참조용, 빌드엔 secrets 불필요)
+      - name: Create dummy backend env (override env_file 참조용 + 부팅 스모크용)
         run: |
           mkdir -p configs/backend
           cat > configs/backend/.env << EOF
@@ -133,11 +135,41 @@ jobs:
           DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
           REDIS_URL=redis://redis:6379/0
           ML_REC_ROOT=/app/ml_rec
+          # 부팅 스모크: 모델·실키 없이 EASE 폴백 부팅.
+          # bge-m3는 오프라인 fast-fail(embeddings=None), LLM은 더미키로 '구성만'(health는 호출 안 함).
+          GEMINI_API_KEY=ci-dummy-not-called
+          HF_HUB_OFFLINE=1
+          TRANSFORMERS_OFFLINE=1
           EOF
 
       - name: Build images (backend, frontend)
         run: |
           docker compose -f docker-compose.yml -f docker-compose.override.yml build backend frontend
+
+      - name: Boot backend (부팅 스모크 — db/redis healthy 후 backend만, deps 스킵)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --wait db redis
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --no-deps backend
+
+      - name: Health smoke (/health/ 200 + /health/db status=ok 폴링, ~90s)
+        run: |
+          poll() {  # $1=경로  $2=성공 판정 커맨드(stdin=응답본문)
+            for i in $(seq 1 30); do
+              body="$(curl -fsS "http://localhost:8000/$1" 2>/dev/null)" \
+                && printf '%s' "$body" | eval "$2" \
+                && { echo "✅ /$1 OK (시도 $i)"; return 0; }
+              sleep 3
+            done
+            echo "::error::/$1 헬스 실패 — backend 부팅/응답 이상"
+            docker compose -f docker-compose.yml -f docker-compose.override.yml logs --tail 150 backend
+            return 1
+          }
+          poll "health/"   "grep -q '\"status\"'"
+          poll "health/db" "grep -qE '\"status\": ?\"ok\"'"
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
 
   # ---------------------------------------------------
   # [이미지 빌드/푸시: arm64 네이티브]
