@@ -1,0 +1,3 @@
+# 셸 스크립트·git 훅은 항상 LF로 체크아웃 (Windows 포함) — bash가 CRLF(\r)에서 깨지지 않도록.
+*.sh text eol=lf
+scripts/hooks/** text eol=lf

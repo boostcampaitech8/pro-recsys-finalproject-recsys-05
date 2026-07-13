@@ -190,6 +190,15 @@
 - scope 경계: 서비스 무중단 — 단계별 이동, 각 단계 배포 검증.
 - step: 8.
 
+#### T30 · dev push 배포 빌드+부팅 검증 자동화 + 로컬 pre-push  [ci-cd] [code] [low] [doing]  → **PR #132·#133 (feature→dev)** · 2026-07-13
+- 문제: feature→dev를 PR로 올리면 `compose_pr`(배포 이미지 빌드 회귀)가 돌지만 **dev 직접 push는 우회**(compose_pr가 `pull_request` 전용) → 스테이징 배포 검증 구멍.
+- 반영(1 · PR #132): `deploy.yml` compose_pr를 `PR + dev push`로 확장(main은 build_push arm64 실빌드가 커버) · `scripts/predeploy_check.sh`(compose config + unit, `PREDEPLOY_BUILD=1` 시 이미지 빌드) · `scripts/hooks/pre-push`(dev/main push 자동 — `git config core.hooksPath scripts/hooks` 활성화) · `.gitattributes`(셸/훅 LF 강제).
+- 반영(2 · PR #133 · codex 교차논의 후): compose_pr에 **경량 부팅+헬스 스모크** 추가 — 더미 `GEMINI_API_KEY`+HF offline로 모델·키 없이 EASE 폴백 부팅(`ChatOpenAI(api_key=None)`은 lifespan raise라 더미키 필수; bge-m3는 `chatbot.py` try/except가 오프라인 fast-fail 흡수), `up --wait db redis` → `--no-deps backend` → `/health/`·`/health/db` 폴링. "빌드되나"→"부팅해 DB 붙고 200 주나"로 심화. **codex 교차논의(gpt-5.6, 전항목 일치)**: 부팅+헬스=지금 할 만함 / 이미지 push·서버배포(dev)=하지 말 것(격리 dev서버·롤백 경계 부재·S3). 로컬 end-to-end 검증 통과(uv 부팅 · `/health/`·`/health/db`=`{"status":"ok"}`).
+- seam: — (validation job 조건만 확장 · **build_push/deploy/vercel 배포 경로 무접촉**).
+- scope 경계: 배포 실행 경로 `if` 무변경. **paths 필터·gha 캐시 최적화는 후속**(무관 dev push도 빌드 — 유지보수 저빈도라 수용).
+- 검증: deploy.yml YAML 파싱·`compose_pr.if`·배포 경로 `if` 무변경 확인 · `predeploy_check.sh` 로컬(compose config OK·unit 34 passed) · PR #132 `compose_pr`(pull_request) green.
+- step: 6(품질 기반 · T17 pre-commit과 인접).
+
 ### cross-component (정리 트랙)
 
 #### T15 · 레거시 정리  [backend+ci-cd+docs] [code] [med] [open]  (SPEC §7 · 2026-07-09)
@@ -318,7 +327,7 @@
 | **4** | 위생·문서 | T3, T4, T8 | 해당 없음(문서/조사) | 진행 전 |
 | **H** | 하네스 진화 | T10, T12, T13 | execute.py T4 파일럿 실측 | T13 잔여 |
 | **5** | SPEC 거버넌스 | T14, T15 | 문서 상호참조 무결 + `compose config`·CI green | T14 done · **T15 잔여** |
-| **6** | SPEC 품질 기반 | T16, T17, T20 | `pytest -m unit` DB 없이 green + CI lint green + 양 러너 green | **T16 done** · T17·T20 잔여 |
+| **6** | SPEC 품질 기반 | T16, T17, T20, T30 | `pytest -m unit` DB 없이 green + CI lint green + 양 러너 green + dev push 배포검증 | **T16 done** · T30 doing(PR #132) · T17·T20 잔여 |
 | **7** | SPEC LLM 계층 | T18, T19 | chat 전 경로 회귀 + prod 트레이스 관측 (S7 해소) | 진행 전 (T16 선행 충족) |
 | **8** | (후속) infra 통합 | T21 | 배포 검증 (S1·S3) | 안정화 후 별도 승인 |
 
