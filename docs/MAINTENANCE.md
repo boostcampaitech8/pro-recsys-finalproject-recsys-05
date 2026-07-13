@@ -252,7 +252,7 @@
 - 검증(완료): `codex debug prompt-input "probe"`(codex-cli 0.142.3, Windows 네이티브 exit 0) 출력에 AGENTS.md가 `--- project-doc ---` 블록으로 로드됨 — 고유 문자열 전량 확인(제목·"얇은 어댑터"·"저자≠판정자"·EASE 불변식). 참조 무결(SPEC §1/§4·MAINTENANCE §3/§4·seam S2/S3/S6 실존) · 문서 diff-only. **부수: codex-Windows unelevated 샌드박스 수정 end-to-end 실증**.
 - 수용 기준(충족): 대화형/헤드리스 Codex가 동일한 저장소 계약을 project-doc로 자동 수신. step: **H2(최우선)**.
 
-#### T23 · execute.py hard failure gate·verify 계약 (+구조 개편 step1)  [docs=하네스/tooling+ci-cd] [code] [high] [scoped]  (Issue #120 · 2026-07-10 · 구조 편입 판정 2026-07-11 · execplan 2026-07-11)
+#### T23 · execute.py hard failure gate·verify 계약 (+구조 개편 step1)  [docs=하네스/tooling+ci-cd] [code] [high] [done]  → **PR #130 (feature→dev, MERGED `bcb38cf`)** · 교차리뷰·CI green 2026-07-13  (Issue #120 · 구조 편입 2026-07-11)
 - 문제: 실패 run이 정상 종료코드로 보일 수 있고 빈 verify가 성공 처리된다. 부가: 로직이 `main()` 168줄에 응집돼 fake subprocess 단위 테스트(DoD)가 현 구조로 불가 → 구조 개편을 step1로 편입(사용자 판정 2026-07-11, 설계 기록=Issue #129 코멘트).
 - 근거 앵커(기준 SHA `ef5cbb0`): `scripts/execute.py:270-274`(빈 verify 성공 처리) · `:457-477`(halted여도 exit 0) · `:286-454`(main 응집).
 - 제안 방향(2-step):
@@ -262,6 +262,7 @@
 - ADR: **ADR-0005 정련 노트 동반**(step1 커밋 시 — 패키지화+shim은 신규 결정이 아닌 실행기 구현 정련).
 - 검증: characterization(`--dry-run` 골든) + fake subprocess 실패 경로 단위 테스트 — `cd backend && uv run pytest ../scripts/exec_harness/tests -q` + CI 스텝. 의존: T22(done). step: **H2(최우선 · next)**.
 - **execplan(인계 정본): `docs/execplan/T23/`** — 실행 분해 3 step: ① 테스트 스캐폴드+현행 골든(execute.py 무수정) ② 행위보존 패키지 추출(procio cwd 매개변수화 포함) ③ hard gate 행위변경+실패 경로 테스트. dry-run 파싱 검증 완료(base_sha `29b3757`). **실행 모드: H2 게이트로 execute.py 완전자동 금지 — 클로드가 step별 codex 수동 위임.**
+- **교차리뷰(저자≠판정자 · 2026-07-13 · 독립 서브에이전트 2렌즈)**: 행위보존 CONFIRMED(원본 `execute.py --dry-run` 출력 == `dryrun.golden.txt` == 신규 shim, 바이트 일치 실행 대조) · 전 실패경로 non-zero exit 실측(bad `--from`=2, 없는 task/step·빈 verify=1, dry-run 성공=0) · 14 test green · stdlib-only·deploy.yml 스코프 준수. **판정 = 수용+병합**. 잔여 이월: (a) `codex exec review` 실패/timeout이 여전히 exit 0(`exec_harness/runner.py:253,261`) → **T26 게이팅 스코프**; (b) characterization 골든이 dry-run 경로만 커버(실행 경로 원본-등가 골든 부재) → 후속; (c) `--from` 비연속 step 번호 재개 의미 변경 → ADR-0005 정련 노트 기록. 부수: `docs/execplan/T4/step1.md` `verify:`→`verify: skip` 마이그레이션(신 규칙 회귀 방지, 수용).
 
 #### T24 · deterministic manifest + semantic handoff 분리  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #122 · 2026-07-10)
 - 문제: changed files·step done·검증 결과가 모델 자기보고여서 실제 diff와 달라도 다음 step에 사실처럼 주입될 수 있다.
@@ -277,6 +278,7 @@
 
 #### T26 · 교차리뷰 closed loop  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #124 · 2026-07-10)
 - 문제: review rc/verdict가 완료를 막지 않고 findings가 `.exec/`에만 남아 Claude/사용자 판정 흐름이 닫히지 않는다.
+- 구체 앵커(T23 교차리뷰 2026-07-13 발견): `scripts/exec_harness/runner.py:253`(review rc 캡처 후 미검사)·`:261`(timeout 로그만) → `codex exec review` 실패/timeout이 run exit 0을 막지 못함(T23 겨냥 버그와 동류·push/PR 이후 정보성이라 T23은 수용·이월). T26이 이 게이팅을 닫는다.
 - 제안 방향: draft PR → Codex findings → **독립 판정자 adjudication(저자≠판정자)** → 공유 가능한 기록 → 사용자 판정 → ready/done 상태기계.
 - **편향 불변식 (저자≠판정자)**: 코드를 작성한 실행자(Claude·Codex 무관)는 **자기 산출물을 adjudicate하지 않는다**. 판정은 해당 변경을 작성하지 않은 **독립 서브에이전트**에 위임한다(T16 §4.7 선례 — 저자 Claude가 직접 판정하지 않고 독립 리뷰로 F1·F2·F5 도출). closed loop이 실행자 자기판정으로 닫히면 무효.
 - scope 경계: findings 자동 수정 금지(SPEC §4.7), 모델 정책=T27.
@@ -307,7 +309,7 @@
 
 | Step | 목표 | 티켓 | 통합 검증 게이트 | 상태 |
 |---|---|---|---|---|
-| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22 done · T23 next** |
+| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22·T23 done · T24 next** |
 | **E1** | recsys 진화 — PreferenceSpec 파서 baseline | T28 | 200+ 한국어 fixture + hard slot F1≥0.95 + 전체 slot F1≥0.90 + 외부 의존 0 | scoped · H2 이후 |
 | **H3** | execute.py 병렬화 — worktree 격리·충돌 프로토콜 | T29 | 워크트리 생성/정리 멱등 + 병렬 2-run 무간섭 + 충돌 격리 resolve | open · H2 말미 (T23·T24·T25·T26 선행) |
 | **1** | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) | T5 done · T7 잔여 |
