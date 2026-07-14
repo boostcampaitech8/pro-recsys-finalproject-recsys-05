@@ -107,6 +107,30 @@ jobs:
           uv run pytest -m integration
 
   # ---------------------------------------------------
+  # [프론트 타입체크] S5 안전망 — tsc --noEmit을 CI에 직접 배선 (T39 G2)
+  # 기존에는 Docker 빌드 경유 간접 검증뿐이라 PR에서 타입 오류가 통과 가능했다.
+  # test와 병렬 실행, 배포 경로(build_push/deploy)와 무관.
+  # ---------------------------------------------------
+  typecheck_frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22   # vite 7 engines: ^20.19 || >=22.12 (deploy_frontend_vercel과 동일)
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Type-check (tsc --noEmit)
+        run: cd frontend && npm run type-check
+
+  # ---------------------------------------------------
   # [PR 이미지 빌드 검증 + 경량 부팅/헬스 스모크: Docker Compose (override)]
   # ① Dockerfile 회귀(이미지가 빌드되는가)  ② 빌드된 backend가 실제로 부팅해 DB에 붙고
   #    /health 200을 주는가(앱 배선·라우팅·DB 연결까지). 모델/외부키 없이 EASE 폴백 부팅:
