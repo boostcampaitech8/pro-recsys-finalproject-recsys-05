@@ -260,6 +260,7 @@
 - 제안 방향: **G1** dev·main required checks(`test`·`compose_pr`) 지정(ops·0 LOC — admin 권한) / **G2** `typecheck_frontend` 잡 신설(~15줄, test와 병렬, 배포 경로 `if` 무접촉) / **G3** `backend/test/test_seam_pins.py`(-m unit 자동 편입, CI 스텝 +0): Vector(1024) assert·66폭 텍스트 핀·S2 스킵 마커 + 증분(T32 라우트 부재·T34 alembic/filesystem 부재·T35 depends_on 부재).
 - 배제(과설계 방지): 커버리지 % 게이트 · EASE 실스모크(모델 아티팩트=불변식 6 충돌) · lint류(T17 소관) · vitest(T20 소관) · nightly 크론.
 - 검증: 인위 위반 커밋으로 각 게이트 red 확인 → 원복 green.
+- G1 실행 시도(2026-07-14): `rlaqudwn1` admin=false → 404 — **org admin 위임 필요(ops)**. 절차: Settings→Branches→`main`·`dev` 각각 "Require status checks to pass" + checks `test`·`compose_pr` 지정, **admin bypass 허용 유지**(docs main 직행 ADR-0006 보존 — "Do not allow bypassing" 체크 금지). CLI 대안: `gh api -X PUT repos/boostcampaitech8/pro-recsys-finalproject-recsys-05/branches/<br>/protection` (required_status_checks.contexts=["test","compose_pr"] · enforce_admins=false).
 - step: HF.
 
 ### cross-component (정리 트랙)
