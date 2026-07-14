@@ -2,6 +2,9 @@
 
 BentoML 응답과 EASE 폴백 모두 "score" 키로 점수를 반환하는데,
 병합이 "combined_score"만 읽으면 모든 점수가 기본값 0이 된다.
+
+T31: BentoML 시맨틱 실패(HTTP 200 + status:'error')도 EASE 폴백을 타야 하고(불변식 1),
+폴백 발생 시 model_type이 응답·캐시·추천 이력에 정직하게 보고되어야 한다.
 """
 import pytest
 
@@ -56,8 +59,10 @@ def _make_service(games):
     return service
 
 
-def _install_fake_bentoml(monkeypatch, recommendations):
-    payload = {"status": "success", "recommendations": recommendations}
+def _install_fake_bentoml(monkeypatch, recommendations, status="success", error=None):
+    payload = {"status": status, "recommendations": recommendations}
+    if error is not None:
+        payload["error"] = error
 
     class FakeResponse:
         def raise_for_status(self):
@@ -148,6 +153,84 @@ async def test_ease_fallback_score_is_merged(monkeypatch):
     game = result["recommended_games"][0]
     assert game["name"] == "Hades"
     assert game["score"] == pytest.approx(0.4242)
+
+
+class FakeEaseModelService:
+    def recommend_for_new_user(self, played_games, top_k, aggregation):
+        return [{"item_id": "999", "score": 0.4242}]
+
+
+class FakeUser:
+    user_id = 7
+
+
+class FakeUserRepository:
+    async def get_user_by_steam_id(self, steamid):
+        return FakeUser()
+
+
+class FakeRecommendationRepository:
+    def __init__(self):
+        self.saved_model_type = None
+
+    async def save_recommendation(self, user_id, recommended_games, model_type):
+        self.saved_model_type = model_type
+
+
+@pytest.mark.asyncio
+async def test_semantic_error_triggers_ease_fallback(monkeypatch):
+    """BentoML이 HTTP 200 + status:'error'를 반환해도 EASE 폴백이 발동한다 (불변식 1)."""
+    _install_fake_bentoml(
+        monkeypatch, [], status="error", error="all games out of training set"
+    )
+    service = _make_service([FakeGame(999, "Hades")])
+    service._model_service = FakeEaseModelService()
+
+    result = await service.recommend_from_steam(
+        "76561198000000000", top_k=1, save_history=False
+    )
+
+    game = result["recommended_games"][0]
+    assert game["name"] == "Hades"
+    assert game["score"] == pytest.approx(0.4242)
+    assert result["model_type"] == "ease_fallback"
+
+
+@pytest.mark.asyncio
+async def test_fallback_model_type_reaches_history(monkeypatch):
+    """폴백 발생이 응답 model_type과 추천 이력 저장 양쪽에 정직하게 기록된다."""
+    _install_fake_bentoml(monkeypatch, [], status="error", error="cold start")
+    rec_repo = FakeRecommendationRepository()
+    service = IntegratedRecommendationService(
+        steam_service=FakeSteamService(),
+        game_repository=FakeGameRepository([FakeGame(999, "Hades")]),
+        recommendation_repository=rec_repo,
+        user_repository=FakeUserRepository(),
+    )
+    service.rec_cache = FakeCache()
+    service._model_service = FakeEaseModelService()
+
+    result = await service.recommend_from_steam(
+        "76561198000000000", top_k=1, save_history=True
+    )
+
+    assert result["model_type"] == "ease_fallback"
+    assert rec_repo.saved_model_type == "ease_fallback"
+
+
+@pytest.mark.asyncio
+async def test_success_model_type_stays_bentoml(monkeypatch):
+    """정상 BentoML 경로의 model_type은 bentoml_3stage 그대로다 (회귀 방지)."""
+    _install_fake_bentoml(
+        monkeypatch, [{"rank": 1, "item_id": 999, "score": 0.8}]
+    )
+    service = _make_service([FakeGame(999, "Hades")])
+
+    result = await service.recommend_from_steam(
+        "76561198000000000", top_k=1, save_history=False
+    )
+
+    assert result["model_type"] == "bentoml_3stage"
 
 
 @pytest.mark.asyncio

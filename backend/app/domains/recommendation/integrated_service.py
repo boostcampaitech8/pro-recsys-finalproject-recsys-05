@@ -13,6 +13,10 @@ import time
 logger = logging.getLogger(__name__)
 
 
+class BentoMLServiceError(Exception):
+    """BentoML이 HTTP 200으로 응답했지만 시맨틱 실패(status != 'success')를 보고한 경우."""
+
+
 class IntegratedRecommendationService:
     """
     Steam API + EASE 모델 통합 추천 서비스
@@ -142,6 +146,7 @@ class IntegratedRecommendationService:
 
         # ========== 4단계: BentoML HTTP POST 호출 (Week 4) ==========
         logger.info(f"[Step 4] Calling BentoML service...")
+        model_type = "bentoml_3stage"
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
@@ -155,15 +160,17 @@ class IntegratedRecommendationService:
                 response.raise_for_status()
                 bentoml_result = response.json()
 
-            # BentoML 응답 확인
+            # BentoML 응답 확인 — HTTP 200이어도 시맨틱 실패면 폴백 대상 (불변식 1)
             if bentoml_result.get("status") != "success":
-                raise ValueError(f"BentoML error: {bentoml_result.get('error')}")
+                raise BentoMLServiceError(
+                    f"BentoML error: {bentoml_result.get('error')}"
+                )
 
             recommendations = bentoml_result.get("recommendations", [])
             logger.info(f"✓ BentoML returned {len(recommendations)} recommendations")
 
-        except httpx.HTTPError as e:
-            logger.error(f"BentoML HTTP call failed: {e}")
+        except (httpx.HTTPError, BentoMLServiceError) as e:
+            logger.error(f"BentoML call failed: {e}")
             # Fallback: BentoML이 안 되면 기존 EASE 모델 사용
             logger.warning("Falling back to EASE model...")
             try:
@@ -185,6 +192,7 @@ class IntegratedRecommendationService:
                     }
                     for i, rec in enumerate(recommendations_ease)
                 ]
+                model_type = "ease_fallback"
                 logger.info(f"✓ EASE fallback returned {len(recommendations)} recommendations")
             except Exception as fallback_error:
                 logger.error(f"Both BentoML and EASE failed: {fallback_error}")
@@ -242,7 +250,7 @@ class IntegratedRecommendationService:
             "is_playtime_public": steam_data.get("is_playtime_public", True),
             "played_games_count": len(games),
             "recommended_games": result_games,
-            "model_type": "bentoml_3stage",  # BentoML 3-Stage 파이프라인 사용
+            "model_type": model_type,  # 폴백 발생 시 ease_fallback으로 정직 보고
             "top_k": top_k,
         }
 
@@ -256,7 +264,7 @@ class IntegratedRecommendationService:
                     await self.recommendation_repository.save_recommendation(
                         user_id=user.user_id,
                         recommended_games=result_games,
-                        model_type="bentoml_3stage"  # BentoML 3-Stage 파이프라인 사용
+                        model_type=model_type
                     )
                     logger.info(f"✓ Saved recommendation history for user {user.user_id}")
             except Exception as e:
