@@ -122,11 +122,11 @@ class GeminiProvider(LLMProvider):
                 last_error = e
                 logger.error(f"Error calling Gemini ({attempt_model}, {key_tier} key): {e}")
 
-        # 모델·키 폴백 모두 실패 — Agent Loop에서 graceful 처리되도록 에러를 content로 반환
-        return LLMResponse(
-            content=f"Error: {last_error}",
-            finish_reason="error"
-        )
+        # Model/key fallbacks exhausted: propagate the final provider error to callers.
+        if last_error is not None:
+            raise last_error
+
+        raise RuntimeError("Gemini request failed without any attempts")
 
     def _candidate_models(self, model: str) -> list[str]:
         """시도할 모델 순서: 요청 모델 → 폴백 모델들 (중복 제외)."""

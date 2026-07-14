@@ -10,6 +10,7 @@ from app.domains.chat.interfaces import UserIntent
 from app.domains.chat.orchestrator import SteamBotOrchestrator
 from app.domains.chat.providers.base import LLMResponse
 from app.domains.chat.providers.clova import ClovaProvider
+from app.domains.chat.providers.gemini import GeminiProvider
 
 pytestmark = pytest.mark.unit
 
@@ -39,6 +40,23 @@ async def test_clova_provider_propagates_llm_error(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(provider.client.chat.completions, "create", failing_create)
+
+    with pytest.raises(RuntimeError):
+        await provider.chat(messages=[{"role": "user", "content": "hi"}])
+
+
+@pytest.mark.asyncio
+async def test_gemini_provider_propagates_llm_error(monkeypatch):
+    """무료·유료 폴백이 모두 실패하면 예외를 호출자에게 전파한다."""
+    monkeypatch.setenv("GEMINI_FALLBACK_API_KEY", "paid-test-key")
+    provider = GeminiProvider(api_key="free-test-key", fallback_model="fallback-model")
+
+    async def failing_create(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(provider.client.chat.completions, "create", failing_create)
+    assert provider.fallback_client is not None
+    monkeypatch.setattr(provider.fallback_client.chat.completions, "create", failing_create)
 
     with pytest.raises(RuntimeError):
         await provider.chat(messages=[{"role": "user", "content": "hi"}])
