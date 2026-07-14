@@ -130,6 +130,7 @@
 - scope 경계: 에이전트 엔진(Tool/orchestrator) 재작성 금지, 응답 스키마·스트리밍 계약 불변.
 - 검증: chat 전 경로(llm-only·에이전트·RAG·의도분류) 회귀 + 포트 스텁 유닛.
 - 의존: **T16 선행**(안전망). step: 7.
+- 흡수(교차검증 2026-07-14 · Fable×Codex): ⑨ `LLMProvider.chat` ABC에 `response_format` 파라미터 부재 — `orchestrator.py:301-306`이 전달(구현체 2개가 우연히 수용, ABC만 준수한 신규 어댑터는 TypeError) → 포트 시그니처 정식 편입(`base.py:43-50`) · ⑬ Clova 클라이언트 timeout/max_retries 누락(`clova.py:33-36` — 프로덕션 휴면이나 통일 시 일괄) · Settings 단일화 범위 재확인(`BENTOML_SERVICE_URL` os.getenv 재호출·`bge-m3` 문자열 하드코딩 2곳 등). 전술 선행: **T33**(error-content 최소 수정 — 구조 재설계는 이 티켓 소관).
 
 #### T19 · Langfuse 관측성 배선  [backend/llm] [code] [low] [open]  (ADR-0007 · 2026-07-09)
 - 문제: LLM 호출 관측성 전무(비용·지연·폴백 발동률 안 보임).
@@ -137,6 +138,41 @@
 - seam: S7 유지.
 - 검증: prod 트레이스 1건 관측.
 - 의존: T18. step: 7.
+
+#### T31 · EASE 폴백 시맨틱 구멍 + model_type 거짓 보고  [backend/recommendation] [high] [open]  (교차검증 2026-07-14 · Fable×Codex 합의)
+- 문제: BentoML이 HTTP 200 + `status:'error'`(의미적 실패)를 반환하면 폴백이 `except httpx.HTTPError`에만 걸려 있어 우회 → 사용자 400. 실 시나리오: 보유 게임 전부가 학습셋(17,792개) 밖(예: Dota2·CS 미포함). **불변식 1이 transport 장애에만 성립.** 부가: 폴백 응답도 `model_type='bentoml_3stage'` 하드코딩 + `source='ease_fallback'`이 응답 재구성에서 탈락 — API·캐시·추천 이력에서 폴백 발생 완전 불가시.
+- 근거 앵커(기준 SHA `07eafde`): `backend/app/domains/recommendation/integrated_service.py:159-165(폴백 분기)·184(source)·245,259(model_type)`.
+- seam: — (불변식 1 직결 · S3 인접 — BentoML HTTP 경계 유지)
+- 제안 방향: `status != 'success'`도 폴백 트리거로 편입 + 폴백 시 model_type 정직 보고(source 관통).
+- scope 경계: BentoML 서빙측(ml_rec) 무접촉 — backend 폴백 분기만.
+- 검증: fake httpx(200+status:error)로 400 **실패 재현 테스트 선작성** → 폴백 발동 + `model_type='ease_fallback'` assert (unit).
+- 수용 기준: 시맨틱 실패 시 EASE 폴백 200 응답 + 폴백 가시성 확보.
+- step: HF.
+
+#### T32 · 공개 테스트 엔드포인트 제거 (/chat/echo·/chat/test/agent)  [backend/chat] [med] [open]  (교차검증 2026-07-14)
+- 문제: 프로덕션 라우터에 테스트 엔드포인트 상주(`main.py:170` "Test Router Removed" 주석과 모순). `/chat/test/agent`는 embedding_model 없이 orchestrator를 구동 → startup chatbot과 **별개의 bge-m3(~2.3GB) 2호 사본** 로드 — 4G 제한 prod에서 무인증 공개 호출 1번에 OOM 경로. nginx 시큐어존 정규식이 이 경로를 차단하지 못함.
+- 근거 앵커(`07eafde`): `backend/app/domains/chat/router.py:34-85` · `orchestrator.py:330-343(2차 로드)` · `backend/nginx/nginx.conf:20,35` · `docker-compose.prod.yml:75-78(mem 4G)`.
+- seam: S4 인접(공개 표면 축소 — rewrite 목록 무접촉).
+- 제안 방향: 두 라우트 제거(또는 DEBUG_MODE 게이팅).
+- 검증: 라우트 표면 pin(`/test`·`/echo` 부재 assert — T39 G3 편입) + chat 회귀 green.
+- step: HF.
+
+#### T33 · Gemini error-content 사용자 노출 차단  [backend/chat] [med] [open]  (교차검증 2026-07-14 · T18/T6 cross-link)
+- 문제: `gemini.py`가 전 폴백 실패를 `content="Error: {last_error}"`로 반환 — `_run_chitchat`·`engine.py`가 이를 최종 사용자 답변으로 반환(FE 실사용 경로 `/chat/messages`). **F7 가드 테스트는 예외를 던지는 provider만 검증해 이 경로를 못 잡음.** `gemini.py:125` 주석("Agent Loop에서 graceful 처리")은 실재하지 않는 처리 층을 주장(오도성). classify_intent 경로는 휴리스틱 폴백이 흡수(노출 아님).
+- 근거 앵커(`07eafde`): `providers/gemini.py:125-129` · `orchestrator.py:461-466` · `agent/engine.py:148-151` · `test/domains/chat/test_llm_failure_paths.py`.
+- seam: **S7**(timeout·폴백 체인 불변 — 에러 계약만 수정).
+- 제안 방향: 실패 시 raise(또는 명시 error 타입) → orchestrator/engine에서 공통 사용자 안내문 변환. **최소 수정만 — 구조 통일은 T18 소관.**
+- scope 경계: provider 시그니처·폴백 체인 재설계 금지(T18).
+- 검증: ScriptedProvider로 실패 강제 **재현 테스트 선작성** → 응답에 에러 원문 부재 assert + F7 가드를 예외형+값 양쪽으로 확장.
+- step: HF.
+
+#### T37 · merge_vector 대표 임베딩 보존 규칙 + 차원 검증  [backend] [med] [open]  (교차검증 2026-07-14)
+- 문제: `merge_vector.py`가 appid당 마지막 행으로 무조건 덮어씀 — step3 산출은 게임당 최대 3행(game_card→pros_summary→cons_summary 순)이라 **cons_summary(부정 리뷰 요약)가 게임 대표 임베딩**이 됨. 문서화된 복구 경로(HANDOFF §A embedding NULL 복구) 자체가 결함. 1024차원 검증도 전무(오류가 DB commit에서야 늦게 발생). 현 DB 감염 여부는 증명 불가(1차 시드=GDrive 병합본).
+- 근거 앵커(`07eafde`): `backend/scripts/merge_vector.py:49-62` · `ml_llm/rag_embedding/step2_generate_rag_docs.py:402-422(기록 순서)` · `docs/reactivation/HANDOFF.md:148`.
+- seam: **S6**(1024 유지 — 검증 추가만, 모델 무접촉).
+- 제안 방향: 게임당 1벡터 규칙(doc_type 명시 선택, 기본 game_card) + `len(vector)==1024` assert.
+- 검증: 소형 fixture로 덮어쓰기 **재현 테스트 선작성** → 보존 assert (unit).
+- step: HF.
 
 ### ai-recsys
 
@@ -167,6 +203,15 @@
   건드리지 말 것: recommendation/BentoML 서빙·모델/아티팩트·후보 fusion·응답 계약.
   수용 기준 / 검증: 위 metric 임계치 + 외부 의존 0 pytest + 문서 참조·diff check.
 
+#### T36 · stage3 DCN 계약 복원 — bounded rebuild  [ai-recsys] [high] [open]  (교차검증 2026-07-14 · Fable×Codex 합의 · execplan 필요)
+- 문제: DCN v2 학습/서빙 **삼중 단절** — ① 66차원 레이아웃 의미 불일치(학습 `[popularity, avg_playtime, emb×64]` vs 서빙 `[emb×64, ease_score, lightgcn_score]` — 같은 폭이라 shape 체크로 탐지 불가) ② 스케일 skew(raw 수치 vs [-1,1] 임베딩 — StandardScaler import만·미사용) ③ 서빙이 BatchNorm 제거+`strict=False` 로드로 학습 네트워크와 수치 상이. **배포된 dcn_v2_steam.pth 출력은 통계적으로 무의미 — 계약 소급 불가, bounded rebuild(재학습)가 정당(양 모델 합의).** T5 이후 prod가 3-stage 실서빙 중이므로 **랭킹 품질 저하는 라이브**(retrieval·EASE는 정상 — 랭킹 단만).
+- 근거 앵커(`07eafde`): `ml_rec/scripts/stage3_scoring/dcn_v2_trainer.py:125-132,204` · `stage4_serving/feature_builder.py:102-115` · `model_loader.py:206,259,268-271` · `config.py:37-38(死설정 feature_dim=131)`.
+- seam: **S2 절대 유지**(후보 스킵 불변) · 불변식 4(arm64)·6(아티팩트 커밋 금지).
+- 제안 방향: execplan 3-step — ① 현행 계약 characterization·문서화 ② 피처 계약 SSOT 모듈 + 66폭 계약 테스트 동결(T39 G3 접점) ③ 확정 레이아웃으로 DCN·XGB 재학습(review_stability 분산0 죽은 피처 정리 포함).
+- scope 경계: retrieval(stage1)·EASE 무접촉, 서빙 API 계약 불변.
+- 검증: step별 test-with · 피처 폭 계약 테스트 · 오프라인 스모크.
+- step: E2(신설) · HF 이후.
+
 ### frontend
 
 #### T20 · frontend·ml 테스트 러너 도입  [frontend+ai-recsys] [code] [low] [open]  (SPEC §6 · 2026-07-09)
@@ -190,7 +235,7 @@
 - scope 경계: 서비스 무중단 — 단계별 이동, 각 단계 배포 검증.
 - step: 8.
 
-#### T30 · dev push 배포 빌드+부팅 검증 자동화 + 로컬 pre-push  [ci-cd] [code] [low] [doing]  → **PR #132·#133 (feature→dev)** · 2026-07-13
+#### T30 · dev push 배포 빌드+부팅 검증 자동화 + 로컬 pre-push  [ci-cd] [code] [low] [done]  → **PR #132·#133 (feature→dev) → PR #134 (dev→main, `2d744d2`)** · main 도달 2026-07-14
 - 문제: feature→dev를 PR로 올리면 `compose_pr`(배포 이미지 빌드 회귀)가 돌지만 **dev 직접 push는 우회**(compose_pr가 `pull_request` 전용) → 스테이징 배포 검증 구멍.
 - 반영(1 · PR #132): `deploy.yml` compose_pr를 `PR + dev push`로 확장(main은 build_push arm64 실빌드가 커버) · `scripts/predeploy_check.sh`(compose config + unit, `PREDEPLOY_BUILD=1` 시 이미지 빌드) · `scripts/hooks/pre-push`(dev/main push 자동 — `git config core.hooksPath scripts/hooks` 활성화) · `.gitattributes`(셸/훅 LF 강제).
 - 반영(2 · PR #133 · codex 교차논의 후): compose_pr에 **경량 부팅+헬스 스모크** 추가 — 더미 `GEMINI_API_KEY`+HF offline로 모델·키 없이 EASE 폴백 부팅(`ChatOpenAI(api_key=None)`은 lifespan raise라 더미키 필수; bge-m3는 `chatbot.py` try/except가 오프라인 fast-fail 흡수), `up --wait db redis` → `--no-deps backend` → `/health/`·`/health/db` 폴링. "빌드되나"→"부팅해 DB 붙고 200 주나"로 심화. **codex 교차논의(gpt-5.6, 전항목 일치)**: 부팅+헬스=지금 할 만함 / 이미지 push·서버배포(dev)=하지 말 것(격리 dev서버·롤백 경계 부재·S3). 로컬 end-to-end 검증 통과(uv 부팅 · `/health/`·`/health/db`=`{"status":"ok"}`).
@@ -198,6 +243,24 @@
 - scope 경계: 배포 실행 경로 `if` 무변경. **paths 필터·gha 캐시 최적화는 후속**(무관 dev push도 빌드 — 유지보수 저빈도라 수용).
 - 검증: deploy.yml YAML 파싱·`compose_pr.if`·배포 경로 `if` 무변경 확인 · `predeploy_check.sh` 로컬(compose config OK·unit 34 passed) · PR #132 `compose_pr`(pull_request) green.
 - step: 6(품질 기반 · T17 pre-commit과 인접).
+- 상태 정정(2026-07-14): 교차검증 조사에서 stale-doing 발견 — PR #134 main 병합 확인 후 done 처리. 잔여 최적화(paths 필터·gha 캐시)는 scope 경계 기재대로 후속.
+
+#### T35 · 구성 정리 — dev compose hard-depend·VITE no-op  [ci-cd/infra+frontend] [med] [open]  (교차검증 2026-07-14 · T21 cross-link)
+- 문제: ① dev `docker-compose.yml`이 backend를 `depends_on bentoml(service_healthy)`로 결박 — **불변식 1(EASE 폴백·bentoml 비의존)의 인프라 레벨 위반**이자 로컬 구동 `--no-deps` 요구의 근원(우회로만 문서화된 상태). ② `VITE_API_BASE_URL` 런타임 주입은 no-op(Vite는 빌드타임 전용, dev compose도 빌드 산출물 nginx 서빙) — FE는 상대경로 폴백+내장 프록시로 우연히 동작.
+- 근거 앵커(`07eafde`): `docker-compose.yml:12(VITE)·66-68(depends_on)` · `frontend/Dockerfile:10-19` · `frontend/src/api/gameApi.ts:26`.
+- seam: S1 인접(nginx 무접촉 — compose만).
+- 제안 방향: depends_on 제거 + VITE env 주입 제거 + 문서 동기(CLAUDE.md·SPEC 로컬 구동·부록 — `--no-deps` 우회 안내 해제).
+- 검증: `docker compose config` 무결 + compose_pr 부팅 스모크 green + depends_on 부재 pin(T39 G3).
+- step: 5.
+
+#### T39 · 빌드 가드레일 골격 — G1 required checks·G2 tsc·G3 seam 핀  [ci-cd] [med] [open]  (교차검증 2026-07-14)
+- 문제: ① dev·main **브랜치 보호 부재(gh api 404 실측)** — CI red여도 머지 가능 ② frontend `type-check` 스크립트가 CI 미배선(S5 안전망 구멍 — Docker 빌드 간접뿐) ③ seam 기계 핀 전무(1024차원·66피처폭·S2 마커가 산문으로만 존재).
+- 근거 앵커(`07eafde`): `.github/workflows/deploy.yml`(잡 `test`·`compose_pr` — name 필드 없음, 컨텍스트=잡 ID) · `frontend/package.json(type-check)`.
+- seam: S2·S5·S6의 **기계화**(내용 무변경 — 강제 장치만 추가).
+- 제안 방향: **G1** dev·main required checks(`test`·`compose_pr`) 지정(ops·0 LOC — admin 권한) / **G2** `typecheck_frontend` 잡 신설(~15줄, test와 병렬, 배포 경로 `if` 무접촉) / **G3** `backend/test/test_seam_pins.py`(-m unit 자동 편입, CI 스텝 +0): Vector(1024) assert·66폭 텍스트 핀·S2 스킵 마커 + 증분(T32 라우트 부재·T34 alembic/filesystem 부재·T35 depends_on 부재).
+- 배제(과설계 방지): 커버리지 % 게이트 · EASE 실스모크(모델 아티팩트=불변식 6 충돌) · lint류(T17 소관) · vitest(T20 소관) · nightly 크론.
+- 검증: 인위 위반 커밋으로 각 게이트 red 확인 → 원복 green.
+- step: HF.
 
 ### cross-component (정리 트랙)
 
@@ -206,8 +269,17 @@
 - 근거 앵커: 2026-07-09 조사 5회 종합. Issue #111.
 - seam: **S1 주의** — 루트 `nginx/` 처분 전 compose·deploy 참조 무관 확인 필수.
 - 제안 방향: 조사 재확인 → 사문서 삭제, verify는 가치 있으면 pytest 승격 후 삭제(T16과 연계), README 재작성(T4와 중복 — scoping 시 T4를 execute.py 파일럿으로 소비할지 T15에 흡수할지 판정).
+- 보강(교차검증 2026-07-14): 루트 `nginx/` 고아 확정 — 실 ingress 정본=`backend/nginx/nginx.conf`(compose.prod:29-40·deploy.sh 마운트), **`frontend/nginx.conf`는 prod FE 이미지 내장 프록시로 실사용(삭제 금지)** · `init-letsencrypt.sh`는 성립 불가 좀비(certbot 서비스 부재·v1 compose) · `ml_llm/proto` db_ingest는 스키마 단절(content 컬럼 부재)로 소비 불가 死경로 확정. **코드 내 위험물(filesystem.py·alembic 등)은 T34 소관 — 경계 준수.**
 - 검증: `docker compose config` 무결 + CI green.
 - step: 5.
+
+#### T34 · 코드 내 死·위험물 절제  [backend+ai-recsys] [med] [open]  (교차검증 2026-07-14 · T15 경계 명문화)
+- 문제: 반증 생존 확정 死·위험 코드 — ① `chat/tools/filesystem.py`: 경로 샌드박스 0의 LLM FS 도구(참조 0·`__pycache__` .pyc 부재 확인 — 배선 시 임의 R/W 구멍) ② `backend/alembic/` 전체: env.py가 game 모델 누락 → 유일 revision upgrade가 `drop_table('games')`+인덱스 7종 드랍(자동 호출 0 — 수동 실행 시 파괴). **remove-alembic 합의**(create_all 단일화 — 스키마 관리자 이원화 해소) ③ `game/repository.py`: `search_by_embedding` 이중 정의(후자가 전자를 가림 · 프로덕션 호출부 0) + `get_games_by_genres` genres 인자 무시 ④ 깨진 `app/schemas.py`(Basemodel/Filed 오타·importer 0) · `test/models.py`(깨진 import + Vector(768) 오염) ⑤ 스텁 `recommendation/service.py`(하드코딩 [101,202,…] · 인스턴스화 0).
+- 근거 앵커(`07eafde`): `filesystem.py:33-46` · `alembic/env.py:17-20`+`versions/04606b955656:24-31` · `game/repository.py:25-32,34,64` · `app/schemas.py:1,15` · `recommendation/service.py:28`.
+- seam: — (삭제 게이트 = 호출부 0 재확인 grep 증거 첨부).
+- scope 경계: **proto/repl·루트 nginx·certbot·verify_*는 T15 소관(중복 금지)**. genres 필터는 삭제가 아니라 구현(전자 body 유지·후자 삭제 + OR 시맨틱 회귀 테스트).
+- 검증: 호출부 0 증거 → 삭제 → 금지 패턴 pin(alembic·filesystem 부재 assert — T39 G3 편입) + unit green + compose_pr 스모크 green.
+- step: 5(T15와 함께).
 
 ### docs / 하네스
 
@@ -310,24 +382,35 @@
 - 의존: T23(procio cwd 매개변수화가 최소 전제) · T24(resolver에 자기보고 아닌 manifest 증거 제공) · T25(잠금·상태기계와 병렬 스케줄 합성) · T26(저자≠판정자 불변식을 conflict resolver에 재사용) — **H2 말미 배치**, scoped 확정은 T24 완료 후 권장.
 - 설계 노트(2026-07-11 · Plan 서브에이전트, 기록=Issue #129 코멘트): `scripts/exec_harness/` 패키지화 + `execute.py` shim(경로 계약 보존), `worktree.py` 모듈, 초기 병렬 scope는 **unit급(외부 의존 0) verify 티켓만**(공유 인프라 verify는 직렬화), Windows worktree prune 멱등성 테스트 필수.
 
+#### T38 · exec_harness codex 샌드박스 회귀 수리  [docs=하네스/tooling] [med] [open]  (2026-07-14 실측 · T22 대조 필요)
+- 문제: `codex exec --sandbox workspace-write`(codex.py)가 이 Windows 환경에서 셸 스폰 즉시 실패(exit `0xC0000142` — powershell DLL 초기화 실패, codex-cli **0.144.3**) → execute.py 하네스·codex 플러그인 위임 전체 작동 불능. **T22(2026-07-10)는 "codex-Windows unelevated 샌드박스 수정 end-to-end 실증"(codex-cli 0.142.3)을 기록 — 회귀**(원인 후보: codex CLI 0.142→0.144 업데이트). `--sandbox danger-full-access`만 동작(2026-07-14 교차검증에서 읽기 전용 프롬프트로 우회 사용 · 종료 후 `git status` 무변경 검증).
+- 근거 앵커(`07eafde`): `scripts/exec_harness/codex.py:59-67` · T22 검증 기록(§3) · read-only/workspace-write 스모크 양쪽 실패 재현.
+- seam: — (하네스 tooling · prod 무접촉).
+- 제안 방향: sandbox 모드 설정화(config/CLI 인자) + 실패 시 진단 메시지(0xC0000142 감지 시 안내). **danger-full-access 자동 강등 금지 — 명시 opt-in만.**
+- 검증: 모드별 커맨드 조립 snapshot 테스트 + dry-run 골든 유지 + 로컬 1회 실증.
+- 의존: T23(done). step: **H2 편입**(T24 재개 전 정리 권장).
+
 ---
 
 ## §4. Step 보드 (정본 · ADR-0006)
 
 > 순서 = risk·severity 우선, 의존 선행. step done 게이트 = 소속 티켓 전부 done + 통합 검증 통과. **H2는 다른 미착수 구현보다 먼저 완료하며, H2 완료 전 `execute.py` 완전자동 실행은 admission하지 않는다.**
+> **예외(사용자 승인 2026-07-14)**: HF 트랙(T31·T32·T33·T39·T37)은 라이브 결함 핫픽스로 H2에 선행 — 근거: SPEC §4.8 자율 범위(확인된 버그 수정) · 전건 S 크기 · 수동 위임 레인(execute.py 불요 = H2 게이트 무저촉).
 
 | Step | 목표 | 티켓 | 통합 검증 게이트 | 상태 |
 |---|---|---|---|---|
-| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22·T23 done · T24 next** |
+| **HF** | 라이브 결함 핫픽스 + 빌드 가드레일 | T31, T32, T33, T39, T37 | 실패 재현 테스트 선작성→green + required checks 활성 + seam 핀(-m unit) 편입 | **최우선(승인 예외 2026-07-14) · T31 next** |
+| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27, T38 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 + 샌드박스 회귀 해소 | **HF 이후 최우선 · T22·T23 done · T38→T24 next** |
 | **E1** | recsys 진화 — PreferenceSpec 파서 baseline | T28 | 200+ 한국어 fixture + hard slot F1≥0.95 + 전체 slot F1≥0.90 + 외부 의존 0 | scoped · H2 이후 |
+| **E2** | stage3 DCN 계약 복원 — bounded rebuild | T36 | 피처 계약 테스트 동결 + 재학습 아티팩트 오프라인 스모크 + S2 유지 | open · execplan 필요 · HF 이후(리스크 재평가 시 E1과 swap 가능) |
 | **H3** | execute.py 병렬화 — worktree 격리·충돌 프로토콜 | T29 | 워크트리 생성/정리 멱등 + 병렬 2-run 무간섭 + 충돌 격리 resolve | open · H2 말미 (T23·T24·T25·T26 선행) |
 | **1** | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) | T5 done · T7 잔여 |
 | **2** | 백엔드 견고성 | T2, T1 | pytest green | T2 done · T1 잔여 |
 | **3** | orchestration 안정화 | T6 (T9·T11 done) | 에이전트 경로 반복 호출 무실패 | 진행 전 |
 | **4** | 위생·문서 | T3, T4, T8 | 해당 없음(문서/조사) | 진행 전 |
 | **H** | 하네스 진화 | T10, T12, T13 | execute.py T4 파일럿 실측 | T13 잔여 |
-| **5** | SPEC 거버넌스 | T14, T15 | 문서 상호참조 무결 + `compose config`·CI green | T14 done · **T15 잔여** |
-| **6** | SPEC 품질 기반 | T16, T17, T20, T30 | `pytest -m unit` DB 없이 green + CI lint green + 양 러너 green + dev push 배포검증 | **T16 done** · T30 doing(PR #132) · T17·T20 잔여 |
+| **5** | SPEC 거버넌스·정리 트랙 | T14, T15, T34, T35 | 문서 상호참조 무결 + `compose config`·CI green + 금지 패턴 핀 편입 | T14 done · **T15·T34·T35 잔여** |
+| **6** | SPEC 품질 기반 | T16, T17, T20, T30 | `pytest -m unit` DB 없이 green + CI lint green + 양 러너 green + dev push 배포검증 | **T16·T30 done** · T17·T20 잔여 |
 | **7** | SPEC LLM 계층 | T18, T19 | chat 전 경로 회귀 + prod 트레이스 관측 (S7 해소) | 진행 전 (T16 선행 충족) |
 | **8** | (후속) infra 통합 | T21 | 배포 검증 (S1·S3) | 안정화 후 별도 승인 |
 
