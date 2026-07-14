@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . /app/ml_rec/
+WORKDIR /app/ml_rec
+
+RUN pip install --no-cache-dir -r requirements.txt
+RUN chmod +x /app/ml_rec/entrypoint.bentoml.sh
+
+EXPOSE 3000
+
+CMD ["/app/ml_rec/entrypoint.bentoml.sh"]

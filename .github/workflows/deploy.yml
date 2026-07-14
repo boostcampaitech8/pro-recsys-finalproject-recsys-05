@@ -1,0 +1,340 @@
+﻿# CI/CD — 테스트(전 브랜치) + PR 빌드 검증 + main 자동 배포(Oracle A1.Flex arm64)
+# 배포 경로: arm64 네이티브 러너 빌드 → Docker Hub 푸시 → Tailscale(OAuth, tag:ci) → SSH deploy.sh
+# 앱 시크릿은 서버측 .env 로 관리 (계약: .env.example) — CI에는 인프라 시크릿만 둔다:
+#   secrets: DOCKER_USERNAME, DOCKER_PASSWORD, TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET, SSH_KEY,
+#            VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (프론트 Vercel 배포)
+#   vars:    SSH_HOST(테일넷 IP), SSH_USERNAME
+name: CI
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: '배포할 이미지 태그 (롤백 시 sha-XXXXXXX 지정)'
+        required: false
+        default: 'latest'
+      skip_build:
+        description: '빌드 생략하고 기존 이미지로 배포만 수행'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  # ---------------------------------------------------
+  # [테스트: Pytest & Lint]
+  # GitHub Native Service를 사용하여 격리된 DB/Redis 환경에서 테스트합니다.
+  # ---------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    services:
+      # 1. PostgreSQL (pgvector 지원)
+      db:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: mypassword
+          POSTGRES_DB: mydatabase
+        ports:
+          - 5432:5432
+        # DB가 준비될 때까지 대기
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # 2. Redis
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # curl 설치 제거하고 공식 action으로 교체 + uv cache 활성화
+      - name: Install uv (with cache)
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          working-directory: backend
+
+      # venv 자체도 캐시 (lock 안 바뀌면 uv sync 거의 0초)
+      - name: Cache backend .venv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: ${{ runner.os }}-py311-venv-${{ hashFiles('backend/uv.lock', 'backend/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-venv-
+
+      - name: Install Dependencies
+        run: |
+          cd backend
+          uv sync --frozen
+
+      # 단위 게이트: 외부 의존 0 — DB/Redis 없이 빠르게 (마커 체계 활용).
+      # import 루트는 pyproject.toml의 pythonpath=["."]가 담당(PYTHONPATH 불필요).
+      - name: Run Pytest (unit)
+        run: |
+          cd backend
+          uv run pytest -m unit
+      - name: Run execute harness characterization tests
+        run: cd backend && uv run pytest ../scripts/exec_harness/tests -q
+      # 통합: 서비스 컨테이너(localhost) 필요.
+      - name: Run Pytest (integration)
+        env:
+          DATABASE_URL: postgresql+asyncpg://myuser:mypassword@localhost:5432/mydatabase
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd backend
+          uv run pytest -m integration
+
+  # ---------------------------------------------------
+  # [PR 이미지 빌드 검증 + 경량 부팅/헬스 스모크: Docker Compose (override)]
+  # ① Dockerfile 회귀(이미지가 빌드되는가)  ② 빌드된 backend가 실제로 부팅해 DB에 붙고
+  #    /health 200을 주는가(앱 배선·라우팅·DB 연결까지). 모델/외부키 없이 EASE 폴백 부팅:
+  #    - bge-m3(~2.3GB): HF offline로 fast-fail → embeddings=None (chatbot.py 자체 try/except가 흡수)
+  #    - LLM: 더미 GEMINI_API_KEY로 '구성만' (health는 LLM 호출 안 함 · api_key=None이면 부팅이 raise)
+  #    - bentoml/GCS/실추론은 제외(아티팩트 필요 · seam S2·S3 · 불변식 6). arm64 실빌드는 build_push가 커버.
+  # ---------------------------------------------------
+  compose_pr:
+    needs: test
+    # 배포 이미지 빌드+부팅 검증. PR(모든 대상) + dev 직접 push까지 커버해
+    # dev 스테이징에 코드가 닿기 전/직후 자동 검증한다(T30). main push는 build_push(arm64 실빌드)가
+    # 커버하므로 제외. (최적화: paths 필터·gha 캐시는 후속 — 현재는 관련 없는 push도 빌드함.)
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create dummy backend env (override env_file 참조용 + 부팅 스모크용)
+        run: |
+          mkdir -p configs/backend
+          cat > configs/backend/.env << EOF
+          ENV=ci
+          DATABASE_URL=postgresql+asyncpg://myuser:mypassword@db:5432/mydatabase
+          REDIS_URL=redis://redis:6379/0
+          ML_REC_ROOT=/app/ml_rec
+          # 부팅 스모크: 모델·실키 없이 EASE 폴백 부팅.
+          # bge-m3는 오프라인 fast-fail(embeddings=None), LLM은 더미키로 '구성만'(health는 호출 안 함).
+          GEMINI_API_KEY=ci-dummy-not-called
+          HF_HUB_OFFLINE=1
+          TRANSFORMERS_OFFLINE=1
+          EOF
+
+      - name: Build images (backend, frontend)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.yml build backend frontend
+
+      - name: Boot backend (부팅 스모크 — db/redis healthy 후 backend만, deps 스킵)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --wait db redis
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --no-deps backend
+
+      - name: Health smoke (/health/ 200 + /health/db status=ok 폴링, ~90s)
+        run: |
+          poll() {  # $1=경로  $2=성공 판정 커맨드(stdin=응답본문)
+            for i in $(seq 1 30); do
+              body="$(curl -fsS "http://localhost:8000/$1" 2>/dev/null)" \
+                && printf '%s' "$body" | eval "$2" \
+                && { echo "✅ /$1 OK (시도 $i)"; return 0; }
+              sleep 3
+            done
+            echo "::error::/$1 헬스 실패 — backend 부팅/응답 이상"
+            docker compose -f docker-compose.yml -f docker-compose.override.yml logs --tail 150 backend
+            return 1
+          }
+          poll "health/"   "grep -q '\"status\"'"
+          poll "health/db" "grep -qE '\"status\": ?\"ok\"'"
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
+
+  # ---------------------------------------------------
+  # [이미지 빌드/푸시: arm64 네이티브]
+  # 배포 대상(Oracle A1.Flex)이 aarch64라 arm64 러너에서 네이티브 빌드.
+  # torch 포함 backend는 QEMU 크로스빌드가 비현실적으로 느려 네이티브가 필수.
+  # frontend 푸시 누락(버그 #4)도 여기서 해소.
+  # ---------------------------------------------------
+  build_push:
+    needs: test
+    # dispatch도 main ref에서만 — dev 커밋으로 latest가 덮이는 사고 방지
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.skip_build == false))
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compute short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & push backend (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/rec-server:latest
+            ${{ secrets.DOCKER_USERNAME }}/rec-server:sha-${{ env.SHORT_SHA }}
+          cache-from: type=gha,scope=backend-arm64
+          cache-to: type=gha,mode=max,scope=backend-arm64
+
+      - name: Build & push frontend (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/rec-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/rec-frontend:sha-${{ env.SHORT_SHA }}
+          cache-from: type=gha,scope=frontend-arm64
+          cache-to: type=gha,mode=max,scope=frontend-arm64
+
+      # BentoML 3-Stage 서비스 이미지. context는 ./ml_rec (Dockerfile.bentoml 기준).
+      # .dockerignore가 saved_models/candidates/dataset을 제외 → 아티팩트 없는 경량 이미지.
+      # 아티팩트는 서버 bind-mount로 공급(deploy.sh preflight가 상주 검증).
+      - name: Build & push bentoml (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ml_rec
+          file: ml_rec/Dockerfile.bentoml
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:latest
+            ${{ secrets.DOCKER_USERNAME }}/rec-bentoml:sha-${{ env.SHORT_SHA }}
+          cache-from: type=gha,scope=bentoml-arm64
+          cache-to: type=gha,mode=max,scope=bentoml-arm64
+
+  # ---------------------------------------------------
+  # [배포: Tailscale SSH]
+  # 서버는 공인 SSH가 차단되어 있어 테일넷 경유로만 접속 가능.
+  # 앱 시크릿/데이터는 서버에 사전 배치 — CI는 deploy.sh 실행만 담당.
+  # ---------------------------------------------------
+  deploy:
+    needs: build_push
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (needs.build_push.result == 'success' || needs.build_push.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate tag/build combination
+        if: needs.build_push.result == 'success' && github.event.inputs.image_tag != '' && github.event.inputs.image_tag != 'latest'
+        run: |
+          echo "::error::빌드를 수행했는데 image_tag=${{ github.event.inputs.image_tag }} 지정 — 방금 빌드한 latest와 불일치합니다. 과거 태그 롤백은 skip_build=true로 실행하세요."
+          exit 1
+
+      - name: Connect Tailscale (ephemeral CI node)
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Resolve image tag
+        run: echo "IMAGE_TAG=${{ github.event.inputs.image_tag || 'latest' }}" >> $GITHUB_ENV
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          command_timeout: 20m
+          envs: IMAGE_TAG
+          script: |
+            cd ~/pro-recsys-finalproject-recsys-05
+            ./deploy.sh "$IMAGE_TAG"
+
+  # ---------------------------------------------------
+  # [프론트 배포: Vercel CLI prebuilt]
+  # Hobby 플랜은 org 리포 Git 연동이 불가해 CLI 방식 사용.
+  # 백엔드 배포 성공 후 같은 커밋으로 배포 — 프론트/백 버전 스큐 방지.
+  # push는 frontend 변경시에만, dispatch는 무조건 배포.
+  # ---------------------------------------------------
+  deploy_frontend_vercel:
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Preflight VERCEL_TOKEN
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "::error::VERCEL_TOKEN secret 미등록 — Vercel 대시보드(Account Settings→Tokens)에서 발급 후 gh secret set VERCEL_TOKEN 으로 등록하세요."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # HEAD^ diff용
+
+      - name: Detect frontend changes
+        id: diff
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet HEAD^ HEAD -- frontend configs/frontend; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "frontend 변경 없음 — 배포 생략"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22   # vite 7 engines: ^20.19 || >=22.12
+
+      - name: Deploy to Vercel (prebuilt)
+        if: steps.diff.outputs.changed == 'true'
+        working-directory: frontend
+        run: |
+          npm i -g vercel@54
+          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
