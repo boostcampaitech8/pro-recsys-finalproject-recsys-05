@@ -58,7 +58,7 @@
 
 ## §3. 컴포넌트별 백로그 (티켓)
 
-> **status 정본 = 이 문서** (ADR-0006). 라이브 이슈 매핑(미러): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104 · T13 #109 · **T14 #110 · T15 #111 · T16 #112 · T17 #113 · T18 #114 · T19 #115 · T20 #116 · T21 #117 · T22 #121 · T23 #120 · T24 #122 · T25 #123 · T26 #124 · T27 #125 · T28 #126**. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`.
+> **status 정본 = 이 문서** (ADR-0006). 라이브 이슈 매핑(미러): T1 #86 · T2 #87 · T3 #88 · T4 #89 · T5 #90 · T6 #91 · T7 #92 · T8 #93 · T9 #96 · T10 #99 · T11 #101 · T12 #104 · T13 #109 · **T14 #110 · T15 #111 · T16 #112 · T17 #113 · T18 #114 · T19 #115 · T20 #116 · T21 #117 · T22 #121 · T23 #120 · T24 #122 · T25 #123 · T26 #124 · T27 #125 · T28 #126 · T29 #128**. 라벨 `maint`·`component:*`·`seam`·`severity:*`·`step:*`.
 
 ### backend
 > 불변식(가벼움): `Game.id`(내부 PK) ≠ `Game.app_id`(Steam) — 카드/조회는 app_id 기준. Pydantic v2. `game.schemas`가 게임 DTO 정본.
@@ -268,19 +268,28 @@
 - 문제: retry 산출물 덮어쓰기와 무검증 최신-run 선택으로 stale/wrong-branch handoff를 이어받을 수 있다.
 - 제안 방향: attempt 격리·원자 상태 기록·task hash/branch/base/SHA/schema 호환 검사·동시 실행 잠금.
 - 검증: 중단 재개·stale summary·다른 branch/base·task 변경·동시 run·중복 PR 방지 테스트.
-- 의존: T24. step: **H2(최우선)**.
+- 의존: T24, T29(phase-aware resume). step: **H2(최우선)**.
 
 #### T26 · 교차리뷰 closed loop  [docs=하네스/tooling+ci-cd] [code] [high] [open]  (Issue #124 · 2026-07-10)
 - 문제: review rc/verdict가 완료를 막지 않고 findings가 `.exec/`에만 남아 Claude/사용자 판정 흐름이 닫히지 않는다.
 - 제안 방향: draft PR → Codex findings → Claude adjudication → 공유 가능한 기록 → 사용자 판정 → ready/done 상태기계.
 - scope 경계: findings 자동 수정 금지(SPEC §4.7), 모델 정책=T27.
-- 검증: approve/request_changes/error/timeout/malformed/user-pending 상태 테스트. 의존: T23, T24. step: **H2(최우선)**.
+- 검증: approve/request_changes/error/timeout/malformed/user-pending 상태 테스트. 의존: T23, T24, T29(TDD 증거 추적). step: **H2(최우선)**.
 
 #### T27 · phase/risk 모델·reasoning effort 라우팅·관측성  [docs=하네스/tooling+ci-cd] [code] [med] [open]  (Issue #125 · 2026-07-10)
 - 문제: 개인 전역 config를 상속해 모든 step/review가 Sol xhigh로 실행되며 비용·지연·재현성이 불안정하다.
 - 제안 방향: Luna/Terra/Sol과 low~xhigh를 phase/risk로 결정하고 CLI override·escalation·review 별도 설정을 manifest에 기록한다.
 - scope 경계: 모델 slug를 실행기 전역에 산재시키지 않고 정책으로 캡슐화. provider 마이그레이션 제외.
 - 검증: 라우팅 command snapshot·escalation·JSONL usage parser 테스트. 의존: T24, T26. step: **H2(최우선)**.
+
+#### T29 · PRD 기반 TDD phase·증거 계약  [docs=하네스/tooling+ci-cd] [code] [high] [scoped]  (Issue #128 · **ADR-0008 작성 대상** · 2026-07-10)
+- 문제: SPEC은 `실패 테스트 → 구현 → green → 리팩터`를 요구하지만, 현재 `execute.py`는 코드·테스트 변경 후 최종 verify만 실행해 RED 선행·예상 실패·phase별 diff를 증명하지 못한다.
+- 제안 방향: task의 acceptance case·NFR gate를 step test로 추적하고 `baseline → RED → GREEN → REFACTOR → final verify`를 상태기계화한다. `red_green`/순수 리팩터링 `characterization` mode를 분리하고 lint·type-check·build는 final quality gate로 기록한다.
+- 증거 계약: manifest가 phase·command·cwd·rc·output hash/signature·전후 SHA/diff·duration을 결정론적으로 기록하고, semantic handoff는 결정·위험·다음 조건만 담는다.
+- scope 경계: 실제 PRD 작성=T8, backend 테스트 기반=T16, frontend·ml 러너=T20. 반복 verify 스크립트 승격은 3~5회 운영 후 별도 intake. 제품 코드·배포 설정 무접촉, seam 없음.
+- 검증: baseline 기존 실패·RED 즉시 통과/잘못된 실패·RED 전 production diff·GREEN/REFACTOR/final gate 실패를 fake subprocess/git으로 재현 · manifest/handoff 불일치 차단 · phase-aware resume/review 테스트 · `git diff --check`.
+- 수용 기준: 유효한 RED 또는 characterization 증거 없이 code step이 done/commit/다음 step으로 진행할 수 없고, 모든 검증 사실을 manifest로 재현한다. ADR-0008이 phase 상태 전이·예외·T25/T26 소비 계약을 기록한다.
+- 의존: T23, T24. step: **H2(최우선)**.
 
 ---
 
@@ -290,7 +299,7 @@
 
 | Step | 목표 | 티켓 | 통합 검증 게이트 | 상태 |
 |---|---|---|---|---|
-| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22 doing** |
+| **H2** | execute.py 신뢰성 보강 | T22, T23, T24, T29, T25, T26, T27 | 실패 non-zero + manifest/diff 정합 + TDD phase 증거 + 호환 resume + review/user gate + 모델 라우팅 재현 | **최우선 · T22 doing** |
 | **E1** | recsys 진화 — PreferenceSpec 파서 baseline | T28 | 200+ 한국어 fixture + hard slot F1≥0.95 + 전체 slot F1≥0.90 + 외부 의존 0 | scoped · H2 이후 |
 | **1** | 배포 파이프라인 확정 | T5, T7 | `/rec…=bentoml_3stage` + health 200 (S3 준수) | T5 done · T7 잔여 |
 | **2** | 백엔드 견고성 | T2, T1 | pytest green | T2 done · T1 잔여 |

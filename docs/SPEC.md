@@ -126,5 +126,6 @@
 | **T26** 교차리뷰 closed loop | #124 | Codex findings · Claude 판정 · 사용자 게이트 | T23, T24 |
 | **T27** 모델/effort 라우팅 | #125 | phase/risk 모델 정책 · 명시적 CLI override · usage 관측 | T24, T26 |
 | **T28** PreferenceSpec 파서 연구 | #126 | 한국어 취향·제약 구조화 계약·benchmark · production wiring 제외 | H2 완료 후 |
+| **T29** PRD 기반 TDD 증거 계약 | #128 | acceptance/NFR 추적 · baseline/RED/GREEN/REFACTOR 상태 · phase manifest | T23, T24 |
 
-**실행 순서**: **H2 최우선: T22 → T23 → T24 → (T25 · T26) → T27. H2 완료 전 `execute.py` 완전자동 실행을 admission하지 않는다.** T28(E1)은 H2 이후 parser baseline만 수행한다. 그 뒤 T15 · T16 · T17을 진행하고, T18 → T19로 잇는다. T20은 T17 후. T21은 안정화 후 별도 승인. step 배치 = MAINTENANCE §4.
+**실행 순서**: **H2 최우선: T22 → T23 → T24 → T29 → (T25 · T26) → T27. H2 완료 전 `execute.py` 완전자동 실행을 admission하지 않는다.** T28(E1)은 H2 이후 parser baseline만 수행한다. 그 뒤 T15 · T16 · T17을 진행하고, T18 → T19로 잇는다. T20은 T17 후. T21은 안정화 후 별도 승인. step 배치 = MAINTENANCE §4.
